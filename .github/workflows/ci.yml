@@ -120,15 +120,12 @@ jobs:
       - run: git diff --exit-code -- contracts/openapi.json
 
   backend-package:
-    name: Backend ZIP (${{ matrix.function }})
+    name: Backend ZIP (shared by all Lambdas)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
       run:
         working-directory: backend
-    strategy:
-      matrix:
-        function: [video, backup, s3_complete, scrapbox_scan, retry]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -138,9 +135,9 @@ jobs:
           cache-dependency-path: backend/requirements.lock
       - run: python -m venv .venv
       - run: .venv/bin/python -m pip install -c requirements.lock -e '.[dev]'
-      - run: make package FUNCTION=${{ matrix.function }}
+      - run: make package
       - uses: actions/upload-artifact@v7
         with:
-          name: backend-${{ matrix.function }}
-          path: backend/build/${{ matrix.function }}.zip
+          name: backend
+          path: backend/build/backend.zip
           retention-days: 7

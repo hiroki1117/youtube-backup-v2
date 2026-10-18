@@ -6,8 +6,13 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from api.app import app, backup_handler, create_app, video_handler
+from api.app import app, create_app
 from api.dependencies import get_service
+from api.factory import build_app
+from api.routes import backup_router, video_router
+from build_lambda import HANDLERS
+from entrypoints.backup import handler as backup_handler
+from entrypoints.video import handler as video_handler
 
 URL = "https://www.youtube.com/watch?v=abcdefghijk"
 
@@ -67,7 +72,8 @@ def test_fail_closed_without_token_or_gateway(monkeypatch):
             assert client.get("/videos").status_code == 401
         # Import all entrypoints under a factory that forbids any AWS initialization.
         importlib.reload(importlib.import_module("api.app"))
-        importlib.reload(importlib.import_module("events.handlers"))
+        for path in HANDLERS.values():
+            importlib.reload(importlib.import_module(path.rsplit(".", 1)[0]))
 
 
 def gateway_event(path, claims=None):
@@ -124,11 +130,13 @@ def test_openapi_generated_from_same_routers():
     assert "202" in saved["paths"]["/videos"]["post"]["responses"]
 
 
-@pytest.mark.parametrize("kind", ["all", "video", "backup"])
-def test_runtime_apps_have_no_unauthenticated_documentation_routes(kind, monkeypatch):
+@pytest.mark.parametrize(
+    "routers", [(video_router, backup_router), (video_router,), (backup_router,)]
+)
+def test_runtime_apps_have_no_unauthenticated_documentation_routes(routers, monkeypatch):
     monkeypatch.delenv("BACKEND_LOCAL_TOKEN", raising=False)
     with patch("boto3.Session", side_effect=AssertionError("AWS at docs request")):
-        runtime = create_app(kind)
+        runtime = build_app(*routers)
         with TestClient(runtime) as client:
             for path in ("/docs", "/redoc", "/openapi.json", "/docs/oauth2-redirect"):
                 assert client.get(path).status_code == 404

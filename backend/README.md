@@ -11,7 +11,7 @@ Python 3.14 を用意し、`backend/` 内で:
 ```bash
 make install
 make check
-make export # ../contracts/openapi.json を同じ router から生成
+make export # ../openapi/openapi.json を同じ router から生成
 make package # 全 Lambda 共通の ZIP を 1 つ生成（handler は Lambda の設定で切替）
 export BACKEND_LOCAL_TOKEN="$(.venv/bin/python -c 'import secrets; print(secrets.token_urlsafe(32))')"
 make dev

@@ -15,7 +15,7 @@ import type { Video } from "@/types/video";
 
 /**
  * 状態別動画一覧ページ（U2 video-catalog + U5 video-deletion / US2.1〜US2.5・US5.1 / FR2.1〜2.4・FR5.1 / FR8）。
- * useVideoCatalog（取得 + sort/paginate）を CatalogControls（フィルタ/ソート/更新）と
+ * useVideoCatalog（取得 + sort + もっと見る）を CatalogControls（フィルタ/ソート/更新）と
  * VideoCatalog（状態別描画 + 行アクション起動口）へ接続する。
  *
  * 行アクション（C6 RowActionHandlers）の onDelete に useVideoDeletion.requestDelete を配線し（U5）、
@@ -65,9 +65,9 @@ export function VideosPage() {
       />
       <VideoCatalog
         state={state}
-        page={catalog.page}
-        pageCount={catalog.pageCount}
-        onPageChange={catalog.setPage}
+        hasMore={catalog.hasMore}
+        onLoadMore={catalog.loadMore}
+        isLoadingMore={catalog.isFetching}
         onRetry={catalog.refetch}
         // 行アクションを配線（C6）: onDelete=U5 削除フロー、onPlay=再生ページ遷移、
         // onDownload=U6 ダウンロード（VideoCatalog は complete 行にのみ DL ボタンを描画。hook 側も A3 ガード）。

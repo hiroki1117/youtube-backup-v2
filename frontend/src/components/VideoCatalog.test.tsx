@@ -5,14 +5,12 @@ import { makeVideo } from "@/test/factories";
 import type { Video } from "@/types/video";
 import { VideoCatalog, type RowActionHandlers } from "./VideoCatalog";
 
-const noop = () => {};
-
 function renderCatalog(overrides: {
   data?: Video[];
   handlers?: RowActionHandlers;
-  page?: number;
-  pageCount?: number;
-  onPageChange?: (page: number) => void;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  isLoadingMore?: boolean;
   onRetry?: () => void;
 }) {
   const data = overrides.data ?? [
@@ -21,9 +19,9 @@ function renderCatalog(overrides: {
   return render(
     <VideoCatalog
       state={{ status: "ready", data }}
-      page={overrides.page ?? 1}
-      pageCount={overrides.pageCount ?? 1}
-      onPageChange={overrides.onPageChange ?? noop}
+      hasMore={overrides.hasMore}
+      onLoadMore={overrides.onLoadMore}
+      isLoadingMore={overrides.isLoadingMore}
       onRetry={overrides.onRetry}
       handlers={overrides.handlers}
     />,
@@ -121,9 +119,7 @@ describe("VideoCatalog（U2 / US2.1・C6 / FR8）", () => {
   });
 
   it("loading 状態は role=status を描画する", () => {
-    render(
-      <VideoCatalog state={{ status: "loading" }} page={1} pageCount={1} onPageChange={noop} />,
-    );
+    render(<VideoCatalog state={{ status: "loading" }} />);
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
 
@@ -131,13 +127,7 @@ describe("VideoCatalog（U2 / US2.1・C6 / FR8）", () => {
     const user = userEvent.setup();
     const onRetry = vi.fn();
     render(
-      <VideoCatalog
-        state={{ status: "error", message: "取得に失敗しました" }}
-        page={1}
-        pageCount={1}
-        onPageChange={noop}
-        onRetry={onRetry}
-      />,
+      <VideoCatalog state={{ status: "error", message: "取得に失敗しました" }} onRetry={onRetry} />,
     );
     expect(screen.getByRole("alert")).toHaveTextContent("取得に失敗しました");
     await user.click(screen.getByRole("button", { name: "再試行" }));
@@ -145,50 +135,30 @@ describe("VideoCatalog（U2 / US2.1・C6 / FR8）", () => {
   });
 
   it("empty:nodata と empty:filtered で別メッセージを描画する（FR8）", () => {
-    const { unmount } = render(
-      <VideoCatalog
-        state={{ status: "empty", variant: "nodata" }}
-        page={1}
-        pageCount={1}
-        onPageChange={noop}
-      />,
-    );
+    const { unmount } = render(<VideoCatalog state={{ status: "empty", variant: "nodata" }} />);
     expect(screen.getByText("バックアップ済み動画がありません")).toBeInTheDocument();
     unmount();
 
-    render(
-      <VideoCatalog
-        state={{ status: "empty", variant: "filtered" }}
-        page={1}
-        pageCount={1}
-        onPageChange={noop}
-      />,
-    );
+    render(<VideoCatalog state={{ status: "empty", variant: "filtered" }} />);
     expect(screen.getByText("条件に一致するデータがありません")).toBeInTheDocument();
   });
 
-  it("ページ送り: 端では無効化し、操作で onPageChange を発火する（US2.4）", async () => {
+  it("hasMore のとき「もっと見る」を描画し、押下で onLoadMore を発火する", async () => {
     const user = userEvent.setup();
-    const onPageChange = vi.fn();
-    renderCatalog({ page: 2, pageCount: 3, onPageChange });
+    const onLoadMore = vi.fn();
+    renderCatalog({ hasMore: true, onLoadMore });
 
-    const nav = screen.getByRole("navigation", { name: "ページ送り" });
-    expect(nav).toHaveTextContent("2 / 3");
-
-    const prev = screen.getByRole("button", { name: "前のページ" });
-    const next = screen.getByRole("button", { name: "次のページ" });
-    expect(prev).toBeEnabled();
-    expect(next).toBeEnabled();
-
-    await user.click(prev);
-    expect(onPageChange).toHaveBeenCalledWith(1);
-    await user.click(next);
-    expect(onPageChange).toHaveBeenCalledWith(3);
+    await user.click(screen.getByRole("button", { name: "もっと見る" }));
+    expect(onLoadMore).toHaveBeenCalledTimes(1);
   });
 
-  it("先頭ページでは前へ、最終ページでは次へを無効化する", () => {
-    renderCatalog({ page: 1, pageCount: 1 });
-    expect(screen.getByRole("button", { name: "前のページ" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "次のページ" })).toBeDisabled();
+  it("続きがなければ「もっと見る」を描画しない", () => {
+    renderCatalog({ hasMore: false, onLoadMore: vi.fn() });
+    expect(screen.queryByRole("button", { name: "もっと見る" })).not.toBeInTheDocument();
+  });
+
+  it("続きの読み込み中は「読み込み中...」で無効化する（二重押下防止）", () => {
+    renderCatalog({ hasMore: true, onLoadMore: vi.fn(), isLoadingMore: true });
+    expect(screen.getByRole("button", { name: "読み込み中..." })).toBeDisabled();
   });
 });

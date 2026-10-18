@@ -5,12 +5,18 @@ import io
 import json
 from pathlib import Path
 
+import boto3
+import botocore.session
 import pytest
+from botocore import xform_name
+from botocore.stub import Stubber
 
 from build_lambda import HANDLERS
 from deploy_lambda import DeploymentError, candidates, deploy, function_names
 
 NAMES = {name: f"example-v2-{name}" for name in HANDLERS}
+MODEL = botocore.session.get_session().get_waiter_model("lambda")
+WAITERS = {xform_name(name): MODEL.get_waiter(name) for name in MODEL.waiter_names}
 
 
 class FakeLambda:
@@ -39,6 +45,8 @@ class FakeLambda:
         self.allow_application = False
 
     def get_waiter(self, name):
+        # Check every waiter selected by real deployment flow against the installed SDK.
+        assert WAITERS[name].operation == "GetFunctionConfiguration"
         client = self
 
         class Waiter:
@@ -223,3 +231,27 @@ def test_candidates_reject_source_and_archive_mismatch(tmp_path, artifacts):
     (tmp_path / "video.zip").write_bytes(b"tampered")
     with pytest.raises(ValueError, match="SHA256"):
         candidates(tmp_path, revision)
+
+
+@pytest.mark.parametrize(
+    "name", ["function_active", "function_updated", "published_version_active"]
+)
+def test_sdk_waiters_only_call_permitted_configuration_api(name):
+    client = boto3.client(
+        "lambda",
+        region_name="us-east-1",
+        aws_access_key_id="example",
+        aws_secret_access_key="example",
+    )
+    params = {"FunctionName": "example-v2-video"}
+    if name == "published_version_active":
+        params["Qualifier"] = "1"
+    # Stubber rejects an unexpected GetFunction call; no HTTP/AWS access occurs.
+    with Stubber(client) as stub:
+        stub.add_response(
+            "get_function_configuration",
+            {"State": "Active", "LastUpdateStatus": "Successful"},
+            params,
+        )
+        client.get_waiter(name).wait(**params, WaiterConfig={"Delay": 0, "MaxAttempts": 1})
+        stub.assert_no_pending_responses()

@@ -128,7 +128,7 @@ def deploy(client, names: dict, artifacts: dict, *, initial_validation: bool = F
     # Check every target before the first write. No configuration/role/alias/trigger updates.
     snapshots = {}
     for name, target in names.items():
-        client.get_waiter("function_active_v2").wait(FunctionName=target, WaiterConfig=WAIT)
+        client.get_waiter("function_active").wait(FunctionName=target, WaiterConfig=WAIT)
         config = client.get_function_configuration(FunctionName=target)
         check_configuration(config, artifacts[name][0])
         snapshots[name] = config
@@ -164,7 +164,7 @@ def deploy(client, names: dict, artifacts: dict, *, initial_validation: bool = F
                 Publish=False,
                 RevisionId=current["RevisionId"],
             )
-            client.get_waiter("function_updated_v2").wait(FunctionName=target, WaiterConfig=WAIT)
+            client.get_waiter("function_updated").wait(FunctionName=target, WaiterConfig=WAIT)
             current = client.get_function_configuration(FunctionName=target)
         check_configuration(current, manifest)
         if current["CodeSha256"] != digest:
@@ -178,7 +178,7 @@ def deploy(client, names: dict, artifacts: dict, *, initial_validation: bool = F
             version = published["Version"]
         if not version.isdigit() or int(version) < 1:
             raise DeploymentError(f"{name}: a published numeric version is required")
-        client.get_waiter("function_active_v2").wait(
+        client.get_waiter("published_version_active").wait(
             FunctionName=target,
             Qualifier=version,
             WaiterConfig=WAIT,

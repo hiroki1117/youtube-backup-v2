@@ -29,6 +29,9 @@ main mergeは既存frontend deployを起動し得るため、merge自体は別�
 | scrapbox_scan | `events.handlers.scrapbox_scan` | Scrapbox巡回・登録 |
 | retry | `events.handlers.retry` | 追跡済み失敗job再投入 |
 
+初期architectureはinfraで `x86_64` を設定する。infraがarchitecturesをignore_changesに含める場合も、appへの通常変更の委譲を意味しない。
+両者の通常CIはarchitectureを変更せず、appはx86_64との一致だけを確認する。architecture変更は互換ZIPの再build・再配布を伴う両者の協調計画として別承認する。
+
 初回infra設定: timeout 15秒、memory 256 MiB、reserved concurrency未設定（-1）、triggerなし。
 環境変数は明示的な `BACKEND_EXECUTION_MODE=validation` のみ。共有DB/S3/SSM/Batch参照やlocal tokenを渡さない。
 実行ロールは専用ログへのCreateLogStream/PutLogEventsに限定し、業務AWS APIはDeny。app CIの配布ロールとは別ロールとする。
@@ -58,7 +61,8 @@ OIDC trustの承認案:
 - 対象repo: `hiroki1117/youtube-backup-v2`、Environment: `production`。
 - `aud`: `sts.amazonaws.com`。
 - `sub`: `repo:hiroki1117/youtube-backup-v2:environment:production` の完全一致。
-- environment型subjectにはbranchが含まれないため、Environmentのdeployment branchをmainだけに制限し、必要なreviewer承認を設定する。workflow側にもmain制限を置く。
+- このsubjectでは `deploy-backend.yml` 単体に限定できず、同じproduction Environmentを利用する他workflowもtrustの対象になる。専用roleでもこの範囲は変わらない。
+- environment型subjectにはbranchが含まれないため、main限定にはEnvironmentのdeployment branch制限の**実設定**が必要。workflowのmain条件だけではtrustの代わりにならない。必要なreviewer承認も含め、設定変更は別承認とし今回は実施しない。
 - 旧repo用trustやfrontend配布ロールを流用・拡張しない。専用role/trust/policyの追加は別承認。
 
 必要な配布ロール権限案（実ARNはprivate infra設定で限定する）:
@@ -66,6 +70,7 @@ OIDC trustの承認案:
 - 専用5関数だけ: `lambda:GetFunctionConfiguration`, `lambda:UpdateFunctionCode`, `lambda:PublishVersion`, `lambda:ListVersionsByFunction`。
 - 同じ5関数のqualified ARN範囲: `lambda:GetFunctionConfiguration`, `lambda:InvokeFunction`。数値versionだけを呼ぶ検査はappでも行う。qualified ARN末尾を `:*` で許可する場合、IAM上はalias/`$LATEST`も範囲に入る点を承認時に確認する。alias管理権限は付けない。
 - GitHub jobは `contents:read` / `id-token:write`。OIDC経由のAssumeRoleWithWebIdentityに限定する。
+- 待機は採用botocoreの `function_active` / `function_updated` / `published_version_active` を使い、全てGetFunctionConfigurationで実施する。GetFunction権限は不要。SDK定義とStubberでこのAPI契約を検査する。
 - CreateFunction / UpdateFunctionConfiguration / PassRole / IAM変更 / alias変更 / S3 / Batch / Terraform権限は不要。
 
 従来のfrontendロールのS3/CloudFront権限や旧repoのtrustとは用途・対象・actionが異なる。この承認案は設定変更の実施許可ではない。

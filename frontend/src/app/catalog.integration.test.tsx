@@ -96,25 +96,29 @@ describe("VideoCatalog 結合（/videos / FR2.1〜2.4・FR8・US2.1〜2.5）", (
     expect(rowTitles()[2]).toContain("完了動画2");
   });
 
-  it("ページ送りで次ページの行を表示する（US2.4 / FR2.4）", async () => {
+  it("「もっと見る」で続きの行を追加表示し、末尾まで取得したらボタンを消す（旧版と同じ more 方式）", async () => {
     const user = userEvent.setup();
-    server.use(http.get(`${TEST_API_BASE}/videos`, () => HttpResponse.json(makeRawVideos(25))));
+    server.use(
+      http.get(`${TEST_API_BASE}/videos`, ({ request }) => {
+        const n = Number(new URL(request.url).searchParams.get("fetch_num"));
+        return HttpResponse.json(makeRawVideos(60).slice(0, n));
+      }),
+    );
     renderApp();
 
     await screen.findByRole("list", { name: "動画一覧" });
     expect(
       within(screen.getByRole("list", { name: "動画一覧" })).getAllByRole("listitem"),
-    ).toHaveLength(20);
-    expect(screen.getByRole("navigation", { name: "ページ送り" })).toHaveTextContent("1 / 2");
+    ).toHaveLength(50);
 
-    await user.click(screen.getByRole("button", { name: "次のページ" }));
+    await user.click(screen.getByRole("button", { name: "もっと見る" }));
 
     await waitFor(() =>
-      expect(screen.getByRole("navigation", { name: "ページ送り" })).toHaveTextContent("2 / 2"),
+      expect(
+        within(screen.getByRole("list", { name: "動画一覧" })).getAllByRole("listitem"),
+      ).toHaveLength(60),
     );
-    expect(
-      within(screen.getByRole("list", { name: "動画一覧" })).getAllByRole("listitem"),
-    ).toHaveLength(5);
+    expect(screen.queryByRole("button", { name: "もっと見る" })).not.toBeInTheDocument();
   });
 
   it("手動更新で一覧を再取得する（US2.5）", async () => {

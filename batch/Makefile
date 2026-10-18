@@ -1,5 +1,5 @@
 IMAGE ?= yt-dlp-script
-TAG ?= youtube-backup-candidate:local
+TAG ?= youtube-backup-ytdlp:local
 .PHONY: check build
 check:
 	@for file in scripts/yt-dlp-script/main.sh; do sh -n "$$file" || exit; done

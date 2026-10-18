@@ -10,7 +10,7 @@ import { TEST_API_BASE, errorResponse } from "@/test/handlers";
 import { makeRawVideo } from "@/test/factories";
 import { SearchDialog } from "./SearchDialog";
 
-/** 再生ページ（U6 未実装）の代替。遷移先 videoId を可視化して検証する。 */
+/** 再生ページの代替。遷移先 videoId を可視化して検証する。 */
 function PlaybackStub() {
   const { videoId } = useParams();
   return <div>再生ページ: {videoId}</div>;

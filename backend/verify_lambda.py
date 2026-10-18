@@ -14,7 +14,7 @@ from pathlib import Path
 from build_lambda import HANDLERS
 
 
-def verify(manifest_path: Path, *, require_clean: bool = False):
+def read_manifest(manifest_path: Path, *, require_clean: bool = False) -> dict:
     manifest = json.loads(manifest_path.read_text())
     if require_clean and manifest["source_tree_dirty"] is not False:
         raise ValueError("Release candidate has uncommitted source changes")
@@ -35,6 +35,13 @@ def verify(manifest_path: Path, *, require_clean: bool = False):
         or manifest["code_sha256"] != base64.b64encode(digest).decode()
     ):
         raise ValueError("Artifact SHA256 mismatch")
+    return manifest
+
+
+def verify(manifest_path: Path, *, require_clean: bool = False):
+    manifest = read_manifest(manifest_path, require_clean=require_clean)
+    function = manifest["function"]
+    archive = manifest_path.parent / manifest["artifact"]
     module, handler = manifest["handler"].rsplit(".", 1)
     probe = f"""
 import importlib, json, socket, sys

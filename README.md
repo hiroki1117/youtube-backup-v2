@@ -12,7 +12,7 @@ frontend・backend（Lambda）・batch を1つの repo で変更・検証し、�
 | [infra/](infra/)                   | 既存 CDK scaffold。実所有の確認前に適用・削除しない                                                           |
 
 AWS 定義・state の管理先は [hiroki1117/infra](https://github.com/hiroki1117/infra)。
-app は source と成果物作成、infra は AWS 設定と成果物参照を担当する。Lambda code 更新の唯一の所有者は切替前に確定する。
+app は source・成果物作成・Lambdaコード配布、infra は関数/API等の土台と環境/IAM設定を担当する。
 `youtube_backup2` はインフラ用、`youtube-backup-front` は旧 CRA 実装で、今回のアプリ移管元ではない。
 出所は [source-manifest.json](docs/source-manifest.json)、境界・制約・切替条件は [migration.md](docs/migration.md) を参照。
 
@@ -21,6 +21,7 @@ app は source と成果物作成、infra は AWS 設定と成果物参照を担
 Issue #43 の第1段階は、旧API・通知・定期イベントに接続しない専用5関数の準備。
 [初回配布契約と直接invoke手順](docs/lambda-v2-deployment.md) に成果物・handler・環境・権限・app/infraの責任を記載した。
 各ZIPはmanifest付きで検証し、AWS入口は既定で `validation` モード。固定の疎通入力以外は拒否する。
+[手動backend配布CI](.github/workflows/deploy-backend.yml) はコード更新・hash照合・version発行を担当し、初回のみ選択した限定invokeを行う。
 実AWSへの配布・invokeとIAM変更は未実施。Batch/frontend切替は次段階。
 
 ## セットアップと起動
@@ -71,7 +72,7 @@ frontend の機能・画面は [src/app/](frontend/src/app/)、API境界は [src
 配布対象は `frontend/dist/` のみ。既存 main の最新 deploy は OIDC credential 設定で失敗しており、実配布先の確認も権限不足で未完了。
 main merge は既存 deploy を起動するため、配布設定の確認と別承認が必要。
 
-backend / batch の新しい本番 workflow は追加していない。旧 CI が image の SHA / `latest` を push し、infra が `latest` を参照する間、同じ ECR へ二重配布しない。
+backendはmain上の手動workflowのみを用意した。実行には専用OIDC設定と別承認が必要。batch の新しい本番 workflow は追加していない。旧 CI が image の SHA / `latest` を push し、infra が `latest` を参照する間、同じ ECR へ二重配布しない。
 Lambda live source / runtime / layer の照合、配布所有者・旧CI切替、CDK所有、改名時の OIDC / 外部連携整合が残る。
 repo 改名・PR / merge・deploy・AWS / state / IAM / secret 変更・既存CI停止/起動は今回実施していない。
 Lambdalith 化、runtime / 依存更新、image digest 固定化は別段階。

@@ -1,0 +1,83 @@
+name: Deploy v2 Lambda
+
+on:
+  workflow_dispatch:
+    inputs:
+      initial_validation:
+        description: "Run the initial validation checks (two invokes per function)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-v2-lambda
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      LAMBDA_FUNCTION_NAMES: ${{ secrets.LAMBDA_FUNCTION_NAMES }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: backend/.python-version
+          cache: pip
+          cache-dependency-path: backend/requirements.lock
+      - name: Check required deployment settings
+        env:
+          ROLE_ARN: ${{ secrets.AWS_LAMBDA_DEPLOY_ROLE_ARN }}
+        run: |
+          test -n "$ROLE_ARN" || { echo "Missing AWS_LAMBDA_DEPLOY_ROLE_ARN environment secret"; exit 1; }
+          test -n "$AWS_REGION" || { echo "Missing AWS_REGION environment variable"; exit 1; }
+          test -n "$LAMBDA_FUNCTION_NAMES" || { echo "Missing LAMBDA_FUNCTION_NAMES environment secret"; exit 1; }
+      - name: Install and check backend
+        run: |
+          python -m venv backend/.venv
+          backend/.venv/bin/python -m pip install -c backend/requirements.lock -e 'backend[dev]'
+          make -C backend check
+      - name: Build five Lambda ZIPs
+        run: |
+          for function in video backup s3_complete scrapbox_scan retry; do
+            make -C backend package FUNCTION="$function" || exit 1
+          done
+      - name: Validate target map and release manifests
+        env:
+          SOURCE_REVISION: ${{ github.sha }}
+        run: |
+          backend/.venv/bin/python -c 'import sys; sys.path.insert(0, "backend"); import os; from pathlib import Path; from deploy_lambda import function_names,candidates; function_names(os.environ["LAMBDA_FUNCTION_NAMES"]); candidates(Path("backend/build"), os.environ["SOURCE_REVISION"])'
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_LAMBDA_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: v2-lambda-${{ github.run_id }}
+          mask-aws-account-id: true
+      - name: Deploy code and publish versions
+        env:
+          SOURCE_REVISION: ${{ github.sha }}
+          INITIAL_VALIDATION: ${{ inputs.initial_validation }}
+        run: |
+          args=()
+          if [ "$INITIAL_VALIDATION" = "true" ]; then args+=(--initial-validation); fi
+          backend/.venv/bin/python backend/deploy_lambda.py --source-revision "$SOURCE_REVISION" "${args[@]}" > backend/build/deployment-result.json
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: v2-lambda-release-${{ github.sha }}
+          path: |
+            backend/build/*.zip
+            backend/build/*.manifest.json
+            backend/build/deployment-result.json
+          retention-days: 7
+          if-no-files-found: ignore

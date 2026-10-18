@@ -1,5 +1,8 @@
 # 所有境界と切替条件
 
+現在のv2配布責務は [初回配布手順](lambda-v2-deployment.md) に従う（infraは土台・設定、appはコード配布）。以下は旧移行段階の記録。
+
+
 ## 現在の根拠
 
 - frontend 移動元: `youtube-backup-front-v2@721ed65a95f97320b1eff7142a23f4d7bdf64801`。

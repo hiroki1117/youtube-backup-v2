@@ -18,7 +18,7 @@ app は source と成果物作成、infra は AWS 設定と成果物参照を担
 
 ## セットアップと起動
 
-Node / pnpm の要件・固定版と全コマンドは [frontend/package.json](frontend/package.json)、検証する Node は [CI](.github/workflows/ci.yml) を参照。
+Node は24 LTSを使用し、CIと配布ビルドの固定版は [frontend/.node-version](frontend/.node-version) で共有する。Node / pnpm の要件と全コマンドは [frontend/package.json](frontend/package.json)、検証する Node は [CI](.github/workflows/ci.yml) を参照。
 backend の Python 要件・セットアップは [backend/README.md](backend/README.md) を参照。Make、shell も使用する。Docker は batch image のローカル build に必要。
 pnpm を用意した後、repo 直下で実行する（専用モノレポ framework は使用しない）。
 

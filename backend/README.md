@@ -1,6 +1,6 @@
 # Backend
 
-FastAPI routes / Pydantic を新 API の正とする実装候補。本番と未照合の旧コードは `lambda/` に保全し、新 ZIP には含めない。本番配布は未切替。
+FastAPI routes / Pydantic を新 API の正とする実装候補。本番配布は deploy-backend.yml が行う。
 Python の要件と依存は [pyproject.toml](pyproject.toml)、解決した runtime 依存は [requirements.lock](requirements.lock)。
 [AWS 公式 runtime 一覧](https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html) を確認し、最新の正式安定版 Python 3.14 を採用（3.15 は preview）。
 
@@ -67,6 +67,6 @@ Lambda を足すときは `entrypoints/` に 1 ファイル追加し、`build_la
 AWS実データでの照合・機能検証は未実施。既存本番を新runtime/APIへ切り替えるにはlive source/layer/job/trigger・認証・追加属性/IAM条件の確認が必要。
 YouTubeと既存形式のその他URL登録を実装。旧Twitter/tweepy契約は未移植で422を返す。Scrapboxは既存の上限25ページを維持し、新実装のUser-Agentを設定するがliveと完全一致とは主張しない。
 一覧とretryはboundedな1ページで、履歴・全件巡回・job ID不明の復旧は未実装。旧route/レスポンス互換adapterとfrontend型生成・新クライアントへの切替も未実装。
-実環境名・ARN・account ID・credentialsは環境から設定し、source/生成OpenAPIへ含めない。設定名の例は [.env.example](.env.example)。旧履歴の公開ブロッカーは root の [migration.md](../docs/migration.md) を参照。
+実環境名・ARN・account ID・credentialsは環境から設定し、source/生成OpenAPIへ含めない。設定名の例は [.env.example](.env.example)。旧Git履歴の扱いは root の README を参照。
 
 検証（entrypoints 分離ブランチ）: Python 3.14.8 で pytest 40件・Ruff・OpenAPI 再生成差分なしを確認。event 系 handler が FastAPI/Starlette/Mangum を読み込まないこと、API 系が自分のリソースだけを公開することをテストで固定した。Linux 向け ZIP の組み立てと ZIP 内 handler import は Linux 専用のため CI（backend-package）で確認する。分離前に確認していた Uvicorn HTTP・公式 Lambda image・pip check は本ブランチで再実施していない。AWS実動や旧Twitter移植の成功とは区別する。

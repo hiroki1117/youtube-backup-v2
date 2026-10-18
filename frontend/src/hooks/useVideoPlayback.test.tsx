@@ -5,13 +5,8 @@ import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/api/client";
 import { server } from "@/test/server";
-import {
-  TEST_API_BASE,
-  TEST_PRESIGNED_URL,
-  makeVideoEnvelope,
-  videoNotFoundEnvelope,
-  presignedNotFoundEnvelope,
-} from "@/test/handlers";
+import { TEST_API_BASE, TEST_PRESIGNED_URL, errorResponse } from "@/test/handlers";
+import { makeRawVideo } from "@/test/factories";
 import { useVideoPlayback } from "./useVideoPlayback";
 
 /**
@@ -29,7 +24,7 @@ function setup(videoId: string) {
 
 describe("useVideoPlayback（U6 / US6.2・FR7・C2）", () => {
   it("complete 動画は詳細を取得し署名 URL を ready にする（happy path）", async () => {
-    // 既定ハンドラ: GET /video/:id → complete、GET /presigned-s3url → 成功。
+    // 既定ハンドラ: GET /videos/:id → complete、GET /presigned-s3url → 成功。
     const { result } = setup("v1");
 
     await waitFor(() => expect(result.current.state.kind).toBe("ready"));
@@ -50,8 +45,8 @@ describe("useVideoPlayback（U6 / US6.2・FR7・C2）", () => {
 
   it("init 動画は notPlayable にし署名 URL を取得しない（A3）", async () => {
     server.use(
-      http.get(`${TEST_API_BASE}/video/:videoId`, () =>
-        HttpResponse.json(makeVideoEnvelope({ upload_status: "init" })),
+      http.get(`${TEST_API_BASE}/videos/:videoId`, () =>
+        HttpResponse.json(makeRawVideo({ upload_status: "init" })),
       ),
     );
     const presignedSpy = vi.spyOn(apiClient, "getPresignedUrl");
@@ -65,7 +60,7 @@ describe("useVideoPlayback（U6 / US6.2・FR7・C2）", () => {
 
   it("未存在の動画は notFound にし署名 URL を取得しない", async () => {
     server.use(
-      http.get(`${TEST_API_BASE}/video/:videoId`, () => HttpResponse.json(videoNotFoundEnvelope())),
+      http.get(`${TEST_API_BASE}/videos/:videoId`, () => errorResponse(404, "video_not_found")),
     );
     const presignedSpy = vi.spyOn(apiClient, "getPresignedUrl");
     const { result } = setup("missing");
@@ -76,7 +71,9 @@ describe("useVideoPlayback（U6 / US6.2・FR7・C2）", () => {
   });
 
   it("署名 URL の transport 失敗は source を error にする（OQ2 / error-path）", async () => {
-    server.use(http.get(`${TEST_API_BASE}/presigned-s3url`, () => HttpResponse.error()));
+    server.use(
+      http.get(`${TEST_API_BASE}/videos/:videoId/playback_url`, () => HttpResponse.error()),
+    );
     const { result } = setup("v1");
 
     await waitFor(() => {
@@ -87,8 +84,8 @@ describe("useVideoPlayback（U6 / US6.2・FR7・C2）", () => {
 
   it("署名 URL が notFound のとき source を error にする（error-path）", async () => {
     server.use(
-      http.get(`${TEST_API_BASE}/presigned-s3url`, () =>
-        HttpResponse.json(presignedNotFoundEnvelope()),
+      http.get(`${TEST_API_BASE}/videos/:videoId/playback_url`, () =>
+        errorResponse(404, "video_not_found"),
       ),
     );
     const { result } = setup("v1");
@@ -100,7 +97,7 @@ describe("useVideoPlayback（U6 / US6.2・FR7・C2）", () => {
   });
 
   it("詳細取得の transport 失敗は state を error にする（error-path / FR8）", async () => {
-    server.use(http.get(`${TEST_API_BASE}/video/:videoId`, () => HttpResponse.error()));
+    server.use(http.get(`${TEST_API_BASE}/videos/:videoId`, () => HttpResponse.error()));
     const { result } = setup("v1");
 
     await waitFor(() => expect(result.current.state.kind).toBe("error"));

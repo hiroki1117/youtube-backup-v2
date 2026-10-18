@@ -26,7 +26,7 @@ import { ThemeProvider } from "@/hooks/useTheme";
 import { Toaster } from "@/components/Toaster";
 import { routes } from "@/app/routes";
 import { server } from "@/test/server";
-import { TEST_API_BASE, makeSubmitEnvelope } from "@/test/handlers";
+import { TEST_API_BASE, makeRegistration } from "@/test/handlers";
 import { makeRawVideo } from "@/test/factories";
 
 function renderApp(initialEntries: string[] = ["/videos"]) {
@@ -56,7 +56,7 @@ describe("動画登録 結合（ヘッダ→ダイアログ→登録 / US4.1・F
     const user = userEvent.setup();
     let getCount = 0;
     server.use(
-      http.get(`${TEST_API_BASE}/video`, () => {
+      http.get(`${TEST_API_BASE}/videos`, () => {
         getCount += 1;
         return HttpResponse.json([makeRawVideo({ title: "既存動画" })]);
       }),
@@ -85,12 +85,12 @@ describe("動画登録 結合（ヘッダ→ダイアログ→登録 / US4.1・F
     const user = userEvent.setup();
     let posted = false;
     server.use(
-      http.get(`${TEST_API_BASE}/video`, () =>
+      http.get(`${TEST_API_BASE}/videos`, () =>
         HttpResponse.json([makeRawVideo({ title: "既存動画" })]),
       ),
-      http.post(`${TEST_API_BASE}/video`, () => {
+      http.post(`${TEST_API_BASE}/videos`, () => {
         posted = true;
-        return HttpResponse.json(makeSubmitEnvelope());
+        return HttpResponse.json(makeRegistration(), { status: 202 });
       }),
     );
     renderApp();

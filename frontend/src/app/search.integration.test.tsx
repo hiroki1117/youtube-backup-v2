@@ -26,7 +26,7 @@ import { ThemeProvider } from "@/hooks/useTheme";
 import { Toaster } from "@/components/Toaster";
 import { routes } from "@/app/routes";
 import { server } from "@/test/server";
-import { TEST_API_BASE, videoNotFoundEnvelope } from "@/test/handlers";
+import { TEST_API_BASE, errorResponse } from "@/test/handlers";
 
 function renderApp(initialEntries: string[] = ["/videos"]) {
   const queryClient = new QueryClient({
@@ -58,7 +58,7 @@ describe("動画検索 結合（ヘッダ→ダイアログ→検索 / US3.1・F
 
   it("ヘッダ検索から存在 id を検索すると詳細が表示され、complete は再生ナビを提供する（FR3.1/OQ-C2）", async () => {
     const user = userEvent.setup();
-    // GET /video/:videoId の既定ハンドラ = complete 動画（title: "サンプル動画"）。
+    // GET /videos/:videoId の既定ハンドラ = complete 動画（title: "サンプル動画"）。
     renderApp();
 
     await openSearchDialog(user);
@@ -74,7 +74,7 @@ describe("動画検索 結合（ヘッダ→ダイアログ→検索 / US3.1・F
   it("存在しない id は「見つからない」旨を表示する（AC / error-path）", async () => {
     const user = userEvent.setup();
     server.use(
-      http.get(`${TEST_API_BASE}/video/:videoId`, () => HttpResponse.json(videoNotFoundEnvelope())),
+      http.get(`${TEST_API_BASE}/videos/:videoId`, () => errorResponse(404, "video_not_found")),
     );
     renderApp();
 
@@ -88,7 +88,7 @@ describe("動画検索 結合（ヘッダ→ダイアログ→検索 / US3.1・F
 
   it("transport 失敗は error 表示にフォールバックする（error-path / FR8）", async () => {
     const user = userEvent.setup();
-    server.use(http.get(`${TEST_API_BASE}/video/:videoId`, () => HttpResponse.error()));
+    server.use(http.get(`${TEST_API_BASE}/videos/:videoId`, () => HttpResponse.error()));
     renderApp();
 
     await openSearchDialog(user);

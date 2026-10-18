@@ -62,7 +62,7 @@ describe("AppShell 結合（WF1-WF4 / AC1.1.x / AC7.1.x）", () => {
     getSessionMock.mockResolvedValue("unauthenticated");
     signInMock.mockResolvedValue({ kind: "ok" });
     server.use(
-      http.get(`${TEST_API_BASE}/video`, () =>
+      http.get(`${TEST_API_BASE}/videos`, () =>
         HttpResponse.json([makeRawVideo({ title: "疎通テスト動画" })]),
       ),
     );
@@ -101,7 +101,7 @@ describe("AppShell 結合（WF1-WF4 / AC1.1.x / AC7.1.x）", () => {
 
   it("認証済みで一覧取得が transport 失敗するとエラー UI（再試行）を描画する（AC7.1.2 / AC7.1.4）", async () => {
     getSessionMock.mockResolvedValue("authenticated");
-    server.use(http.get(`${TEST_API_BASE}/video`, () => HttpResponse.error()));
+    server.use(http.get(`${TEST_API_BASE}/videos`, () => HttpResponse.error()));
 
     renderApp(["/videos"]);
 
@@ -111,7 +111,7 @@ describe("AppShell 結合（WF1-WF4 / AC1.1.x / AC7.1.x）", () => {
 
   it("認証済みで一覧が 0 件なら空状態を描画する（AC7.1.3）", async () => {
     getSessionMock.mockResolvedValue("authenticated");
-    server.use(http.get(`${TEST_API_BASE}/video`, () => HttpResponse.json([])));
+    server.use(http.get(`${TEST_API_BASE}/videos`, () => HttpResponse.json([])));
 
     renderApp(["/videos"]);
 
@@ -120,7 +120,7 @@ describe("AppShell 結合（WF1-WF4 / AC1.1.x / AC7.1.x）", () => {
 
   it("認証済みなら AppShell ヘッダにログアウト操作が表示される（AC1.2.1）", async () => {
     getSessionMock.mockResolvedValue("authenticated");
-    server.use(http.get(`${TEST_API_BASE}/video`, () => HttpResponse.json([])));
+    server.use(http.get(`${TEST_API_BASE}/videos`, () => HttpResponse.json([])));
 
     renderApp(["/videos"]);
 

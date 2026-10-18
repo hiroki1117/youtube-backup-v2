@@ -26,7 +26,7 @@ import { ThemeProvider } from "@/hooks/useTheme";
 import { Toaster } from "@/components/Toaster";
 import { routes } from "@/app/routes";
 import { server } from "@/test/server";
-import { TEST_API_BASE, makeDeleteEnvelope, deleteBackupInProgressEnvelope } from "@/test/handlers";
+import { TEST_API_BASE, errorResponse } from "@/test/handlers";
 import { makeRawVideo } from "@/test/factories";
 
 function renderApp(initialEntries: string[] = ["/videos"]) {
@@ -59,11 +59,11 @@ describe("動画削除 結合（行→確認→削除 / US5.1・FR5.1・C4・C6�
       makeRawVideo({ video_id: "c2", title: "残る動画" }),
     ];
     server.use(
-      http.get(`${TEST_API_BASE}/video`, () => HttpResponse.json(videos)),
-      http.delete(`${TEST_API_BASE}/video/:videoId`, ({ params }) => {
+      http.get(`${TEST_API_BASE}/videos`, () => HttpResponse.json(videos)),
+      http.delete(`${TEST_API_BASE}/videos/:videoId`, ({ params }) => {
         const id = String(params.videoId);
         videos = videos.filter((v) => v.video_id !== id);
-        return HttpResponse.json(makeDeleteEnvelope({ video_id: id, title: "削除対象動画" }));
+        return new HttpResponse(null, { status: 204 });
       }),
     );
     renderApp();
@@ -90,14 +90,14 @@ describe("動画削除 結合（行→確認→削除 / US5.1・FR5.1・C4・C6�
     const user = userEvent.setup();
     let getCount = 0;
     server.use(
-      http.get(`${TEST_API_BASE}/video`, () => {
+      http.get(`${TEST_API_BASE}/videos`, () => {
         getCount += 1;
         return HttpResponse.json([
           makeRawVideo({ video_id: "i1", title: "処理中動画", upload_status: "init" }),
         ]);
       }),
-      http.delete(`${TEST_API_BASE}/video/:videoId`, () =>
-        HttpResponse.json(deleteBackupInProgressEnvelope()),
+      http.delete(`${TEST_API_BASE}/videos/:videoId`, () =>
+        errorResponse(409, "backup_object_needs_reconciliation"),
       ),
     );
     renderApp();
@@ -120,10 +120,10 @@ describe("動画削除 結合（行→確認→削除 / US5.1・FR5.1・C4・C6�
   it("transport 失敗は error 通知が出て一覧は変化しない（error-path / FR8）", async () => {
     const user = userEvent.setup();
     server.use(
-      http.get(`${TEST_API_BASE}/video`, () =>
+      http.get(`${TEST_API_BASE}/videos`, () =>
         HttpResponse.json([makeRawVideo({ video_id: "c1", title: "完了動画" })]),
       ),
-      http.delete(`${TEST_API_BASE}/video/:videoId`, () => HttpResponse.error()),
+      http.delete(`${TEST_API_BASE}/videos/:videoId`, () => HttpResponse.error()),
     );
     renderApp();
     await screen.findByText("完了動画");

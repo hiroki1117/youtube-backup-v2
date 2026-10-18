@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/api/client";
 import { subscribe, type Notification } from "@/lib/notify";
 import { server } from "@/test/server";
-import { TEST_API_BASE, deleteBackupInProgressEnvelope } from "@/test/handlers";
+import { TEST_API_BASE, errorResponse } from "@/test/handlers";
 import { makeVideo } from "@/test/factories";
 import { useVideoDeletion } from "./useVideoDeletion";
 
@@ -71,8 +71,8 @@ describe("useVideoDeletion（U5 / US5.1・FR5.1・C2・C4）", () => {
 
   it("バックアップ中拒否（rejected/backupInProgress）は error 通知を出し invalidate しない＝一覧不変（error-path / R-02）", async () => {
     server.use(
-      http.delete(`${TEST_API_BASE}/video/:videoId`, () =>
-        HttpResponse.json(deleteBackupInProgressEnvelope()),
+      http.delete(`${TEST_API_BASE}/videos/:videoId`, () =>
+        errorResponse(409, "backup_object_needs_reconciliation"),
       ),
     );
     const cap = captureNotifications();
@@ -92,7 +92,7 @@ describe("useVideoDeletion（U5 / US5.1・FR5.1・C2・C4）", () => {
   });
 
   it("transport 失敗は error 通知を出し invalidate しない（error-path / FR8）", async () => {
-    server.use(http.delete(`${TEST_API_BASE}/video/:videoId`, () => HttpResponse.error()));
+    server.use(http.delete(`${TEST_API_BASE}/videos/:videoId`, () => HttpResponse.error()));
     const cap = captureNotifications();
     const { result, invalidateSpy } = setup();
 

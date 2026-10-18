@@ -1,12 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { VideoPlaybackPage } from "@/app/VideoPlaybackPage";
-import { makeVideoEnvelope, videoNotFoundEnvelope } from "@/test/handlers";
+import { makeRawVideo } from "@/test/factories";
 import { withAppRoutes } from "@/test/storybook/decorators";
 import {
   networkErrorHandler,
   pendingHandler,
   presignedErrorHandler,
   videoHandler,
+  videoNotFoundHandler,
 } from "@/test/storybook/msw";
 
 /**
@@ -34,21 +35,21 @@ export const Detail: Story = {};
 
 export const Loading: Story = {
   parameters: {
-    msw: { handlers: [pendingHandler("get", "/video/:videoId")] },
+    msw: { handlers: [pendingHandler("get", "/videos/:videoId")] },
   },
 };
 
 /** 詳細取得のネットワーク失敗（transport）→ error フォールバック + 再試行。 */
 export const Error: Story = {
   parameters: {
-    msw: { handlers: [networkErrorHandler("get", "/video/:videoId")] },
+    msw: { handlers: [networkErrorHandler("get", "/videos/:videoId")] },
   },
 };
 
-/** 未存在（description「Dynamoに情報がない」→ notFound）。 */
+/** 未存在（404 video_not_found → notFound）。 */
 export const NotFound: Story = {
   parameters: {
-    msw: { handlers: [videoHandler(videoNotFoundEnvelope())] },
+    msw: { handlers: [videoNotFoundHandler()] },
   },
 };
 
@@ -58,7 +59,7 @@ export const NotPlayable: Story = {
     msw: {
       handlers: [
         videoHandler(
-          makeVideoEnvelope({
+          makeRawVideo({
             video_id: "v1",
             title: "処理中の動画",
             upload_status: "init",

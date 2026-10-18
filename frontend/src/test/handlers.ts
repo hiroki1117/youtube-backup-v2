@@ -46,154 +46,90 @@ export const INIT_RAW_VIDEOS: RawVideo[] = [
   }),
 ];
 
-/** POST /video の成功エンベロープ形状（SubmitEnvelope, C2）。 */
-export interface SubmitEnvelope {
-  result: "succ" | "error";
-  description: string;
-  video_data: {
-    video_id: string;
-    title: string;
-    already_backup: boolean;
-    batch_job_id: string;
-    s3: string;
-  } | null;
+/** POST /videos の応答形状（Registration）。 */
+export interface RegistrationBody {
+  video: RawVideo;
+  backup: { video_id: string; state: string; batch_job_id: string | null };
+  already_registered: boolean;
 }
 
 /**
- * POST /video の成功エンベロープを生成する（U4 登録テスト用）。
- * `already_backup` で新規登録／既登録を切り替える（C2: 既登録も result=succ）。
+ * POST /videos の成功応答を生成する（U4 登録テスト用）。
+ * `already_registered` で新規登録（バックアップ開始）／既登録を切り替える。
  */
-export function makeSubmitEnvelope(
+export function makeRegistration(
   overrides: Partial<{
-    description: string;
     video_id: string;
     title: string;
-    already_backup: boolean;
-    batch_job_id: string;
+    already_registered: boolean;
+    batch_job_id: string | null;
   }> = {},
-): SubmitEnvelope {
-  const alreadyBackup = overrides.already_backup ?? false;
+): RegistrationBody {
+  const already = overrides.already_registered ?? false;
+  const videoId = overrides.video_id ?? "new1";
   return {
-    result: "succ",
-    description:
-      overrides.description ?? (alreadyBackup ? "バックアップ済み" : "バックアップ処理開始"),
-    video_data: {
-      video_id: overrides.video_id ?? "new1",
+    video: makeRawVideo({
+      video_id: videoId,
       title: overrides.title ?? "新規登録動画",
-      already_backup: alreadyBackup,
-      batch_job_id: overrides.batch_job_id ?? "job-new1",
-      s3: "s3://example-bucket/new1.mp4",
+      upload_status: already ? "complete" : "init",
+    }),
+    backup: {
+      video_id: videoId,
+      state: already ? "complete" : "submitted",
+      batch_job_id: overrides.batch_job_id === undefined ? "job-new1" : overrides.batch_job_id,
     },
+    already_registered: already,
   };
 }
 
 /**
- * POST /video の error エンベロープ（既存 API はエラーも HTTP 200）。
- * 既定の「URLの異常」は ApiClient で invalidInput に正規化される（C2）。
+ * エラー応答（新 API は HTTP ステータス + `{ detail: <コード> }`）。
+ * 例: 404 video_not_found / 409 backup_object_needs_reconciliation / 422 invalid_url。
  */
-export function submitErrorEnvelope(description = "URLの異常"): SubmitEnvelope {
-  return { result: "error", description, video_data: null };
+export function errorResponse(status: number, detail: string): Response {
+  return HttpResponse.json({ detail }, { status });
 }
 
-/** GET /video/{video_id} の成功/エラーエンベロープ形状（VideoEnvelope, C2）。 */
-export interface VideoEnvelope {
-  result: "succ" | "error";
-  description: string;
-  video_data: RawVideo | null;
-}
-
-/**
- * GET /video/{video_id} の成功エンベロープを生成する（U3 検索テスト用）。
- * `upload_status` を切り替えて complete（再生ナビ提供）／init（再生ナビ非提供）を再現する。
- */
-export function makeVideoEnvelope(overrides: Partial<RawVideo> = {}): VideoEnvelope {
-  return {
-    result: "succ",
-    description: "取得成功",
-    video_data: makeRawVideo(overrides),
-  };
-}
-
-/**
- * GET /video/{video_id} の未存在エンベロープ（既存 API はエラーも HTTP 200）。
- * description「Dynamoに情報がない」は ApiClient で notFound に正規化される（C2）。
- */
-export function videoNotFoundEnvelope(): VideoEnvelope {
-  return { result: "error", description: "Dynamoに情報がない", video_data: null };
-}
-
-/**
- * DELETE /video/{video_id} の成功エンベロープを生成する（U5 削除テスト用）。
- * 削除された Video を `video_data` に返す（VideoEnvelope, C2）。
- */
-export function makeDeleteEnvelope(overrides: Partial<RawVideo> = {}): VideoEnvelope {
-  return {
-    result: "succ",
-    description: "削除しました",
-    video_data: makeRawVideo(overrides),
-  };
-}
-
-/**
- * DELETE /video/{video_id} のバックアップ中拒否エンベロープ（既存 API はエラーも HTTP 200）。
- * `upload_status=init` かつタイムアウト未経過（10800 秒）の削除拒否を再現する（R-02）。
- * description「バックアップ中」は ApiClient で rejected(backupInProgress) に正規化される（C2）。
- */
-export function deleteBackupInProgressEnvelope(): VideoEnvelope {
-  return { result: "error", description: "バックアップ中のため削除できません", video_data: null };
-}
-
-/** GET /presigned-s3url の成功/エラーエンベロープ形状（PresignedEnvelope, C2）。 */
-export interface PresignedEnvelope {
-  result: "succ" | "error";
-  description: string;
-  presigned_s3url: string | null;
+/** 認証切れ（API Gateway の JWT 検証失敗）。 */
+export function unauthorizedResponse(): Response {
+  return HttpResponse.json({ message: "Unauthorized" }, { status: 401 });
 }
 
 /** テスト用の署名 URL（https。download.ts の https 検証・<video src> の再生ソースに使う）。 */
 export const TEST_PRESIGNED_URL =
   "https://s3.ap-northeast-1.amazonaws.com/example-bucket/v1.mp4?sig=test";
 
-/**
- * GET /presigned-s3url の成功エンベロープを生成する（U6 再生/DL テスト用）。
- * description「取得成功」・presigned_s3url は https（有効期限 3600 秒相当）。
- * ApiClient は presigned_s3url を ok(string) に正規化する（C2）。
- */
-export function makePresignedEnvelope(url: string = TEST_PRESIGNED_URL): PresignedEnvelope {
-  return { result: "succ", description: "取得成功", presigned_s3url: url };
-}
-
-/**
- * GET /presigned-s3url の未存在エンベロープ（既存 API はエラーも HTTP 200）。
- * description「Dynamoに情報がない」は ApiClient で notFound に正規化される（C2）。
- */
-export function presignedNotFoundEnvelope(): PresignedEnvelope {
-  return { result: "error", description: "Dynamoに情報がない", presigned_s3url: null };
+/** GET /videos/{id}/playback_url の成功応答（有効期限 3600 秒）。 */
+export function makePlaybackUrl(url: string = TEST_PRESIGNED_URL): {
+  url: string;
+  expires_in: number;
+} {
+  return { url, expires_in: 3600 };
 }
 
 /**
  * 既定ハンドラ（happy path）。`upload_status` クエリに応じて状態別配列を返す。
- * GET /video はエンベロープなしの裸配列（C1/C2）。POST /video は既定で新規登録成功を返す。
  * 個別の失敗系・空系・既登録・ページング件数は各テストで server.use() により上書きする。
  * ハンドラは unit / integration で共有し、実装詳細への結合を避ける。
  */
 export const handlers = [
-  http.get(`${TEST_API_BASE}/video`, ({ request }) => {
+  http.get(`${TEST_API_BASE}/videos`, ({ request }) => {
     const status = new URL(request.url).searchParams.get("upload_status");
     if (status === "init") {
       return HttpResponse.json(INIT_RAW_VIDEOS);
     }
     return HttpResponse.json(COMPLETE_RAW_VIDEOS);
   }),
-  // POST /video: 既定は新規登録成功（US4.1 / FR4.1）。既登録・URL異常・transport は各テストで上書き。
-  http.post(`${TEST_API_BASE}/video`, () => HttpResponse.json(makeSubmitEnvelope())),
-  // GET /video/{video_id}: 既定は complete 動画の取得成功（U3 検索 / FR3.1）。
-  // 未存在（notFound）・transport 失敗・init 動画は各テストで server.use() により上書きする。
-  http.get(`${TEST_API_BASE}/video/:videoId`, () => HttpResponse.json(makeVideoEnvelope())),
-  // DELETE /video/{video_id}: 既定は削除成功（US5.1 / FR5.1）。
-  // バックアップ中拒否（rejected/backupInProgress）・transport 失敗は各テストで server.use() により上書きする。
-  http.delete(`${TEST_API_BASE}/video/:videoId`, () => HttpResponse.json(makeDeleteEnvelope())),
-  // GET /presigned-s3url?video_id=: 既定は署名 URL 取得成功（U6 再生/DL / FR6.1・FR7.2）。
-  // 未存在（notFound）・transport/CORS 失敗は各テストで server.use() により上書きする。
-  http.get(`${TEST_API_BASE}/presigned-s3url`, () => HttpResponse.json(makePresignedEnvelope())),
+  // POST /videos: 既定は新規登録成功（バックアップ開始 = 202）。既登録・URL異常・transport は各テストで上書き。
+  http.post(`${TEST_API_BASE}/videos`, () =>
+    HttpResponse.json(makeRegistration(), { status: 202 }),
+  ),
+  // GET /videos/{video_id}: 既定は complete 動画の取得成功。未存在・transport・init は各テストで上書き。
+  http.get(`${TEST_API_BASE}/videos/:videoId`, () => HttpResponse.json(makeRawVideo())),
+  // DELETE /videos/{video_id}: 既定は削除成功（204 本文なし）。
+  http.delete(`${TEST_API_BASE}/videos/:videoId`, () => new HttpResponse(null, { status: 204 })),
+  // GET /videos/{video_id}/playback_url: 既定は署名 URL 取得成功。
+  http.get(`${TEST_API_BASE}/videos/:videoId/playback_url`, () =>
+    HttpResponse.json(makePlaybackUrl()),
+  ),
 ];

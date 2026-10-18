@@ -1,21 +1,22 @@
 import { z } from "zod";
 import { parseVideo, type UploadStatus, type Video } from "@/types/video";
 import { config } from "./config";
+import { getIdToken } from "@/api/token";
 
 /**
  * ApiClient インターフェース契約（contract C2）。
- * 唯一の HTTP 境界。外部 API の 3 形状不統一・エラー常時 HTTP 200 を吸収し、
- * 消費側へは discriminated union の型付き失敗値（ApiResult<T>）のみを渡す（例外を投げない）。
- * 認証ヘッダは付与しない（バックエンド未認証。特に /presigned-s3url は preflight 回避）。
+ * 唯一の HTTP 境界。新 API（openapi/openapi.json: /videos 系・Cognito JWT 必須・エラーは HTTP ステータス +
+ * `{ detail }`）の応答を、消費側へは discriminated union の型付き値（ApiResult<T>）として渡す（例外を投げない）。
+ * 全リクエストに Cognito ID トークンを `Authorization: Bearer` で付与する。
  */
 
 export type ApiResult<T> =
   | { kind: "ok"; data: T }
   | { kind: "empty" } // 該当なし（例: 一覧 0 件）
-  | { kind: "notFound"; message: string } // result=error かつ未存在系
-  | { kind: "rejected"; reason: RejectReason; message: string } // 業務ルール上の拒否
-  | { kind: "invalidInput"; message: string } // URL/ID 不正・未指定
-  | { kind: "transport"; message: string }; // ネットワーク/パース失敗
+  | { kind: "notFound"; message: string } // 404
+  | { kind: "rejected"; reason: RejectReason; message: string } // 業務ルール上の拒否（409）
+  | { kind: "invalidInput"; message: string } // URL/ID 不正（422）
+  | { kind: "transport"; message: string }; // ネットワーク/認証切れ/サーバー障害/パース失敗
 
 export type RejectReason = "backupInProgress" | "alreadyBackedUp" | "serverError";
 
@@ -33,95 +34,130 @@ export interface ApiClient {
   }): Promise<ApiResult<Video[]>>;
   getVideo(videoId: string): Promise<ApiResult<Video>>;
   submitVideo(url: string): Promise<ApiResult<SubmitResult>>;
-  deleteVideo(videoId: string): Promise<ApiResult<Video>>;
+  /** 成功は 204（本文なし）。 */
+  deleteVideo(videoId: string): Promise<ApiResult<null>>;
+  /** 再生/ダウンロード用の署名付き URL（`GET /videos/{id}/playback_url`）。 */
   getPresignedUrl(videoId: string): Promise<ApiResult<string>>;
 }
 
-// result=error 時に返る失敗バリアント（ok/empty を除く）。
+// 失敗バリアント（ok/empty を除く）。
 type ApiFailure = Extract<
   ApiResult<never>,
   { kind: "notFound" } | { kind: "rejected" } | { kind: "invalidInput" } | { kind: "transport" }
 >;
 
-const resultFlag = z.union([z.literal("succ"), z.literal("error")]);
-
-const submitEnvelopeSchema = z.object({
-  result: resultFlag,
-  description: z.string(),
-  video_data: z
-    .object({
-      video_id: z.string(),
-      title: z.string(),
-      already_backup: z.boolean(),
-      batch_job_id: z.string(),
-      s3: z.string(),
-    })
-    .nullable()
-    .optional(),
+const registrationSchema = z.object({
+  video: z.unknown(),
+  backup: z.object({
+    video_id: z.string(),
+    state: z.string(),
+    batch_job_id: z.string().nullable().optional(),
+  }),
+  already_registered: z.boolean(),
 });
 
-const videoEnvelopeSchema = z.object({
-  result: resultFlag,
-  description: z.string(),
-  video_data: z.unknown().nullable().optional(),
+const playbackSchema = z.object({
+  url: z.string(),
+  expires_in: z.number(),
 });
 
-const presignedEnvelopeSchema = z.object({
-  result: resultFlag,
-  description: z.string(),
-  presigned_s3url: z.string().nullable().optional(),
-});
+const errorBodySchema = z.object({ detail: z.unknown() });
 
-type RawFetch = { ok: true; body: unknown } | { ok: false; message: string };
+// サーバーが返す `detail` コード → 利用者向けメッセージ（コードは画面に出さない）。
+const DETAIL_MESSAGES: Record<string, string> = {
+  video_not_found: "動画が見つかりません。",
+  invalid_url: "URL の形式が正しくありません。",
+  invalid_youtube_id: "YouTube の動画 URL として認識できません。",
+  twitter_registration_not_migrated: "Twitter の動画登録にはまだ対応していません。",
+  backup_not_complete: "バックアップが完了していないため実行できません。",
+  backup_object_needs_reconciliation: "バックアップ中、または確認が必要なため削除できません。",
+  concurrent_change: "他の処理と競合しました。時間をおいて再試行してください。",
+  job_needs_reconciliation: "バックアップの状態確認が必要です。",
+  submission_needs_reconciliation: "バックアップの状態確認が必要です。",
+  legacy_job_untracked: "バックアップの状態確認が必要です。",
+  deletion_needs_reconciliation: "削除処理が未完了です。管理者に確認してください。",
+};
 
-/**
- * error result の description 文字列を ApiResult の失敗種別へ正規化する（C2 実装契約）。
- * 制御分岐は description の内容で行う（既存 API はエラーも HTTP 200 のため他の判別材料がない）。
- */
-function classifyErrorDescription(description: string): ApiFailure {
-  if (description.includes("バックアップ中")) {
-    return { kind: "rejected", reason: "backupInProgress", message: description };
+// 409 のうち「バックアップ処理が絡んで今は実行できない」もの（UI は backupInProgress として扱う）。
+const IN_PROGRESS_CODES = new Set([
+  "backup_not_complete",
+  "backup_object_needs_reconciliation",
+  "concurrent_change",
+  "job_needs_reconciliation",
+  "submission_needs_reconciliation",
+]);
+
+type RawFetch = { ok: true; body: unknown } | { ok: false; failure: ApiFailure };
+
+/** HTTP ステータスと `{ detail }` から ApiResult の失敗種別へ正規化する（C2 実装契約）。 */
+function classifyFailure(status: number, body: unknown): ApiFailure {
+  const parsed = errorBodySchema.safeParse(body);
+  const code = parsed.success && typeof parsed.data.detail === "string" ? parsed.data.detail : "";
+  const message = DETAIL_MESSAGES[code];
+  switch (status) {
+    case 401:
+      return {
+        kind: "transport",
+        message: "認証が切れました。再度ログインしてください。",
+      };
+    case 404:
+      return { kind: "notFound", message: message ?? "対象が見つかりません。" };
+    case 409:
+      return {
+        kind: "rejected",
+        reason: IN_PROGRESS_CODES.has(code) ? "backupInProgress" : "serverError",
+        message: message ?? "処理を実行できませんでした。",
+      };
+    case 422:
+      return { kind: "invalidInput", message: message ?? "入力内容が正しくありません。" };
+    default:
+      return { kind: "transport", message: `HTTP ${status}` };
   }
-  if (description.includes("Dynamoに情報がない")) {
-    return { kind: "notFound", message: description };
-  }
-  if (description.includes("指定してください") || description.includes("URLの異常")) {
-    return { kind: "invalidInput", message: description };
-  }
-  return { kind: "rejected", reason: "serverError", message: description };
 }
 
 export class HttpApiClient implements ApiClient {
   private readonly baseUrl: string;
+  private readonly getToken: () => Promise<string | null>;
 
-  constructor(baseUrl: string = config.apiBaseUrl) {
+  constructor(
+    baseUrl: string = config.apiBaseUrl,
+    getToken: () => Promise<string | null> = getIdToken,
+  ) {
     // 末尾スラッシュを正規化
     this.baseUrl = baseUrl.replace(/\/+$/, "");
+    this.getToken = getToken;
   }
 
-  /** 単一 fetch ラッパ。ネットワーク/パース失敗は transport 失敗値に変換し、例外を投げない。 */
+  /** 単一 fetch ラッパ。失敗は型付き値に変換し、例外を投げない。204 の本文は null。 */
   private async request(path: string, init?: RequestInit): Promise<RawFetch> {
     try {
-      // ボディを持たない GET/DELETE には Content-Type を付けない。
-      // application/json は CORS の単純リクエスト対象外で preflight（OPTIONS）が発生し、
-      // /presigned-s3url は OPTIONS 未定義のため preflight で失敗する。
+      const token = await this.getToken();
+      if (!token) {
+        return {
+          ok: false,
+          failure: { kind: "transport", message: "認証が切れました。再度ログインしてください。" },
+        };
+      }
       const hasBody = init?.body !== undefined && init?.body !== null;
-      const baseHeaders: HeadersInit = hasBody ? { "Content-Type": "application/json" } : {};
       const response = await fetch(`${this.baseUrl}${path}`, {
         ...init,
         headers: {
-          ...baseHeaders,
+          ...(hasBody ? { "Content-Type": "application/json" } : {}),
           ...(init?.headers ?? {}),
+          Authorization: `Bearer ${token}`,
         },
-        // 認証ヘッダは付与しない（C1/C2）
       });
+      const body: unknown =
+        response.status === 204 ? null : await response.json().catch(() => null);
       if (!response.ok) {
-        return { ok: false, message: `HTTP ${response.status}` };
+        return { ok: false, failure: classifyFailure(response.status, body) };
       }
-      const body: unknown = await response.json();
       return { ok: true, body };
     } catch (e) {
-      return { ok: false, message: e instanceof Error ? e.message : "network error" };
+      return {
+        ok: false,
+        failure: { kind: "transport", message: e instanceof Error ? e.message : "network error" },
+      };
     }
   }
 
@@ -131,13 +167,12 @@ export class HttpApiClient implements ApiClient {
   }): Promise<ApiResult<Video[]>> {
     const fetchNum = params.fetchNum ?? 30;
     const query = `upload_status=${encodeURIComponent(params.uploadStatus)}&fetch_num=${fetchNum}`;
-    const res = await this.request(`/video?${query}`);
+    const res = await this.request(`/videos?${query}`);
     if (!res.ok) {
-      return { kind: "transport", message: res.message };
+      return res.failure;
     }
-    // GET /video のみエンベロープなし。DynamoDB item の配列を直接返す。
     if (!Array.isArray(res.body)) {
-      return { kind: "transport", message: "expected an array response for GET /video" };
+      return { kind: "transport", message: "expected an array response for GET /videos" };
     }
     if (res.body.length === 0) {
       return { kind: "empty" };
@@ -146,7 +181,7 @@ export class HttpApiClient implements ApiClient {
     for (const item of res.body) {
       const video = parseVideo(item);
       if (video === null) {
-        return { kind: "transport", message: "video schema mismatch in GET /video" };
+        return { kind: "transport", message: "video schema mismatch in GET /videos" };
       }
       videos.push(video);
     }
@@ -154,94 +189,62 @@ export class HttpApiClient implements ApiClient {
   }
 
   async getVideo(videoId: string): Promise<ApiResult<Video>> {
-    const res = await this.request(`/video/${encodeURIComponent(videoId)}`);
+    const res = await this.request(`/videos/${encodeURIComponent(videoId)}`);
     if (!res.ok) {
-      return { kind: "transport", message: res.message };
+      return res.failure;
     }
-    const parsed = videoEnvelopeSchema.safeParse(res.body);
-    if (!parsed.success) {
-      return { kind: "transport", message: "unexpected response shape for GET /video/{id}" };
-    }
-    if (parsed.data.result === "error") {
-      return classifyErrorDescription(parsed.data.description);
-    }
-    const video = parseVideo(parsed.data.video_data);
+    const video = parseVideo(res.body);
     if (video === null) {
-      return { kind: "transport", message: "video schema mismatch in GET /video/{id}" };
+      return { kind: "transport", message: "video schema mismatch in GET /videos/{id}" };
     }
     return { kind: "ok", data: video };
   }
 
   async submitVideo(url: string): Promise<ApiResult<SubmitResult>> {
-    const res = await this.request(`/video`, {
+    const res = await this.request(`/videos`, {
       method: "POST",
       body: JSON.stringify({ url }),
     });
     if (!res.ok) {
-      return { kind: "transport", message: res.message };
+      return res.failure;
     }
-    const parsed = submitEnvelopeSchema.safeParse(res.body);
-    if (!parsed.success) {
-      return { kind: "transport", message: "unexpected response shape for POST /video" };
+    const parsed = registrationSchema.safeParse(res.body);
+    const video = parsed.success ? parseVideo(parsed.data.video) : null;
+    if (!parsed.success || video === null) {
+      return { kind: "transport", message: "unexpected response shape for POST /videos" };
     }
-    if (parsed.data.result === "error") {
-      // 「URLの異常」は invalidInput に正規化される
-      return classifyErrorDescription(parsed.data.description);
-    }
-    const vd = parsed.data.video_data;
-    if (!vd) {
-      return { kind: "transport", message: "missing video_data in POST /video" };
-    }
-    // already_backup=true も ok として返す（UI は既登録通知）
+    // already_registered=true も ok として返す（UI は既登録通知）
     return {
       kind: "ok",
       data: {
-        videoId: vd.video_id,
-        title: vd.title,
-        alreadyBackedUp: vd.already_backup,
-        batchJobId: vd.batch_job_id,
+        videoId: video.videoId,
+        title: video.title,
+        alreadyBackedUp: parsed.data.already_registered,
+        batchJobId: parsed.data.backup.batch_job_id ?? "",
       },
     };
   }
 
-  async deleteVideo(videoId: string): Promise<ApiResult<Video>> {
-    const res = await this.request(`/video/${encodeURIComponent(videoId)}`, {
+  async deleteVideo(videoId: string): Promise<ApiResult<null>> {
+    const res = await this.request(`/videos/${encodeURIComponent(videoId)}`, {
       method: "DELETE",
     });
     if (!res.ok) {
-      return { kind: "transport", message: res.message };
+      return res.failure;
     }
-    const parsed = videoEnvelopeSchema.safeParse(res.body);
-    if (!parsed.success) {
-      return { kind: "transport", message: "unexpected response shape for DELETE /video/{id}" };
-    }
-    if (parsed.data.result === "error") {
-      // init かつタイムアウト未経過の削除拒否は rejected(backupInProgress) に正規化される
-      return classifyErrorDescription(parsed.data.description);
-    }
-    const video = parseVideo(parsed.data.video_data);
-    if (video === null) {
-      return { kind: "transport", message: "video schema mismatch in DELETE /video/{id}" };
-    }
-    return { kind: "ok", data: video };
+    return { kind: "ok", data: null };
   }
 
   async getPresignedUrl(videoId: string): Promise<ApiResult<string>> {
-    const res = await this.request(`/presigned-s3url?video_id=${encodeURIComponent(videoId)}`);
+    const res = await this.request(`/videos/${encodeURIComponent(videoId)}/playback_url`);
     if (!res.ok) {
-      return { kind: "transport", message: res.message };
+      return res.failure;
     }
-    const parsed = presignedEnvelopeSchema.safeParse(res.body);
+    const parsed = playbackSchema.safeParse(res.body);
     if (!parsed.success) {
-      return { kind: "transport", message: "unexpected response shape for GET /presigned-s3url" };
+      return { kind: "transport", message: "unexpected response shape for GET playback_url" };
     }
-    if (parsed.data.result === "error") {
-      return classifyErrorDescription(parsed.data.description);
-    }
-    if (!parsed.data.presigned_s3url) {
-      return { kind: "transport", message: "missing presigned_s3url" };
-    }
-    return { kind: "ok", data: parsed.data.presigned_s3url };
+    return { kind: "ok", data: parsed.data.url };
   }
 }
 

@@ -6,12 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/api/client";
 import { subscribe, type Notification } from "@/lib/notify";
 import { server } from "@/test/server";
-import {
-  TEST_API_BASE,
-  TEST_PRESIGNED_URL,
-  makePresignedEnvelope,
-  presignedNotFoundEnvelope,
-} from "@/test/handlers";
+import { TEST_API_BASE, TEST_PRESIGNED_URL, errorResponse, makePlaybackUrl } from "@/test/handlers";
 import { makeVideo } from "@/test/factories";
 import { useVideoDownload } from "./useVideoDownload";
 
@@ -64,9 +59,9 @@ describe("useVideoDownload（U6 / US6.1・FR6・C2・C4）", () => {
   it("取得中は isPreparing=true、完了後は false になる", async () => {
     // 署名 URL 応答を遅延させ、取得中フラグを観測可能にする。
     server.use(
-      http.get(`${TEST_API_BASE}/presigned-s3url`, async () => {
+      http.get(`${TEST_API_BASE}/videos/:videoId/playback_url`, async () => {
         await delay(50);
-        return HttpResponse.json(makePresignedEnvelope());
+        return HttpResponse.json(makePlaybackUrl());
       }),
     );
     const { result } = setup();
@@ -77,7 +72,9 @@ describe("useVideoDownload（U6 / US6.1・FR6・C2・C4）", () => {
   });
 
   it("署名 URL の transport 失敗は error 通知を出し download を起動しない（error-path / FR8）", async () => {
-    server.use(http.get(`${TEST_API_BASE}/presigned-s3url`, () => HttpResponse.error()));
+    server.use(
+      http.get(`${TEST_API_BASE}/videos/:videoId/playback_url`, () => HttpResponse.error()),
+    );
     const cap = captureNotifications();
     const { result } = setup();
 
@@ -90,8 +87,8 @@ describe("useVideoDownload（U6 / US6.1・FR6・C2・C4）", () => {
 
   it("署名 URL が notFound のとき error 通知を出す（error-path）", async () => {
     server.use(
-      http.get(`${TEST_API_BASE}/presigned-s3url`, () =>
-        HttpResponse.json(presignedNotFoundEnvelope()),
+      http.get(`${TEST_API_BASE}/videos/:videoId/playback_url`, () =>
+        errorResponse(404, "video_not_found"),
       ),
     );
     const cap = captureNotifications();
@@ -101,7 +98,7 @@ describe("useVideoDownload（U6 / US6.1・FR6・C2・C4）", () => {
 
     await waitFor(() => expect(cap.get().some((n) => n.kind === "error")).toBe(true));
     const note = cap.get().find((n) => n.kind === "error");
-    expect(note?.message).toContain("Dynamoに情報がない");
+    expect(note?.message).toContain("動画が見つかりません");
     expect(downloadMock).not.toHaveBeenCalled();
     cap.unsub();
   });

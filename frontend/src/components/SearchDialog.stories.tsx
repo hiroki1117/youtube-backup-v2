@@ -1,13 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
 import { SearchDialog } from "@/components/SearchDialog";
-import { videoNotFoundEnvelope } from "@/test/handlers";
 import { withMemoryRouter, withQueryClient } from "@/test/storybook/decorators";
-import { pendingHandler, videoHandler } from "@/test/storybook/msw";
+import { pendingHandler, videoNotFoundHandler } from "@/test/storybook/msw";
 
 /**
  * 動画検索ダイアログ（US-2 / US-5 / US-8）。最小 Provider は QueryClient + MemoryRouter
- * （`useVideoSearch` と `useNavigate` の実依存）。API は MSW（既定: GET /video/:id が complete 動画）。
+ * （`useVideoSearch` と `useNavigate` の実依存）。API は MSW（既定: GET /videos/:id が complete 動画）。
  *
  * `play` は「状態セットアップ専用」（入力・送信のみ、assertion なし）。検索結果は内部 state に
  * 依存するため props だけでは到達できない。assertion 付き interaction test は不採用（team.md）。
@@ -51,7 +50,7 @@ export const Found: Story = {
 
 export const NotFound: Story = {
   parameters: {
-    msw: { handlers: [videoHandler(videoNotFoundEnvelope())] },
+    msw: { handlers: [videoNotFoundHandler()] },
   },
   play: async ({ canvasElement }) => {
     await submitSearch(canvasElement, "missing");
@@ -60,7 +59,7 @@ export const NotFound: Story = {
 
 export const Loading: Story = {
   parameters: {
-    msw: { handlers: [pendingHandler("get", "/video/:videoId")] },
+    msw: { handlers: [pendingHandler("get", "/videos/:videoId")] },
   },
   play: async ({ canvasElement }) => {
     await submitSearch(canvasElement, "v1");

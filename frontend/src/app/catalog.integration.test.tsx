@@ -98,7 +98,7 @@ describe("VideoCatalog 結合（/videos / FR2.1〜2.4・FR8・US2.1〜2.5）", (
 
   it("ページ送りで次ページの行を表示する（US2.4 / FR2.4）", async () => {
     const user = userEvent.setup();
-    server.use(http.get(`${TEST_API_BASE}/video`, () => HttpResponse.json(makeRawVideos(25))));
+    server.use(http.get(`${TEST_API_BASE}/videos`, () => HttpResponse.json(makeRawVideos(25))));
     renderApp();
 
     await screen.findByRole("list", { name: "動画一覧" });
@@ -120,7 +120,7 @@ describe("VideoCatalog 結合（/videos / FR2.1〜2.4・FR8・US2.1〜2.5）", (
   it("手動更新で一覧を再取得する（US2.5）", async () => {
     const user = userEvent.setup();
     server.use(
-      http.get(`${TEST_API_BASE}/video`, () =>
+      http.get(`${TEST_API_BASE}/videos`, () =>
         HttpResponse.json([makeRawVideo({ title: "更新前" })]),
       ),
     );
@@ -128,7 +128,7 @@ describe("VideoCatalog 結合（/videos / FR2.1〜2.4・FR8・US2.1〜2.5）", (
     await screen.findByText("更新前");
 
     server.use(
-      http.get(`${TEST_API_BASE}/video`, () =>
+      http.get(`${TEST_API_BASE}/videos`, () =>
         HttpResponse.json([makeRawVideo({ video_id: "v2", title: "更新後" })]),
       ),
     );
@@ -141,7 +141,7 @@ describe("VideoCatalog 結合（/videos / FR2.1〜2.4・FR8・US2.1〜2.5）", (
     const user = userEvent.setup();
     // complete = データあり、init = 空（フィルタ適用で 0 件 → empty:filtered）
     server.use(
-      http.get(`${TEST_API_BASE}/video`, ({ request }) => {
+      http.get(`${TEST_API_BASE}/videos`, ({ request }) => {
         const status = new URL(request.url).searchParams.get("upload_status");
         return HttpResponse.json(status === "init" ? [] : [makeRawVideo({ title: "完了動画X" })]);
       }),
@@ -155,7 +155,7 @@ describe("VideoCatalog 結合（/videos / FR2.1〜2.4・FR8・US2.1〜2.5）", (
   });
 
   it("取得失敗で error UI（再試行）を描画する（FR8 error-path）", async () => {
-    server.use(http.get(`${TEST_API_BASE}/video`, () => HttpResponse.error()));
+    server.use(http.get(`${TEST_API_BASE}/videos`, () => HttpResponse.error()));
     renderApp();
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();

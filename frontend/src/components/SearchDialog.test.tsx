@@ -6,7 +6,8 @@ import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/api/client";
 import { server } from "@/test/server";
-import { TEST_API_BASE, makeVideoEnvelope, videoNotFoundEnvelope } from "@/test/handlers";
+import { TEST_API_BASE, errorResponse } from "@/test/handlers";
+import { makeRawVideo } from "@/test/factories";
 import { SearchDialog } from "./SearchDialog";
 
 /** 再生ページ（U6 未実装）の代替。遷移先 videoId を可視化して検証する。 */
@@ -77,8 +78,8 @@ describe("SearchDialog（U3 / US3.1・FR3.1・C4・C5・OQ-C2）", () => {
 
   it("init 動画では「再生ページへ」を表示しない（complete のみ再生提供）", async () => {
     server.use(
-      http.get(`${TEST_API_BASE}/video/:videoId`, () =>
-        HttpResponse.json(makeVideoEnvelope({ video_id: "i1", upload_status: "init" })),
+      http.get(`${TEST_API_BASE}/videos/:videoId`, () =>
+        HttpResponse.json(makeRawVideo({ video_id: "i1", upload_status: "init" })),
       ),
     );
     const user = userEvent.setup();
@@ -93,7 +94,7 @@ describe("SearchDialog（U3 / US3.1・FR3.1・C4・C5・OQ-C2）", () => {
 
   it("存在しない video_id は「見つからない」旨を表示する（error-path / FR3.1）", async () => {
     server.use(
-      http.get(`${TEST_API_BASE}/video/:videoId`, () => HttpResponse.json(videoNotFoundEnvelope())),
+      http.get(`${TEST_API_BASE}/videos/:videoId`, () => errorResponse(404, "video_not_found")),
     );
     const user = userEvent.setup();
     renderDialog();
@@ -105,7 +106,7 @@ describe("SearchDialog（U3 / US3.1・FR3.1・C4・C5・OQ-C2）", () => {
   });
 
   it("transport 失敗は error 表示と再試行を出す（error-path / FR8）", async () => {
-    server.use(http.get(`${TEST_API_BASE}/video/:videoId`, () => HttpResponse.error()));
+    server.use(http.get(`${TEST_API_BASE}/videos/:videoId`, () => HttpResponse.error()));
     const user = userEvent.setup();
     renderDialog();
 

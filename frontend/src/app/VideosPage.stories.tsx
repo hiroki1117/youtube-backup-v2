@@ -66,7 +66,7 @@ export const FilteredEmpty: Story = {
 
 export const Loading: Story = {
   parameters: {
-    msw: { handlers: [pendingHandler("get", "/video")] },
+    msw: { handlers: [pendingHandler("get", "/videos")] },
   },
 };
 

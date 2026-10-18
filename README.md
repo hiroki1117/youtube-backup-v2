@@ -1,20 +1,15 @@
 # YouTube Backup
 
-frontend・backend（Lambda）・batch を1つの repo で変更・検証し、各部分の独立した build / deploy を維持するための初期整備。
-現在の repo 名は `youtube-backup-front-v2`。将来 `youtube-backup-v2` へ改名する。
-[Issue #41](https://github.com/hiroki1117/projects/issues/41) の移行途中で、本番のコード一致・配布切替は未完了。
+frontend・backend（Lambda）・batch を1つの repo で変更・検証し、各部分を独立して build / deploy する。
 
 | 配置                               | 役割と現在の配布元                                                                                            |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | [frontend/](frontend/)             | Vite / React / TypeScript アプリ。[deploy-frontend.yml](.github/workflows/deploy-frontend.yml) が Amplify Hosting へ配布 |
-| [backend/lambda/](backend/lambda/) | FastAPI 実装候補と旧ソース保全。詳細は [backend/README.md](backend/README.md)。本番未切替                     |
+| [backend/](backend/)             | FastAPI 実装。[deploy-backend.yml](.github/workflows/deploy-backend.yml) が Lambda へ配布。詳細は [backend/README.md](backend/README.md) |
 | [batch/scripts/](batch/scripts/)   | yt-dlp image のスクリプト。main push で `deploy-batch.yml` が ECR へ push|
-| [infra/](infra/)                   | 既存 CDK scaffold。実所有の確認前に適用・削除しない                                                           |
 
 AWS 定義・state の管理先は [hiroki1117/infra](https://github.com/hiroki1117/infra)。
-app は source と成果物作成、infra は AWS 設定と成果物参照を担当する。Lambda code 更新の唯一の所有者は切替前に確定する。
-`youtube_backup2` はインフラ用、`youtube-backup-front` は旧 CRA 実装で、今回のアプリ移管元ではない。
-出所は [source-manifest.json](docs/source-manifest.json)、境界・制約・切替条件は [migration.md](docs/migration.md) を参照。
+app は source と成果物作成、infra は AWS 設定と成果物参照を担当する。
 
 ## セットアップと起動
 
@@ -54,19 +49,20 @@ make -C batch build IMAGE=yt-dlp-script TAG=youtube-backup-candidate:local
 ```
 
 frontend の既存テスト・型・lint・format、Vite / Storybook build、新 backend の pytest・Ruff・ローカルHTTP・依存同梱ZIPと handler import、batch の構文を確認。
-batch image build と AWS 上の機能検証は未完了。詳細な検証結果と環境制約は [migration.md](docs/migration.md)。
+batch image build と AWS 上の機能検証は CI 上で確認する。
 frontend の機能・画面は [src/app/](frontend/src/app/)、API境界は [src/api/](frontend/src/api/)、ドメイン型は [src/types/](frontend/src/types/) が入口。
 レイヤは `components → hooks → api → types`。Storybook は `pnpm --dir frontend storybook`、設定は [.storybook/](frontend/.storybook/)。
 
-## 配布と残る制約
+## 配布
 
-既存 frontend deploy の trigger・production environment・OIDC を維持し、実行パスを frontend に変更した。
-配布対象は `frontend/dist/` のみ。既存 main の最新 deploy は OIDC credential 設定で失敗しており、実配布先の確認も権限不足で未完了。
-main merge は既存 deploy を起動するため、配布設定の確認と別承認が必要。
+main への push で、変更のあった部分だけが production Environment の OIDC ロールで配布される。
 
-backend / batch の新しい本番 workflow は追加していない。旧 CI が image の SHA / `latest` を push し、infra が `latest` を参照する間、同じ ECR へ二重配布しない。
-Lambda live source / runtime / layer の照合、配布所有者・旧CI切替、CDK所有、改名時の OIDC / 外部連携整合が残る。
-repo 改名・PR / merge・deploy・AWS / state / IAM / secret 変更・既存CI停止/起動は今回実施していない。
-Lambdalith 化、runtime / 依存更新、image digest 固定化は別段階。
+| 部分 | workflow | 配布先 |
+|---|---|---|
+| frontend | [deploy-frontend.yml](.github/workflows/deploy-frontend.yml) | Amplify Hosting（`frontend/dist/`） |
+| backend | [deploy-backend.yml](.github/workflows/deploy-backend.yml) | Lambda 5 関数（共通 ZIP） |
+| batch | [deploy-batch.yml](.github/workflows/deploy-batch.yml) | ECR `youtube-downloader-ytdlp`（`latest` と commit SHA） |
 
-公開前提: 現在ツリーの実環境参照は環境変数化したが、旧Git履歴に固定resource名・認証主体名等が残る。公開安全性の履歴レビュー・承認された対処が必要。新APIの詳細・未移植機能は backend README を参照。
+AWS リソース・IAM・Lambda の設定は infra 側が所有し、各 workflow はコードとイメージだけを扱う。
+
+公開前提: 現在ツリーの実環境参照は環境変数化したが、旧Git履歴に固定resource名・認証主体名等が残る。公開前に履歴レビューと承認された対処が必要。新APIの詳細・未移植機能は backend README を参照。

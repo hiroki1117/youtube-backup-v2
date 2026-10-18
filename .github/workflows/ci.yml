@@ -117,7 +117,7 @@ jobs:
       - run: backend/.venv/bin/python -m pip install -c backend/requirements.lock -e "backend[dev]"
       - run: make backend batch
       - run: make -C backend export
-      - run: git diff --exit-code -- contracts/openapi.json
+      - run: git diff --exit-code -- openapi/openapi.json
 
   backend-package:
     name: Backend ZIP (shared by all Lambdas)

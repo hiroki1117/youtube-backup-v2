@@ -1,0 +1,103 @@
+name: Deploy frontend (Amplify Hosting)
+
+# prod 単一環境・deploy-on-merge。frontend の変更が main に入ると、ビルドして Amplify Hosting へ配布する。
+# Amplify は Git 連携なし（手動デプロイ型）。ビルドはこの workflow で行い、ZIP を Amplify へアップロードする。
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/deploy-frontend.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-frontend-prod
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # GitHub OIDC → AWS IAM role の AssumeRole 用
+  contents: read
+
+defaults:
+  run:
+    working-directory: frontend
+
+jobs:
+  deploy:
+    name: Build and deploy to Amplify Hosting
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 20
+    env:
+      AMPLIFY_APP_ID: ${{ vars.AMPLIFY_APP_ID }}
+      AMPLIFY_BRANCH: main
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: frontend/package.json
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: frontend/.node-version
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+        env:
+          # VITE_* は Actions Variables から注入（機密ではない公開前提の構成値）。ハードコードしない。
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_COGNITO_USER_POOL_ID: ${{ vars.VITE_COGNITO_USER_POOL_ID }}
+          VITE_COGNITO_CLIENT_ID: ${{ vars.VITE_COGNITO_CLIENT_ID }}
+          VITE_COGNITO_REGION: ${{ vars.VITE_COGNITO_REGION }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          # frontend を Amplify の main ブランチへ配布する権限だけを持つ role（infra の iam-frontend-deploy.tf）
+          role-to-assume: ${{ secrets.AWS_FRONTEND_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Package build output
+        run: cd dist && zip -qr ../site.zip .
+
+      - name: Create deployment and upload
+        id: upload
+        run: |
+          read -r job_id upload_url <<< "$(aws amplify create-deployment \
+            --app-id "$AMPLIFY_APP_ID" --branch-name "$AMPLIFY_BRANCH" \
+            --query '[jobId,zipUploadUrl]' --output text)"
+          echo "::add-mask::$upload_url"
+          curl -fsS -X PUT -H "Content-Type: application/zip" --data-binary @site.zip "$upload_url"
+          echo "job_id=$job_id" >> "$GITHUB_OUTPUT"
+
+      - name: Start deployment and wait
+        env:
+          JOB_ID: ${{ steps.upload.outputs.job_id }}
+        run: |
+          aws amplify start-deployment \
+            --app-id "$AMPLIFY_APP_ID" --branch-name "$AMPLIFY_BRANCH" --job-id "$JOB_ID" >/dev/null
+          for _ in $(seq 1 60); do
+            status=$(aws amplify get-job --app-id "$AMPLIFY_APP_ID" --branch-name "$AMPLIFY_BRANCH" \
+              --job-id "$JOB_ID" --query 'job.summary.status' --output text)
+            echo "deployment $JOB_ID: $status"
+            case "$status" in
+              SUCCEED)
+                echo "Deployed job $JOB_ID to Amplify (branch $AMPLIFY_BRANCH)." >> "$GITHUB_STEP_SUMMARY"
+                exit 0 ;;
+              FAILED|CANCELLED)
+                echo "::error::Amplify deployment $JOB_ID ended with $status"
+                exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "::error::Timed out waiting for deployment $JOB_ID"
+          exit 1

@@ -13,7 +13,7 @@
 
 | 領域                                                   | 所有・配布                                                                                           |
 | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| frontend source / dist                                 | app repo。既存 deploy.yml が S3 と CloudFront を更新                                                 |
+| frontend source / dist                                 | app repo。deploy-frontend.yml が Amplify Hosting へ配布                                              |
 | Lambda source / 候補 ZIP                               | app repo に保全。旧 Terraform は source_dir を ZIP 化していた。候補 ZIP は依存未同梱で本番配布しない |
 | Lambda runtime / layer / env参照 / IAM / trigger / API | infra 側の管理範囲。旧管理からの移行は未完了。code 更新の唯一の所有者も切替前に確定する              |
 | Dockerfile / script / image build                      | app source に保全。現在の ECR push は旧 youtube-backup の youtubedl_build / ytdlp_build のみ         |

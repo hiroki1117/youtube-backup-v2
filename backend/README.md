@@ -18,7 +18,9 @@ appは成果物作成、infraはコード参照とAWS反映の唯一の所有者
 
 ## 最短手順
 
-Python 3.14 を用意し、`backend/` 内で:
+build用Pythonのpatch版は [.python-version](.python-version) に固定し、CIも同じ値を使う。Lambda runtimeのpatch更新はこれと別にAWSが管理する。
+
+指定のPythonを用意し、`backend/` 内で:
 
 ```bash
 make install

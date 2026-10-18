@@ -63,6 +63,9 @@ def main():
     parser.add_argument("function", choices=HANDLERS)
     args = parser.parse_args()
     root = Path(__file__).resolve().parent
+    expected_python = (root / ".python-version").read_text().strip()
+    if ".".join(map(str, sys.version_info[:3])) != expected_python:
+        raise RuntimeError(f"Build requires Python {expected_python} from backend/.python-version")
     wheels = root / "build/dist"
     shutil.rmtree(wheels, ignore_errors=True)
     subprocess.run(

@@ -110,7 +110,8 @@ ZIPの再buildは同じsource・依存wheel・build toolchain・圧縮実装で�
 wheelの `SOURCE_DATE_EPOCH` とZIP時刻/権限/格納順を固定し、不要なCLI scriptとcheckout由来の `direct_url.json` を除去、対応するdist-info/RECORDを整える。pycは生成・同梱しない。runtime用METADATA/WHEEL等は維持する。
 
 再現性の限界: runtime lockはversion固定だがwheel hashを固定していない。取得先index/mirrorも外部設定に依存する。
-PEP517 build環境の `setuptools>=77` / wheel とhost側pip/build/Python patch/zlibも完全固定ではない。
+build用Python patchは `backend/.python-version` の3.14.7に固定し、builderが不一致を拒否、CIも同ファイルを参照する。Lambda runtimeのpatchはAWS管理で別扱い。
+PEP517 build依存は setuptools 84.0.0 / wheel 0.48.0 / packaging 26.3 に固定するが、それらのwheel hashとhost側pip/build/zlibは完全固定ではない。
 将来の同version artifact差し替え、取得可能wheelやbuild toolchainの変更まで同じZIPになる保証はない。
 今回の同一環境での2回build照合を、別runnerや将来のindex/toolchainを含む無条件の再現性保証として扱わない。
 

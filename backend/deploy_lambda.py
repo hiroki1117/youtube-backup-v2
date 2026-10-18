@@ -101,7 +101,11 @@ def smoke_check(client, target: str, version: str, name: str) -> None:
         )
         with response["Payload"] as payload:
             body = json.load(payload)
-        if response.get("StatusCode") != 200 or response.get("ExecutedVersion") != version:
+        if (
+            not isinstance(body, dict)
+            or response.get("StatusCode") != 200
+            or response.get("ExecutedVersion") != version
+        ):
             raise DeploymentError(f"{name}: invocation status/version mismatch")
         if event == CHECK_EVENT:
             expected = {

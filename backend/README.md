@@ -39,7 +39,7 @@ curl -H "Authorization: Bearer $BACKEND_LOCAL_TOKEN" http://127.0.0.1:8000/video
 ```
 
 `make dev` は専用 memory repository を使い AWS へ接続しない。登録・更新・backup 状態は再起動で消え、URL はダミー。実動画取得の検証ではない。
-wheel と各 ZIP は `build/` に生成。共有コードと固定 runtime 依存を各 ZIP に同梱し、handler import を検査する。Layers / AWS 配布工程は追加していない。現ターゲットは Lambda python3.14 / x86_64。
+wheel と各 ZIP は `build/` に生成。共有コードと固定 runtime 依存を各 ZIP に同梱し、handler import を検査する。Layersは使用しない。AWSへのコード配布は手動workflowで行う（実行は別承認）。現ターゲットは Lambda python3.14 / x86_64。
 
 ## API と境界
 

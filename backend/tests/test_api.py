@@ -123,7 +123,7 @@ def test_lambda_authorizer_and_resource_split(service, monkeypatch):
 
 
 def test_openapi_generated_from_same_routers():
-    saved = json.loads((Path(__file__).parents[2] / "contracts/openapi.json").read_text())
+    saved = json.loads((Path(__file__).parents[2] / "openapi/openapi.json").read_text())
     assert saved == app.openapi()
     assert "/backup_requests" not in saved["paths"]
     assert "post" in saved["paths"]["/videos/{video_id}/backup"]

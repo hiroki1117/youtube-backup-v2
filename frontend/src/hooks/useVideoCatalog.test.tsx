@@ -31,7 +31,7 @@ describe("useVideoCatalog（U2 / US2.1・US2.2・US2.4・US2.5）", () => {
 
   it("init フィルタへ切り替えると再取得し page を先頭へリセットする（US2.2）", async () => {
     server.use(
-      http.get(`${TEST_API_BASE}/video`, ({ request }) => {
+      http.get(`${TEST_API_BASE}/videos`, ({ request }) => {
         const status = new URL(request.url).searchParams.get("upload_status");
         return HttpResponse.json(status === "init" ? INIT_RAW_VIDEOS : makeRawVideos(25));
       }),
@@ -52,7 +52,7 @@ describe("useVideoCatalog（U2 / US2.1・US2.2・US2.4・US2.5）", () => {
   });
 
   it("空一覧は success かつ total 0 を返す（FR8 empty）", async () => {
-    server.use(http.get(`${TEST_API_BASE}/video`, () => HttpResponse.json([])));
+    server.use(http.get(`${TEST_API_BASE}/videos`, () => HttpResponse.json([])));
     const { result } = renderHook(() => useVideoCatalog(), { wrapper: createWrapper() });
 
     await waitFor(() => expect(result.current.status).toBe("success"));
@@ -61,7 +61,7 @@ describe("useVideoCatalog（U2 / US2.1・US2.2・US2.4・US2.5）", () => {
   });
 
   it("transport 失敗は error を配布する（error-path 必須 / FR8）", async () => {
-    server.use(http.get(`${TEST_API_BASE}/video`, () => HttpResponse.error()));
+    server.use(http.get(`${TEST_API_BASE}/videos`, () => HttpResponse.error()));
     const { result } = renderHook(() => useVideoCatalog(), { wrapper: createWrapper() });
 
     await waitFor(() => expect(result.current.status).toBe("error"));
@@ -70,7 +70,7 @@ describe("useVideoCatalog（U2 / US2.1・US2.2・US2.4・US2.5）", () => {
   });
 
   it("ページ移動で次ページの行を返す（US2.4）", async () => {
-    server.use(http.get(`${TEST_API_BASE}/video`, () => HttpResponse.json(makeRawVideos(25))));
+    server.use(http.get(`${TEST_API_BASE}/videos`, () => HttpResponse.json(makeRawVideos(25))));
     const { result } = renderHook(() => useVideoCatalog(), { wrapper: createWrapper() });
 
     await waitFor(() => expect(result.current.total).toBe(25));
@@ -84,7 +84,7 @@ describe("useVideoCatalog（U2 / US2.1・US2.2・US2.4・US2.5）", () => {
 
   it("ソート順トグルで並びが反転し page を先頭へリセットする（US2.3）", async () => {
     // makeRawVideos(25): backupdate 2026-08-01..08-25
-    server.use(http.get(`${TEST_API_BASE}/video`, () => HttpResponse.json(makeRawVideos(25))));
+    server.use(http.get(`${TEST_API_BASE}/videos`, () => HttpResponse.json(makeRawVideos(25))));
     const { result } = renderHook(() => useVideoCatalog(), { wrapper: createWrapper() });
 
     await waitFor(() => expect(result.current.total).toBe(25));

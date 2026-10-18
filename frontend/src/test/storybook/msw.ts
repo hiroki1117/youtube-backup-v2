@@ -1,17 +1,11 @@
 import { delay, http, HttpResponse, type HttpHandler } from "msw";
 import type { RawVideo } from "@/test/factories";
-import {
-  TEST_API_BASE,
-  handlers,
-  makePresignedEnvelope,
-  type PresignedEnvelope,
-  type VideoEnvelope,
-} from "@/test/handlers";
+import { TEST_API_BASE, handlers, errorResponse, makePlaybackUrl } from "@/test/handlers";
 import type { UploadStatus } from "@/types/video";
 
 /**
  * Storybook 用の MSW シナリオハンドラ（US-3 / US-5 / OQ1）。
- * 既定ハンドラ（`src/test/handlers.ts`）とエンベロープ生成関数・factories を再利用し、
+ * 既定ハンドラ（`src/test/handlers.ts`）と応答生成関数・factories を再利用し、
  * Story ごとの差分（空・エラー・保留）を `parameters.msw.handlers` で与えるための生成関数群。
  * base URL は `TEST_API_BASE`（`.storybook/main.ts` の `define` で `VITE_API_BASE_URL` に固定した値と一致）。
  * 実エンドポイント・実データ・認証情報は書かない（合成モックデータのみ）。
@@ -26,10 +20,10 @@ type ScenarioMethod = "get" | "post" | "delete";
  */
 export const STORYBOOK_PRESIGNED_URL = "https://media.test.invalid/videos/v1.mp4?sig=storybook";
 
-/** GET /presigned-s3url を Storybook 専用の署名 URL で成功させる（初期ハンドラの先頭で既定を上書き）。 */
+/** GET /videos/{id}/playback_url を Storybook 専用の署名 URL で成功させる（初期ハンドラの先頭で既定を上書き）。 */
 export const storybookPresignedHandler: HttpHandler = http.get(
-  `${TEST_API_BASE}/presigned-s3url`,
-  () => HttpResponse.json(makePresignedEnvelope(STORYBOOK_PRESIGNED_URL)),
+  `${TEST_API_BASE}/videos/:videoId/playback_url`,
+  () => HttpResponse.json(makePlaybackUrl(STORYBOOK_PRESIGNED_URL)),
 );
 
 /**
@@ -52,36 +46,33 @@ export const storybookHandlers: HttpHandler[] = [
   ...handlers,
 ];
 
-/** GET /video: `upload_status` に関わらず同じ一覧を返す（MultiPage 等）。 */
+/** GET /videos: `upload_status` に関わらず同じ一覧を返す（MultiPage 等）。 */
 export function listVideosHandler(rawVideos: RawVideo[]): HttpHandler {
-  return http.get(`${TEST_API_BASE}/video`, () => HttpResponse.json(rawVideos));
+  return http.get(`${TEST_API_BASE}/videos`, () => HttpResponse.json(rawVideos));
 }
 
-/** GET /video: `upload_status` ごとに一覧を出し分ける（FilteredEmpty 等。未指定の状態は空配列）。 */
+/** GET /videos: `upload_status` ごとに一覧を出し分ける（FilteredEmpty 等。未指定の状態は空配列）。 */
 export function listVideosByStatusHandler(
   byStatus: Partial<Record<UploadStatus, RawVideo[]>>,
 ): HttpHandler {
-  return http.get(`${TEST_API_BASE}/video`, ({ request }) => {
+  return http.get(`${TEST_API_BASE}/videos`, ({ request }) => {
     const status = new URL(request.url).searchParams.get("upload_status");
     const rawVideos = status === "init" ? byStatus.init : byStatus.complete;
     return HttpResponse.json(rawVideos ?? []);
   });
 }
 
-/** GET /video: 0 件（ApiClient は `empty` に正規化し、一覧は nodata 表示になる）。 */
+/** GET /videos: 0 件（ApiClient は `empty` に正規化し、一覧は nodata 表示になる）。 */
 export function emptyListHandler(): HttpHandler {
   return listVideosHandler([]);
 }
 
 /**
- * GET /video の失敗（既存 API 規約: HTTP 200 + `result:"error"` + 日本語 description）。
- * GET /video は成功時に裸配列を返す契約のため、ApiClient はこのエンベロープを配列不一致の transport 失敗
- * として扱う。Story はその実挙動をそのまま見せる（存在しない状態は捏造しない）。
+ * GET /videos の失敗（新 API 規約: HTTP ステータス + `{ detail }`）。
+ * 既定は 503 upstream_unavailable で、ApiClient は transport 失敗に正規化する。
  */
-export function listErrorHandler(description = "動画一覧の取得に失敗しました"): HttpHandler {
-  return http.get(`${TEST_API_BASE}/video`, () =>
-    HttpResponse.json({ result: "error", description }),
-  );
+export function listErrorHandler(status = 503, detail = "upstream_unavailable"): HttpHandler {
+  return http.get(`${TEST_API_BASE}/videos`, () => errorResponse(status, detail));
 }
 
 /** 任意エンドポイントの応答を無期限に保留し、loading 状態を固定する（Loading / Submitting 等）。 */
@@ -98,16 +89,19 @@ export function networkErrorHandler(method: ScenarioMethod, path: string): HttpH
   return http[method](`${TEST_API_BASE}${path}`, () => HttpResponse.error());
 }
 
-/** GET /video/{video_id}: 指定エンベロープ（成功 / notFound / error）を返す。 */
-export function videoHandler(envelope: VideoEnvelope): HttpHandler {
-  return http.get(`${TEST_API_BASE}/video/:videoId`, () => HttpResponse.json(envelope));
+/** GET /videos/{video_id}: 指定の動画を返す。 */
+export function videoHandler(raw: RawVideo): HttpHandler {
+  return http.get(`${TEST_API_BASE}/videos/:videoId`, () => HttpResponse.json(raw));
 }
 
-/**
- * GET /presigned-s3url の失敗（HTTP 200 + `result:"error"`）。
- * 既定の description「Dynamoに情報がない」は ApiClient で notFound に正規化される。
- */
-export function presignedErrorHandler(description = "Dynamoに情報がない"): HttpHandler {
-  const envelope: PresignedEnvelope = { result: "error", description, presigned_s3url: null };
-  return http.get(`${TEST_API_BASE}/presigned-s3url`, () => HttpResponse.json(envelope));
+/** GET /videos/{video_id}: 未存在（404 video_not_found）。ApiClient は notFound に正規化する。 */
+export function videoNotFoundHandler(): HttpHandler {
+  return http.get(`${TEST_API_BASE}/videos/:videoId`, () => errorResponse(404, "video_not_found"));
+}
+
+/** GET /videos/{id}/playback_url の失敗（404 video_not_found）。 */
+export function presignedErrorHandler(): HttpHandler {
+  return http.get(`${TEST_API_BASE}/videos/:videoId/playback_url`, () =>
+    errorResponse(404, "video_not_found"),
+  );
 }

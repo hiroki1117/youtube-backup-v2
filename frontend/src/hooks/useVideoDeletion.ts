@@ -38,7 +38,7 @@ export interface VideoDeletionController {
  * 分岐は discriminated union の kind で行う（表示テキストでは分岐しない）。
  * `rejected`（バックアップ中拒否等）・`notFound` はサーバー由来 message をそのまま提示する。
  */
-function toErrorMessage(result: Exclude<ApiResult<Video>, { kind: "ok" }>): string {
+function toErrorMessage(result: Exclude<ApiResult<null>, { kind: "ok" }>): string {
   switch (result.kind) {
     case "rejected":
     case "notFound":
@@ -57,12 +57,12 @@ export function useVideoDeletion(): VideoDeletionController {
   // isPending がまだ true へ反映される前の同期的な連打も抑止するための実行中フラグ。
   const inFlight = useRef(false);
 
-  const mutation = useMutation<ApiResult<Video>, Error, string>({
+  const mutation = useMutation<ApiResult<null>, Error, Video>({
     // deleteVideo は例外を投げず ApiResult を解決する契約（C2）。
-    mutationFn: (videoId) => apiClient.deleteVideo(videoId),
-    onSuccess: (result) => {
+    mutationFn: (video) => apiClient.deleteVideo(video.videoId),
+    onSuccess: (result, video) => {
       if (result.kind === "ok") {
-        notify("success", `動画を削除しました: ${result.data.title}`);
+        notify("success", `動画を削除しました: ${video.title}`);
         // 削除された行を一覧へ反映する（US5.1）。prefix ["videos"] を全件無効化して再取得させる。
         void queryClient.invalidateQueries({ queryKey: ["videos"] });
         return;
@@ -94,7 +94,7 @@ export function useVideoDeletion(): VideoDeletionController {
       return;
     }
     inFlight.current = true;
-    mutation.mutate(pendingVideo.videoId);
+    mutation.mutate(pendingVideo);
   }, [mutation, pendingVideo]);
 
   return {

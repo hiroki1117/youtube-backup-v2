@@ -2,15 +2,21 @@ import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { HttpApiClient } from "./client";
 import { server } from "@/test/server";
-import { TEST_API_BASE } from "@/test/handlers";
+import {
+  TEST_API_BASE,
+  errorResponse,
+  makePlaybackUrl,
+  makeRegistration,
+  unauthorizedResponse,
+} from "@/test/handlers";
 import { makeRawVideo } from "@/test/factories";
 
-const client = new HttpApiClient(TEST_API_BASE);
+const client = new HttpApiClient(TEST_API_BASE, () => Promise.resolve("test-token"));
 
-describe("ApiClient.listVideos（contract C2 / GET /video）", () => {
+describe("ApiClient.listVideos（GET /videos）", () => {
   it("配列レスポンスを ok(Video[]) に正規化する", async () => {
     server.use(
-      http.get(`${TEST_API_BASE}/video`, () =>
+      http.get(`${TEST_API_BASE}/videos`, () =>
         HttpResponse.json([makeRawVideo(), makeRawVideo({ video_id: "v2" })]),
       ),
     );
@@ -23,25 +29,25 @@ describe("ApiClient.listVideos（contract C2 / GET /video）", () => {
   });
 
   it("空配列は empty に正規化する", async () => {
-    server.use(http.get(`${TEST_API_BASE}/video`, () => HttpResponse.json([])));
+    server.use(http.get(`${TEST_API_BASE}/videos`, () => HttpResponse.json([])));
     const result = await client.listVideos({ uploadStatus: "complete" });
     expect(result.kind).toBe("empty");
   });
 
   it("ネットワーク断は transport 失敗に正規化する（error-path）", async () => {
-    server.use(http.get(`${TEST_API_BASE}/video`, () => HttpResponse.error()));
+    server.use(http.get(`${TEST_API_BASE}/videos`, () => HttpResponse.error()));
     const result = await client.listVideos({ uploadStatus: "complete" });
     expect(result.kind).toBe("transport");
   });
 
   it("非配列レスポンスは transport 失敗に正規化する（error-path）", async () => {
-    server.use(http.get(`${TEST_API_BASE}/video`, () => HttpResponse.json({ result: "error" })));
+    server.use(http.get(`${TEST_API_BASE}/videos`, () => HttpResponse.json({ detail: "x" })));
     const result = await client.listVideos({ uploadStatus: "complete" });
     expect(result.kind).toBe("transport");
   });
 
   it("スキーマ不一致の item を含む配列は transport 失敗に正規化する（error-path）", async () => {
-    server.use(http.get(`${TEST_API_BASE}/video`, () => HttpResponse.json([{ video_id: 123 }])));
+    server.use(http.get(`${TEST_API_BASE}/videos`, () => HttpResponse.json([{ video_id: 123 }])));
     const result = await client.listVideos({ uploadStatus: "complete" });
     expect(result.kind).toBe("transport");
   });
@@ -49,7 +55,7 @@ describe("ApiClient.listVideos（contract C2 / GET /video）", () => {
   it("upload_status と fetch_num をクエリに整形する", async () => {
     let capturedUrl = "";
     server.use(
-      http.get(`${TEST_API_BASE}/video`, ({ request }) => {
+      http.get(`${TEST_API_BASE}/videos`, ({ request }) => {
         capturedUrl = request.url;
         return HttpResponse.json([]);
       }),
@@ -60,13 +66,9 @@ describe("ApiClient.listVideos（contract C2 / GET /video）", () => {
   });
 });
 
-describe("ApiClient.getVideo（VideoEnvelope）", () => {
-  it("succ + video_data を ok(Video) に正規化する", async () => {
-    server.use(
-      http.get(`${TEST_API_BASE}/video/:id`, () =>
-        HttpResponse.json({ result: "succ", description: "ok", video_data: makeRawVideo() }),
-      ),
-    );
+describe("ApiClient.getVideo（GET /videos/{id}）", () => {
+  it("Video を ok(Video) に正規化する", async () => {
+    server.use(http.get(`${TEST_API_BASE}/videos/:id`, () => HttpResponse.json(makeRawVideo())));
     const result = await client.getVideo("v1");
     expect(result.kind).toBe("ok");
     if (result.kind === "ok") {
@@ -74,113 +76,94 @@ describe("ApiClient.getVideo（VideoEnvelope）", () => {
     }
   });
 
-  it("未存在（Dynamoに情報がない）は notFound に正規化する（error-path）", async () => {
+  it("404 video_not_found は notFound に正規化する（error-path）", async () => {
     server.use(
-      http.get(`${TEST_API_BASE}/video/:id`, () =>
-        HttpResponse.json({
-          result: "error",
-          description: "Dynamoに情報がない",
-          video_data: null,
-        }),
-      ),
+      http.get(`${TEST_API_BASE}/videos/:id`, () => errorResponse(404, "video_not_found")),
     );
     const result = await client.getVideo("missing");
     expect(result.kind).toBe("notFound");
   });
 
-  it("video_id 未指定は invalidInput に正規化する（error-path）", async () => {
+  it("422（ID 形式不正）は invalidInput に正規化する（error-path）", async () => {
     server.use(
-      http.get(`${TEST_API_BASE}/video/:id`, () =>
-        HttpResponse.json({
-          result: "error",
-          description: "video_idを指定してください",
-          video_data: null,
-        }),
+      http.get(`${TEST_API_BASE}/videos/:id`, () =>
+        HttpResponse.json(
+          { detail: [{ loc: ["path", "video_id"], msg: "bad", type: "x" }] },
+          { status: 422 },
+        ),
       ),
     );
     const result = await client.getVideo(" ");
     expect(result.kind).toBe("invalidInput");
   });
+
+  it("スキーマ不一致は transport 失敗に正規化する（error-path）", async () => {
+    server.use(http.get(`${TEST_API_BASE}/videos/:id`, () => HttpResponse.json({ video_id: 1 })));
+    const result = await client.getVideo("v1");
+    expect(result.kind).toBe("transport");
+  });
 });
 
-describe("ApiClient.submitVideo（SubmitEnvelope / POST /video）", () => {
-  it("新規登録を ok(SubmitResult) に正規化する", async () => {
+describe("ApiClient.submitVideo（POST /videos）", () => {
+  it("新規登録（202）を ok(SubmitResult) に正規化する", async () => {
     server.use(
-      http.post(`${TEST_API_BASE}/video`, () =>
-        HttpResponse.json({
-          result: "succ",
-          description: "バックアップ処理開始",
-          video_data: {
-            video_id: "v9",
-            title: "新規",
-            already_backup: false,
-            batch_job_id: "job-1",
-            s3: "s3://example-bucket/v9.mp4",
-          },
-        }),
+      http.post(`${TEST_API_BASE}/videos`, () =>
+        HttpResponse.json(
+          makeRegistration({ video_id: "v9", title: "新規", batch_job_id: "job-1" }),
+          { status: 202 },
+        ),
       ),
     );
     const result = await client.submitVideo("https://youtu.be/abc");
     expect(result.kind).toBe("ok");
     if (result.kind === "ok") {
+      expect(result.data.videoId).toBe("v9");
+      expect(result.data.title).toBe("新規");
       expect(result.data.alreadyBackedUp).toBe(false);
       expect(result.data.batchJobId).toBe("job-1");
     }
   });
 
-  it("既登録（already_backup=true）も ok(alreadyBackedUp:true) に正規化する", async () => {
+  it("既登録（already_registered=true）も ok(alreadyBackedUp:true) に正規化する", async () => {
     server.use(
-      http.post(`${TEST_API_BASE}/video`, () =>
-        HttpResponse.json({
-          result: "succ",
-          description: "バックアップ済み",
-          video_data: {
-            video_id: "v9",
-            title: "既存",
-            already_backup: true,
-            batch_job_id: "",
-            s3: "s3://example-bucket/v9.mp4",
-          },
-        }),
+      http.post(`${TEST_API_BASE}/videos`, () =>
+        HttpResponse.json(makeRegistration({ already_registered: true, batch_job_id: null })),
       ),
     );
     const result = await client.submitVideo("https://youtu.be/abc");
     expect(result.kind).toBe("ok");
     if (result.kind === "ok") {
       expect(result.data.alreadyBackedUp).toBe(true);
+      expect(result.data.batchJobId).toBe("");
     }
   });
 
-  it("URLの異常は invalidInput に正規化する（error-path）", async () => {
-    server.use(
-      http.post(`${TEST_API_BASE}/video`, () =>
-        HttpResponse.json({ result: "error", description: "URLの異常", video_data: null }),
-      ),
-    );
+  it("422 invalid_url は invalidInput に正規化する（error-path）", async () => {
+    server.use(http.post(`${TEST_API_BASE}/videos`, () => errorResponse(422, "invalid_url")));
     const result = await client.submitVideo("bad");
     expect(result.kind).toBe("invalidInput");
   });
+
+  it("本文の形が不正なら transport 失敗に正規化する（error-path）", async () => {
+    server.use(http.post(`${TEST_API_BASE}/videos`, () => HttpResponse.json({ ok: true })));
+    const result = await client.submitVideo("https://youtu.be/abc");
+    expect(result.kind).toBe("transport");
+  });
 });
 
-describe("ApiClient.deleteVideo（DELETE /video/{id}）", () => {
-  it("成功を ok(Video) に正規化する", async () => {
+describe("ApiClient.deleteVideo（DELETE /videos/{id}）", () => {
+  it("204 を ok(null) に正規化する", async () => {
     server.use(
-      http.delete(`${TEST_API_BASE}/video/:id`, () =>
-        HttpResponse.json({ result: "succ", description: "deleted", video_data: makeRawVideo() }),
-      ),
+      http.delete(`${TEST_API_BASE}/videos/:id`, () => new HttpResponse(null, { status: 204 })),
     );
     const result = await client.deleteVideo("v1");
-    expect(result.kind).toBe("ok");
+    expect(result).toEqual({ kind: "ok", data: null });
   });
 
-  it("バックアップ中の削除拒否は rejected(backupInProgress) に正規化する（error-path）", async () => {
+  it("409 backup_object_needs_reconciliation は rejected(backupInProgress) に正規化する（error-path）", async () => {
     server.use(
-      http.delete(`${TEST_API_BASE}/video/:id`, () =>
-        HttpResponse.json({
-          result: "error",
-          description: "(バックアップ中)Dynamoに登録されているがS3に存在しません。",
-          video_data: null,
-        }),
+      http.delete(`${TEST_API_BASE}/videos/:id`, () =>
+        errorResponse(409, "backup_object_needs_reconciliation"),
       ),
     );
     const result = await client.deleteVideo("v1");
@@ -190,14 +173,10 @@ describe("ApiClient.deleteVideo（DELETE /video/{id}）", () => {
     }
   });
 
-  it("分類不能な error は rejected(serverError) に正規化する（error-path）", async () => {
+  it("409 deletion_needs_reconciliation は rejected(serverError) に正規化する（error-path）", async () => {
     server.use(
-      http.delete(`${TEST_API_BASE}/video/:id`, () =>
-        HttpResponse.json({
-          result: "error",
-          description: "S3削除に失敗しました",
-          video_data: null,
-        }),
+      http.delete(`${TEST_API_BASE}/videos/:id`, () =>
+        errorResponse(409, "deletion_needs_reconciliation"),
       ),
     );
     const result = await client.deleteVideo("v1");
@@ -206,83 +185,126 @@ describe("ApiClient.deleteVideo（DELETE /video/{id}）", () => {
       expect(result.reason).toBe("serverError");
     }
   });
+
+  it("404 は notFound に正規化する（error-path）", async () => {
+    server.use(
+      http.delete(`${TEST_API_BASE}/videos/:id`, () => errorResponse(404, "video_not_found")),
+    );
+    const result = await client.deleteVideo("missing");
+    expect(result.kind).toBe("notFound");
+  });
 });
 
-describe("ApiClient.getPresignedUrl（PresignedEnvelope）", () => {
+describe("ApiClient.getPresignedUrl（GET /videos/{id}/playback_url）", () => {
   it("成功を ok(url) に正規化する", async () => {
     server.use(
-      http.get(`${TEST_API_BASE}/presigned-s3url`, () =>
-        HttpResponse.json({
-          result: "succ",
-          description: "ok",
-          presigned_s3url: "https://s3.example.com/signed",
-        }),
+      http.get(`${TEST_API_BASE}/videos/:id/playback_url`, () =>
+        HttpResponse.json(makePlaybackUrl("https://s3.example.com/signed")),
       ),
     );
     const result = await client.getPresignedUrl("v1");
-    expect(result.kind).toBe("ok");
-    if (result.kind === "ok") {
-      expect(result.data).toContain("https://");
-    }
+    expect(result).toEqual({ kind: "ok", data: "https://s3.example.com/signed" });
   });
 
-  it("未存在は notFound に正規化する（error-path）", async () => {
+  it("409 backup_not_complete は rejected(backupInProgress) に正規化する（error-path）", async () => {
     server.use(
-      http.get(`${TEST_API_BASE}/presigned-s3url`, () =>
-        HttpResponse.json({
-          result: "error",
-          description: "Dynamoに情報がない",
-          presigned_s3url: null,
-        }),
+      http.get(`${TEST_API_BASE}/videos/:id/playback_url`, () =>
+        errorResponse(409, "backup_not_complete"),
+      ),
+    );
+    const result = await client.getPresignedUrl("v1");
+    expect(result.kind).toBe("rejected");
+  });
+
+  it("404 は notFound に正規化する（error-path）", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/videos/:id/playback_url`, () =>
+        errorResponse(404, "video_not_found"),
       ),
     );
     const result = await client.getPresignedUrl("missing");
     expect(result.kind).toBe("notFound");
   });
+
+  it("本文の形が不正なら transport 失敗に正規化する（error-path）", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/videos/:id/playback_url`, () => HttpResponse.json({ url: 1 })),
+    );
+    const result = await client.getPresignedUrl("v1");
+    expect(result.kind).toBe("transport");
+  });
 });
 
-describe("ApiClient.request のヘッダ制御（CORS preflight 回避）", () => {
-  it("ボディを持たない GET /presigned-s3url には Content-Type を付けない（単純リクエスト）", async () => {
-    let contentType: string | null = "unset";
+describe("ApiClient の認証ヘッダと HTTP エラー", () => {
+  it("全リクエストに Authorization: Bearer <トークン> を付ける", async () => {
+    let authorization: string | null = null;
     server.use(
-      http.get(`${TEST_API_BASE}/presigned-s3url`, ({ request }) => {
-        contentType = request.headers.get("content-type");
-        return HttpResponse.json({
-          result: "succ",
-          description: "ok",
-          presigned_s3url: "https://s3.example.com/signed",
-        });
+      http.get(`${TEST_API_BASE}/videos`, ({ request }) => {
+        authorization = request.headers.get("authorization");
+        return HttpResponse.json([]);
       }),
     );
-    await client.getPresignedUrl("v1");
-    expect(contentType).toBeNull();
+    await client.listVideos({ uploadStatus: "complete" });
+    expect(authorization).toBe("Bearer test-token");
   });
 
-  it("ボディを持たない DELETE /video/{id} には Content-Type を付けない", async () => {
+  it("ボディを持たない GET/DELETE には Content-Type を付けない", async () => {
     let contentType: string | null = "unset";
     server.use(
-      http.delete(`${TEST_API_BASE}/video/:id`, ({ request }) => {
+      http.delete(`${TEST_API_BASE}/videos/:id`, ({ request }) => {
         contentType = request.headers.get("content-type");
-        return HttpResponse.json({
-          result: "succ",
-          description: "deleted",
-          video_data: makeRawVideo(),
-        });
+        return new HttpResponse(null, { status: 204 });
       }),
     );
     await client.deleteVideo("v1");
     expect(contentType).toBeNull();
   });
 
-  it("ボディを持つ POST /video には Content-Type: application/json を付ける", async () => {
+  it("ボディを持つ POST /videos には Content-Type: application/json を付ける", async () => {
     let contentType: string | null = null;
     server.use(
-      http.post(`${TEST_API_BASE}/video`, ({ request }) => {
+      http.post(`${TEST_API_BASE}/videos`, ({ request }) => {
         contentType = request.headers.get("content-type");
-        return HttpResponse.json({ result: "error", description: "URLの異常", video_data: null });
+        return errorResponse(422, "invalid_url");
       }),
     );
     await client.submitVideo("bad");
     expect(contentType).toBe("application/json");
+  });
+
+  it("トークンを取得できない場合はリクエストせず transport 失敗にする（認証切れ）", async () => {
+    let called = false;
+    server.use(
+      http.get(`${TEST_API_BASE}/videos`, () => {
+        called = true;
+        return HttpResponse.json([]);
+      }),
+    );
+    const noToken = new HttpApiClient(TEST_API_BASE, () => Promise.resolve(null));
+    const result = await noToken.listVideos({ uploadStatus: "complete" });
+    expect(result.kind).toBe("transport");
+    expect(called).toBe(false);
+  });
+
+  it("401（JWT 検証失敗）は transport 失敗に正規化する", async () => {
+    server.use(http.get(`${TEST_API_BASE}/videos`, () => unauthorizedResponse()));
+    const result = await client.listVideos({ uploadStatus: "complete" });
+    expect(result.kind).toBe("transport");
+  });
+
+  it("503 は transport 失敗に正規化する", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/videos`, () => errorResponse(503, "upstream_unavailable")),
+    );
+    const result = await client.listVideos({ uploadStatus: "complete" });
+    expect(result).toEqual({ kind: "transport", message: "HTTP 503" });
+  });
+
+  it("エラー本文が JSON でなくてもステータスで分類する", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/videos/:id`, () => new HttpResponse("oops", { status: 404 })),
+    );
+    const result = await client.getVideo("v1");
+    expect(result.kind).toBe("notFound");
   });
 });

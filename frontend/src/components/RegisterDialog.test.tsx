@@ -5,7 +5,7 @@ import { delay, http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/api/client";
 import { server } from "@/test/server";
-import { TEST_API_BASE, makeSubmitEnvelope } from "@/test/handlers";
+import { TEST_API_BASE, makeRegistration } from "@/test/handlers";
 import { RegisterDialog } from "./RegisterDialog";
 
 function renderDialog(onClose: () => void = vi.fn()) {
@@ -74,9 +74,9 @@ describe("RegisterDialog（U4 / US4.1）", () => {
   it("送信中は送信ボタンが無効化される（二重送信抑止 / US4.1）", async () => {
     const user = userEvent.setup();
     server.use(
-      http.post(`${TEST_API_BASE}/video`, async () => {
+      http.post(`${TEST_API_BASE}/videos`, async () => {
         await delay(80);
-        return HttpResponse.json(makeSubmitEnvelope());
+        return HttpResponse.json(makeRegistration(), { status: 202 });
       }),
     );
     renderDialog();

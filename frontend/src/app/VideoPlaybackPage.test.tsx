@@ -7,12 +7,8 @@ import { describe, expect, it } from "vitest";
 import { Toaster } from "@/components/Toaster";
 import { VideoPlaybackPage } from "@/app/VideoPlaybackPage";
 import { server } from "@/test/server";
-import {
-  TEST_API_BASE,
-  TEST_PRESIGNED_URL,
-  makeVideoEnvelope,
-  videoNotFoundEnvelope,
-} from "@/test/handlers";
+import { TEST_API_BASE, TEST_PRESIGNED_URL, errorResponse } from "@/test/handlers";
+import { makeRawVideo } from "@/test/factories";
 
 /**
  * 再生ページのユニットテスト（U6 / US6.2・FR7・OQ2・A3・C4）。
@@ -39,7 +35,7 @@ function renderPage(id = "v1") {
 
 describe("VideoPlaybackPage（U6 / US6.2・FR7・A3・C4）", () => {
   it("complete 動画は <video src=署名URL> と DL ボタンを表示する（happy path）", async () => {
-    // 既定ハンドラ: GET /video/:id → complete、GET /presigned-s3url → 成功。
+    // 既定ハンドラ: GET /videos/:id → complete、GET /presigned-s3url → 成功。
     renderPage();
 
     const player = await screen.findByTestId("video-player");
@@ -50,7 +46,9 @@ describe("VideoPlaybackPage（U6 / US6.2・FR7・A3・C4）", () => {
   });
 
   it("署名 URL 取得失敗は error フォールバック + 再試行を表示する（OQ2 / error-path）", async () => {
-    server.use(http.get(`${TEST_API_BASE}/presigned-s3url`, () => HttpResponse.error()));
+    server.use(
+      http.get(`${TEST_API_BASE}/videos/:videoId/playback_url`, () => HttpResponse.error()),
+    );
     renderPage();
 
     // error フォールバック（C4 role=alert）+ 再試行ボタン。
@@ -62,8 +60,8 @@ describe("VideoPlaybackPage（U6 / US6.2・FR7・A3・C4）", () => {
 
   it("init 動画は再生不可メッセージを表示し再生/DL を出さない（A3）", async () => {
     server.use(
-      http.get(`${TEST_API_BASE}/video/:videoId`, () =>
-        HttpResponse.json(makeVideoEnvelope({ upload_status: "init" })),
+      http.get(`${TEST_API_BASE}/videos/:videoId`, () =>
+        HttpResponse.json(makeRawVideo({ upload_status: "init" })),
       ),
     );
     renderPage("i1");
@@ -75,7 +73,7 @@ describe("VideoPlaybackPage（U6 / US6.2・FR7・A3・C4）", () => {
 
   it("未存在の動画は「見つかりませんでした」を表示する", async () => {
     server.use(
-      http.get(`${TEST_API_BASE}/video/:videoId`, () => HttpResponse.json(videoNotFoundEnvelope())),
+      http.get(`${TEST_API_BASE}/videos/:videoId`, () => errorResponse(404, "video_not_found")),
     );
     renderPage("missing");
 

@@ -1,5 +1,6 @@
 import type { StorybookConfig } from "@storybook/react-vite";
-import { mergeConfig } from "vite";
+import { fileURLToPath } from "node:url";
+import { mergeConfig, type AliasOptions } from "vite";
 
 /**
  * Storybook 本体設定（US-1 / US-5 / US-9 / OQ1）。
@@ -26,15 +27,33 @@ const config: StorybookConfig = {
   core: {
     disableTelemetry: true,
   },
-  viteFinal: async (viteConfig) =>
-    mergeConfig(viteConfig, {
+  viteFinal: async (viteConfig) => {
+    const merged = mergeConfig(viteConfig, {
       define: Object.fromEntries(
         Object.entries(STORYBOOK_ENV).map(([key, value]) => [
           `import.meta.env.${key}`,
           JSON.stringify(value),
         ]),
       ),
-    }),
+    });
+    // API クライアントのトークン取得を固定値のスタブへ差し替える（Cognito へ接続しない）。
+    // 既存の `@` エイリアスより前に置かないと、先に `@` が一致してしまう。
+    const existing: AliasOptions = merged.resolve?.alias ?? [];
+    const aliases = Array.isArray(existing)
+      ? existing
+      : Object.entries(existing).map(([find, replacement]) => ({ find, replacement }));
+    merged.resolve = {
+      ...merged.resolve,
+      alias: [
+        {
+          find: /^@\/api\/token$/,
+          replacement: fileURLToPath(new URL("../src/test/storybook/token.ts", import.meta.url)),
+        },
+        ...aliases,
+      ],
+    };
+    return merged;
+  },
 };
 
 export default config;

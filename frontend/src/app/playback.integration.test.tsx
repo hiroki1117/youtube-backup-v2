@@ -31,7 +31,7 @@ import { ThemeProvider } from "@/hooks/useTheme";
 import { Toaster } from "@/components/Toaster";
 import { routes } from "@/app/routes";
 import { server } from "@/test/server";
-import { TEST_API_BASE, TEST_PRESIGNED_URL, makeVideoEnvelope } from "@/test/handlers";
+import { TEST_API_BASE, TEST_PRESIGNED_URL } from "@/test/handlers";
 import { makeRawVideo } from "@/test/factories";
 
 const downloadMock = vi.mocked(downloadPresignedUrl);
@@ -63,13 +63,13 @@ describe("再生/ダウンロード 結合（一覧→再生・DL / US6.1・US6.
   it("一覧の「再生」→ /videos/:id へ遷移しプレイヤーを表示する（US6.2 / C6）", async () => {
     const user = userEvent.setup();
     server.use(
-      http.get(`${TEST_API_BASE}/video`, () =>
+      http.get(`${TEST_API_BASE}/videos`, () =>
         HttpResponse.json([makeRawVideo({ video_id: "c1", title: "再生対象動画" })]),
       ),
       // 詳細取得は param の id に対して complete 動画を返す。
-      http.get(`${TEST_API_BASE}/video/:videoId`, ({ params }) =>
+      http.get(`${TEST_API_BASE}/videos/:videoId`, ({ params }) =>
         HttpResponse.json(
-          makeVideoEnvelope({ video_id: String(params.videoId), title: "再生対象動画" }),
+          makeRawVideo({ video_id: String(params.videoId), title: "再生対象動画" }),
         ),
       ),
     );
@@ -86,7 +86,7 @@ describe("再生/ダウンロード 結合（一覧→再生・DL / US6.1・US6.
   it("一覧の「ダウンロード」→ 署名 URL を取得し download を起動する（US6.1 / FR6 / C6）", async () => {
     const user = userEvent.setup();
     server.use(
-      http.get(`${TEST_API_BASE}/video`, () =>
+      http.get(`${TEST_API_BASE}/videos`, () =>
         HttpResponse.json([makeRawVideo({ video_id: "c1", title: "DL対象動画" })]),
       ),
     );
@@ -103,16 +103,16 @@ describe("再生/ダウンロード 結合（一覧→再生・DL / US6.1・US6.
   it("再生ページで署名 URL 取得に失敗すると error フォールバックを表示する（OQ2 / error-path）", async () => {
     const user = userEvent.setup();
     server.use(
-      http.get(`${TEST_API_BASE}/video`, () =>
+      http.get(`${TEST_API_BASE}/videos`, () =>
         HttpResponse.json([makeRawVideo({ video_id: "c1", title: "再生失敗動画" })]),
       ),
-      http.get(`${TEST_API_BASE}/video/:videoId`, ({ params }) =>
+      http.get(`${TEST_API_BASE}/videos/:videoId`, ({ params }) =>
         HttpResponse.json(
-          makeVideoEnvelope({ video_id: String(params.videoId), title: "再生失敗動画" }),
+          makeRawVideo({ video_id: String(params.videoId), title: "再生失敗動画" }),
         ),
       ),
       // 署名 URL 取得が transport/CORS 失敗する。
-      http.get(`${TEST_API_BASE}/presigned-s3url`, () => HttpResponse.error()),
+      http.get(`${TEST_API_BASE}/videos/:videoId/playback_url`, () => HttpResponse.error()),
     );
     renderApp();
     await screen.findByText("再生失敗動画");

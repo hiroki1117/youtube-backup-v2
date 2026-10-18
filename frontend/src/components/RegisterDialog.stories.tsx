@@ -45,7 +45,7 @@ export const ValidationError: Story = {
 /** POST /video を保留し、送信中（ボタン無効 + `aria-busy`）を固定する。 */
 export const Submitting: Story = {
   parameters: {
-    msw: { handlers: [pendingHandler("post", "/video")] },
+    msw: { handlers: [pendingHandler("post", "/videos")] },
   },
   play: async ({ canvasElement }) => {
     await submitUrl(canvasElement, "https://www.youtube.com/watch?v=dQw4w9WgXcQ");

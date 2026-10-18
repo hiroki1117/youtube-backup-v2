@@ -5,7 +5,8 @@ import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/api/client";
 import { server } from "@/test/server";
-import { TEST_API_BASE, makeVideoEnvelope, videoNotFoundEnvelope } from "@/test/handlers";
+import { TEST_API_BASE, errorResponse } from "@/test/handlers";
+import { makeRawVideo } from "@/test/factories";
 import { useVideoSearch } from "./useVideoSearch";
 
 function setup() {
@@ -39,8 +40,8 @@ describe("useVideoSearch（U3 / US3.1・FR3.1・C2）", () => {
 
   it("init 動画でも ok を返す（再生可否の判定は component 層の責務）", async () => {
     server.use(
-      http.get(`${TEST_API_BASE}/video/:videoId`, () =>
-        HttpResponse.json(makeVideoEnvelope({ video_id: "i1", upload_status: "init" })),
+      http.get(`${TEST_API_BASE}/videos/:videoId`, () =>
+        HttpResponse.json(makeRawVideo({ video_id: "i1", upload_status: "init" })),
       ),
     );
     const { result } = setup();
@@ -57,7 +58,7 @@ describe("useVideoSearch（U3 / US3.1・FR3.1・C2）", () => {
 
   it("存在しない video_id は notFound を返す（error-path / FR3.1）", async () => {
     server.use(
-      http.get(`${TEST_API_BASE}/video/:videoId`, () => HttpResponse.json(videoNotFoundEnvelope())),
+      http.get(`${TEST_API_BASE}/videos/:videoId`, () => errorResponse(404, "video_not_found")),
     );
     const { result } = setup();
 
@@ -80,7 +81,7 @@ describe("useVideoSearch（U3 / US3.1・FR3.1・C2）", () => {
   });
 
   it("transport 失敗は error を返す（error-path / FR8）", async () => {
-    server.use(http.get(`${TEST_API_BASE}/video/:videoId`, () => HttpResponse.error()));
+    server.use(http.get(`${TEST_API_BASE}/videos/:videoId`, () => HttpResponse.error()));
     const { result } = setup();
 
     act(() => result.current.search("v1"));
@@ -101,8 +102,8 @@ describe("useVideoSearch（U3 / US3.1・FR3.1・C2）", () => {
 
     // 2 件目は別 id を返すハンドラへ差し替え。
     server.use(
-      http.get(`${TEST_API_BASE}/video/:videoId`, () =>
-        HttpResponse.json(makeVideoEnvelope({ video_id: "v2", title: "別動画" })),
+      http.get(`${TEST_API_BASE}/videos/:videoId`, () =>
+        HttpResponse.json(makeRawVideo({ video_id: "v2", title: "別動画" })),
       ),
     );
     act(() => result.current.search("v2"));

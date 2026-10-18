@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/api/client";
 import { subscribe, type Notification } from "@/lib/notify";
 import { server } from "@/test/server";
-import { TEST_API_BASE, makeSubmitEnvelope, submitErrorEnvelope } from "@/test/handlers";
+import { TEST_API_BASE, errorResponse, makeRegistration } from "@/test/handlers";
 import { useVideoRegistration } from "./useVideoRegistration";
 
 /** 通知の発行を購読して捕捉する（notify は setup.ts の afterEach で clear 済み）。 */
@@ -43,8 +43,8 @@ describe("useVideoRegistration（U4 / US4.1・FR4.1・FR4.2・C2・C4）", () =>
 
   it("既登録（already_backup=true）は info 通知を出す（C2）", async () => {
     server.use(
-      http.post(`${TEST_API_BASE}/video`, () =>
-        HttpResponse.json(makeSubmitEnvelope({ already_backup: true })),
+      http.post(`${TEST_API_BASE}/videos`, () =>
+        HttpResponse.json(makeRegistration({ already_registered: true })),
       ),
     );
     const cap = captureNotifications();
@@ -58,11 +58,7 @@ describe("useVideoRegistration（U4 / US4.1・FR4.1・FR4.2・C2・C4）", () =>
   });
 
   it("URL 異常（invalidInput）は error 通知を出す（error-path / C2・C4）", async () => {
-    server.use(
-      http.post(`${TEST_API_BASE}/video`, () =>
-        HttpResponse.json(submitErrorEnvelope("URLの異常")),
-      ),
-    );
+    server.use(http.post(`${TEST_API_BASE}/videos`, () => errorResponse(422, "invalid_url")));
     const cap = captureNotifications();
     const { result, invalidateSpy } = setup();
 
@@ -77,7 +73,7 @@ describe("useVideoRegistration（U4 / US4.1・FR4.1・FR4.2・C2・C4）", () =>
   });
 
   it("transport 失敗は error 通知を出す（error-path / FR8）", async () => {
-    server.use(http.post(`${TEST_API_BASE}/video`, () => HttpResponse.error()));
+    server.use(http.post(`${TEST_API_BASE}/videos`, () => HttpResponse.error()));
     const cap = captureNotifications();
     const { result } = setup();
 

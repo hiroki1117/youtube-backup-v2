@@ -13,15 +13,19 @@ const { authenticateUserMock, getCurrentUserMock, signOutMock, getSessionMock } 
 );
 
 vi.mock("amazon-cognito-identity-js", () => ({
-  CognitoUserPool: vi.fn().mockImplementation(() => ({
-    getCurrentUser: getCurrentUserMock,
-  })),
-  CognitoUser: vi.fn().mockImplementation(() => ({
-    authenticateUser: authenticateUserMock,
-    getSession: getSessionMock,
-    signOut: signOutMock,
-  })),
-  AuthenticationDetails: vi.fn().mockImplementation(() => ({})),
+  CognitoUserPool: vi.fn().mockImplementation(function () {
+    return { getCurrentUser: getCurrentUserMock };
+  }),
+  CognitoUser: vi.fn().mockImplementation(function () {
+    return {
+      authenticateUser: authenticateUserMock,
+      getSession: getSessionMock,
+      signOut: signOutMock,
+    };
+  }),
+  AuthenticationDetails: vi.fn().mockImplementation(function () {
+    return {};
+  }),
 }));
 
 describe("AuthModule.signIn（USER_SRP_AUTH / contract C5）", () => {

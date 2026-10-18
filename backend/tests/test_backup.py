@@ -2,7 +2,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from events.handlers import scan_scrapbox
+from entrypoints.scrapbox_scan import scan_scrapbox
 from usecases.models import DomainError
 
 URL = "https://www.youtube.com/watch?v=abcdefghijk"

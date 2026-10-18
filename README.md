@@ -48,7 +48,7 @@ pnpm --dir frontend typecheck
 pnpm --dir frontend test
 pnpm --dir frontend build
 make -C backend check
-make -C backend package FUNCTION=video # 検証用 ZIP。本番配布なし
+make -C backend package # 検証用 ZIP 1つ。本番配布なし
 make -C batch check
 make -C batch build IMAGE=yt-dlp-script TAG=youtube-backup-candidate:local
 ```

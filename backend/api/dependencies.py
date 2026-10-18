@@ -5,10 +5,10 @@ from typing import Annotated
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from repositories.jobs import JobRepository
-from repositories.videos import VideoRepository
-from usecases.backup import BackupService
 from usecases.models import DomainError
+from wiring import get_service
+
+__all__ = ["get_service", "require_auth"]
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -28,8 +28,3 @@ def require_auth(
     token = os.environ.get("BACKEND_LOCAL_TOKEN", "")
     if not token or not credentials or not hmac.compare_digest(credentials.credentials, token):
         raise DomainError(401, "authentication_required")
-
-
-def get_service() -> BackupService:
-    # Request/invocation scope: mutable boto3 resources are not shared across HTTP requests.
-    return BackupService(VideoRepository(), JobRepository())

@@ -16,7 +16,7 @@ dev = ["pytest>=8,<10", "ruff>=0.12,<1", "uvicorn>=0.35,<1", "build>=1.2,<2"]
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["api*", "events*", "usecases*", "repositories*"]
+include = ["api*", "entrypoints*", "usecases*", "repositories*", "wiring*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

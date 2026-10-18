@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { SourceLink } from "@/components/SourceLink";
 import { StatusView, type ViewState } from "@/components/StatusView";
 import type { UploadStatus, Video } from "@/types/video";
 
@@ -79,6 +80,7 @@ export function VideoCatalog({
                 <span className="rounded bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">
                   {STATUS_LABEL[video.uploadStatus]}
                 </span>
+                <SourceLink video={video} />
                 {onPlay || onDownload || onDelete ? (
                   <span className="flex items-center gap-1">
                     {onPlay ? (

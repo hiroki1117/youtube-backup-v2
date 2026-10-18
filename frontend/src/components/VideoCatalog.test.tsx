@@ -56,6 +56,32 @@ describe("VideoCatalog（U2 / US2.1・C6 / FR8）", () => {
     expect(screen.getByText("処理中")).toBeInTheDocument();
   });
 
+  it("各行に元のページへのリンクを新しいタブで開く形で描画する", () => {
+    renderCatalog({
+      data: [
+        makeVideo({
+          videoId: "c1",
+          title: "完了動画",
+          videoUrl: "https://www.youtube.com/watch?v=abc123",
+        }),
+      ],
+    });
+    const link = screen.getByRole("link", { name: "元のページを開く: 完了動画" });
+    expect(link).toHaveAttribute("href", "https://www.youtube.com/watch?v=abc123");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("https 以外の URL の行にはリンクを描画しない（NFR4）", () => {
+    renderCatalog({
+      data: [
+        makeVideo({ videoId: "x1", title: "危険な URL", videoUrl: "javascript:alert(1)" }),
+        makeVideo({ videoId: "x2", title: "http の URL", videoUrl: "http://example.com/v" }),
+      ],
+    });
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
   it("ハンドラ未提供時は行アクションボタンを描画しない（C6）", () => {
     renderCatalog({ handlers: undefined });
     expect(screen.queryByRole("button", { name: /再生/ })).not.toBeInTheDocument();

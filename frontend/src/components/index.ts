@@ -12,6 +12,8 @@ export { DeleteConfirmDialog } from "./DeleteConfirmDialog";
 export type { DeleteConfirmDialogProps } from "./DeleteConfirmDialog";
 export { SearchDialog } from "./SearchDialog";
 export type { SearchDialogProps } from "./SearchDialog";
+export { SourceLink } from "./SourceLink";
+export type { SourceLinkProps } from "./SourceLink";
 export { VideoDetail } from "./VideoDetail";
 export type { VideoDetailProps } from "./VideoDetail";
 export { ThemeToggle } from "./ThemeToggle";

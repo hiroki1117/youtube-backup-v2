@@ -3,12 +3,12 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
-import importPlugin from "eslint-plugin-import";
+import importX from "eslint-plugin-import-x";
 import prettier from "eslint-config-prettier";
 
 // ESLint flat config（team.md「ESLint 構成」準拠）。
 // @eslint/js recommended + typescript-eslint + react-hooks + react-refresh
-// + eslint-plugin-import（import/no-cycle でレイヤ逆流を機械的に禁止）
+// + eslint-plugin-import-x（import-x/no-cycle でレイヤ逆流を機械的に禁止）
 // + eslint-config-prettier（最後に適用して Formatter 競合を解消）。
 export default tseslint.config(
   // storybook-static は build-storybook の生成物、.storybook/public は msw init が生成した worker スクリプト。
@@ -28,10 +28,11 @@ export default tseslint.config(
     plugins: {
       "react-hooks": reactHooks,
       "react-refresh": reactRefresh,
-      import: importPlugin,
+      "import-x": importX,
     },
     settings: {
-      "import/resolver": {
+      ...importX.flatConfigs.typescript.settings,
+      "import-x/resolver": {
         typescript: {
           alwaysTryTypes: true,
           project: "./tsconfig.json",
@@ -55,8 +56,8 @@ export default tseslint.config(
       ],
       eqeqeq: ["error", "always"],
 
-      // レイヤ一方向依存の機械的強制（team.md: 逆流を import/no-cycle で禁止）
-      "import/no-cycle": ["error", { maxDepth: 10 }],
+      // レイヤ一方向依存の機械的強制（team.md: 逆流を import-x/no-cycle で禁止）
+      "import-x/no-cycle": ["error", { maxDepth: 10 }],
     },
   },
   // 設定ファイル・テストファイル・Storybook 設定は Node グローバルを許可

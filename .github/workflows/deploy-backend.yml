@@ -27,11 +27,11 @@ jobs:
     env:
       # 関数名 → 期待 handler（backend/build_lambda.py の HANDLERS と一致させる）
       FUNCTIONS: |
-        youtube-backup-v2-video entrypoints.video.handler
-        youtube-backup-v2-backup entrypoints.backup.handler
-        youtube-backup-v2-s3-complete entrypoints.s3_complete.handler
-        youtube-backup-v2-scrapbox-scan entrypoints.scrapbox_scan.handler
-        youtube-backup-v2-retry entrypoints.retry.handler
+        youtube-backup-api-video entrypoints.video.handler
+        youtube-backup-api-backup entrypoints.backup.handler
+        youtube-backup-video-upload-complete entrypoints.s3_complete.handler
+        youtube-backup-scrapbox-scan entrypoints.scrapbox_scan.handler
+        youtube-backup-retry entrypoints.retry.handler
     steps:
       - uses: actions/checkout@v7
 

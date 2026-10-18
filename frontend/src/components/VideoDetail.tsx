@@ -1,3 +1,5 @@
+import { SourceLink } from "@/components/SourceLink";
+import { parseHttpsUrl } from "@/lib/url";
 import type { UploadStatus, Video } from "@/types/video";
 
 /**
@@ -28,6 +30,14 @@ export function VideoDetail({ video }: VideoDetailProps) {
       <dd>{video.backupDate}</dd>
       <dt className="text-muted-foreground">状態</dt>
       <dd>{STATUS_LABEL[video.uploadStatus]}</dd>
+      {parseHttpsUrl(video.videoUrl) !== null ? (
+        <>
+          <dt className="text-muted-foreground">元のページ</dt>
+          <dd>
+            <SourceLink video={video} />
+          </dd>
+        </>
+      ) : null}
     </dl>
   );
 }

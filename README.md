@@ -8,7 +8,7 @@ frontend・backend（Lambda）・batch を1つの repo で変更・検証し、�
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | [frontend/](frontend/)             | Vite / React / TypeScript アプリ。[deploy-frontend.yml](.github/workflows/deploy-frontend.yml) が Amplify Hosting へ配布 |
 | [backend/lambda/](backend/lambda/) | FastAPI 実装候補と旧ソース保全。詳細は [backend/README.md](backend/README.md)。本番未切替                     |
-| [batch/scripts/](batch/scripts/)   | download / upload / whisper / 保守スクリプトを保全。image push は旧 `youtube-backup` の CI が継続             |
+| [batch/scripts/](batch/scripts/)   | yt-dlp image のスクリプト。main push で `deploy-batch.yml` が ECR へ push|
 | [infra/](infra/)                   | 既存 CDK scaffold。実所有の確認前に適用・削除しない                                                           |
 
 AWS 定義・state の管理先は [hiroki1117/infra](https://github.com/hiroki1117/infra)。

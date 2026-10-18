@@ -41,47 +41,6 @@
       "source": "lambda/video-list-lambda/main.py",
       "sha256": "3ca47a1440c861bbe9f3b12d0b2667f23b58169558d5f413304ef1cf7fdf0f0e"
     },
-    "batch/scripts/whisper-script/Dockerfile": {
-      "source": "script/whisper-script/Dockerfile",
-      "sha256": "8295e0b025be6d0aa8bfac725fd63128aa47ee7a73a36dec17ca8dba25d53402"
-    },
-    "batch/scripts/whisper-script/main.sh": {
-      "source": "script/whisper-script/main.sh",
-      "sha256": "6e9ff974f27ac363ede5759637a362690fb28b03836d2cc16ab9a0b914d94a56"
-    },
-    "batch/scripts/workaroundscript/update_init2complete.py": {
-      "source": "script/workaroundscript/update_init2complete.py",
-      "sha256": "c549d4a8af67482c77cb14e8f53b33fb3d8e2e68697891986509079a303fb809",
-      "current_sha256": "d820f9788325824439704d601fc7694f15a742c360ae513d0a5c24a8075ac770"
-    },
-    "batch/scripts/youtube-dl-script/Dockerfile": {
-      "source": "script/youtube-dl-script/Dockerfile",
-      "sha256": "8281646e03efd4ac9e15aa0d0737e18cefc148320b567abb0cac4982b654abaf"
-    },
-    "batch/scripts/youtube-dl-script/main.sh": {
-      "source": "script/youtube-dl-script/main.sh",
-      "sha256": "4534fa6bd73ae506f5005cf5be8df61d69cdf80fab434680bf29493b959a747e"
-    },
-    "batch/scripts/youtube-upload-script/Dockerfile": {
-      "source": "script/youtube-upload-script/Dockerfile",
-      "sha256": "cfd22e846229657752893fd1eef5be7e56dadbb4bd6edc83a6b31c3f1e962b2b"
-    },
-    "batch/scripts/youtube-upload-script/README.md": {
-      "source": "script/youtube-upload-script/README.md",
-      "sha256": "9a7596e4f68c8ba7bda05c16ad487d1f809ba51c0f8e2f9f5dc9e85876fe8876"
-    },
-    "batch/scripts/youtube-upload-script/main.sh": {
-      "source": "script/youtube-upload-script/main.sh",
-      "sha256": "cfa9dedf092d81aa6877343086ab2c95e6b1ab2df32a99241974891e99389b2c"
-    },
-    "batch/scripts/youtube-upload-script/requirements.txt": {
-      "source": "script/youtube-upload-script/requirements.txt",
-      "sha256": "2251d90cf130663161f68d80c33e2981e702bdf4da66644b4d4dc660e3ed8a80"
-    },
-    "batch/scripts/youtube-upload-script/upload_video.py": {
-      "source": "script/youtube-upload-script/upload_video.py",
-      "sha256": "fb1317964c7dac1b4f2d4c1fab500f05fce1289b1de80f56021a559be9457a81"
-    },
     "batch/scripts/yt-dlp-script/Dockerfile": {
       "source": "script/yt-dlp-script/Dockerfile",
       "sha256": "8577719ba5fd3413e4dde1c18670c76a12e2ce904b73aaba747b45d4f3890b27"

@@ -9,7 +9,7 @@ import type { UploadStatus, Video } from "@/types/video";
  * ApiClient（唯一の HTTP 境界・型付き失敗値）から状態別一覧を取得し、sortVideos を適用した
  * 「取得済みの全行」と操作口を返す。
  *
- * 続きの読み込みは旧版と同じ「more」方式: API はカーソルページング非対応（R-03）のため、
+ * 続きの読み込みは「more」方式: API はカーソルページング非対応のため、
  * 「もっと見る」で取得件数（fetch_num）を一定数ずつ増やして先頭から取り直す。
  *
  * レイヤ境界: hooks は api/lib/types のみに依存し、components には依存しない

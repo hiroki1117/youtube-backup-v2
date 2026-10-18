@@ -96,7 +96,7 @@ describe("VideoCatalog 結合（/videos / FR2.1〜2.4・FR8・US2.1〜2.5）", (
     expect(rowTitles()[2]).toContain("完了動画2");
   });
 
-  it("「もっと見る」で続きの行を追加表示し、末尾まで取得したらボタンを消す（旧版と同じ more 方式）", async () => {
+  it("「もっと見る」で続きの行を追加表示し、末尾まで取得したらボタンを消す", async () => {
     const user = userEvent.setup();
     server.use(
       http.get(`${TEST_API_BASE}/videos`, ({ request }) => {

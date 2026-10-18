@@ -1,4 +1,4 @@
-"""Build a standard wheel plus vendored dependencies into one review-only Lambda ZIP.
+"""Build a standard wheel plus vendored dependencies into the Lambda ZIP.
 
 All Lambdas share this ZIP; each one differs only in its configured handler.
 """
@@ -80,7 +80,7 @@ def main():
         for path in sorted(target.rglob("*")):
             if path.is_file() and "__pycache__" not in path.parts:
                 output.write(path, path.relative_to(target))
-    print(f"Review candidate: {archive.name}; runtime: python3.14; x86_64")
+    print(f"Built {archive.name}; runtime: python3.14; x86_64")
     for name, path in HANDLERS.items():
         print(f"  {name:<14} handler: {path}")
 

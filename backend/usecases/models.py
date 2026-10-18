@@ -79,6 +79,6 @@ def source_identity(url: str) -> tuple[str, str, str]:
             raise DomainError(422, "invalid_youtube_id")
         return video_id, "youtube", f"https://www.youtube.com/watch?v={video_id}"
     if host in {"twitter.com", "www.twitter.com", "x.com", "www.x.com"}:
-        # Legacy tweepy/SSM contract is unverified; do not invent replacement metadata behavior.
+        # Twitter / X registration is not supported (no metadata source).
         raise DomainError(422, "twitter_registration_not_migrated")
     return hashlib.sha256(url.encode()).hexdigest()[:15], host, url

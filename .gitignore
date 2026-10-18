@@ -30,7 +30,7 @@ pnpm-debug.log*
 # Husky internal
 .husky/_
 
-# Python / candidate artifacts
+# Python
 __pycache__/
 *.pyc
 build/

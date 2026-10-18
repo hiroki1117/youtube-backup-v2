@@ -106,7 +106,17 @@ backend/.venv/bin/python backend/verify_lambda.py --require-clean backend/build/
 manifest は source revision、dirtyフラグ、handler/runtime/architecture、lockfile hash、ZIPのhex SHA256とbase64 CodeSha256を記録する。
 配布には `source_tree_dirty=false` のものを採用し、承認したcommitと照合する。
 SHAは内容の照合用で、署名による出所証明ではない。信頼するCI run/source revisionから取得する。
-ZIPを再buildしたら、同じsourceでもhashが変わり得るため再検証・再採番して扱う。
+ZIPの再buildは同じsource・依存wheel・build toolchain・圧縮実装で同じhashになるよう正規化する。
+wheelの `SOURCE_DATE_EPOCH` とZIP時刻/権限/格納順を固定し、不要なCLI scriptとcheckout由来の `direct_url.json` を除去、対応するdist-info/RECORDを整える。pycは生成・同梱しない。runtime用METADATA/WHEEL等は維持する。
+
+再現性の限界: runtime lockはversion固定だがwheel hashを固定していない。取得先index/mirrorも外部設定に依存する。
+PEP517 build環境の `setuptools>=77` / wheel とhost側pip/build/Python patch/zlibも完全固定ではない。
+将来の同version artifact差し替え、取得可能wheelやbuild toolchainの変更まで同じZIPになる保証はない。
+今回の同一環境での2回build照合を、別runnerや将来のindex/toolchainを含む無条件の再現性保証として扱わない。
+
+infra CIが固定app commitから毎回buildする場合も、この境界は残る。無関係なinfra PRでhashが変わったら自動でLambda更新を採用せず停止し、manifestとZIPのmember差分を確認する。
+不要更新を確実に避けるには、承認済みapp commitで一度作成・検証した同じZIPを既存の成果物保管経路で再利用する。
+再buildが必要ならbuild toolchain/依存wheel hash/取得元も固定する方針を別途採用し、hash変更は再検証・再採番して扱う。
 
 package は展開したZIPだけをimportしてhandlerを検査し、同じ展開物で固定入力成功・通常入力拒否を検査する。
 boto3と外向きnetwork socketの利用を禁止して検査するため、hostのAWS権限に依存しない。`verify` は受領ZIPとmanifestのhash照合も実施する。

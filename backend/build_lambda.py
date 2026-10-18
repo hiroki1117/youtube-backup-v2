@@ -2,8 +2,10 @@
 
 import argparse
 import base64
+import csv
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -19,6 +21,43 @@ HANDLERS = {
 }
 
 
+# Fixed wheel timestamps as well as final ZIP timestamps. Never use wall-clock time.
+BUILD_EPOCH = "1577836800"  # 2020-01-01 UTC
+
+
+def normalize_target(target: Path) -> None:
+    """Remove pip's host-specific metadata and unused console entrypoints.
+
+    Source identity belongs in the external release manifest, not local wheel URLs.
+    Keep installed distribution metadata and RECORD consistent for runtime consumers.
+    """
+    removed = set()
+    for path in target.glob("*.dist-info/direct_url.json"):
+        removed.add(path.relative_to(target).as_posix())
+        path.unlink()
+    shutil.rmtree(target / "bin", ignore_errors=True)
+    for record in target.glob("*.dist-info/RECORD"):
+        with record.open(newline="") as source:
+            rows = list(csv.reader(source))
+        rows = [
+            row
+            for row in rows
+            if row[0] not in removed and not row[0].startswith(("../../bin/", "bin/"))
+        ]
+        with record.open("w", newline="") as output:
+            csv.writer(output, lineterminator="\n").writerows(sorted(rows))
+
+
+def write_archive(target: Path, archive: Path) -> None:
+    with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as output:
+        for path in sorted(target.rglob("*")):
+            if path.is_file() and "__pycache__" not in path.parts:
+                info = zipfile.ZipInfo(path.relative_to(target).as_posix(), (2020, 1, 1, 0, 0, 0))
+                info.compress_type = zipfile.ZIP_DEFLATED
+                info.external_attr = 0o100644 << 16
+                output.writestr(info, path.read_bytes())
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("function", choices=HANDLERS)
@@ -27,7 +66,9 @@ def main():
     wheels = root / "build/dist"
     shutil.rmtree(wheels, ignore_errors=True)
     subprocess.run(
-        [sys.executable, "-m", "build", "--wheel", "--outdir", str(wheels), str(root)], check=True
+        [sys.executable, "-m", "build", "--wheel", "--outdir", str(wheels), str(root)],
+        env={**os.environ, "SOURCE_DATE_EPOCH": BUILD_EPOCH},
+        check=True,
     )
     wheel = sorted(wheels.glob("youtube_backup_backend-*.whl"))[-1]
     target = root / "build/lambda" / args.function
@@ -59,6 +100,7 @@ def main():
         ],
         check=True,
     )
+    normalize_target(target)
     # Validate handler imports solely from the extracted artifact, with AWS construction forbidden.
     module, handler = HANDLERS[args.function].rsplit(".", 1)
     probe = (
@@ -78,13 +120,7 @@ def main():
         check=True,
     )
     archive = root / "build" / f"{args.function}.zip"
-    with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as output:
-        for path in sorted(target.rglob("*")):
-            if path.is_file() and "__pycache__" not in path.parts:
-                info = zipfile.ZipInfo(path.relative_to(target).as_posix(), (2020, 1, 1, 0, 0, 0))
-                info.compress_type = zipfile.ZIP_DEFLATED
-                info.external_attr = 0o100644 << 16
-                output.writestr(info, path.read_bytes())
+    write_archive(target, archive)
     digest = hashlib.sha256(archive.read_bytes()).digest()
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
     dirty = bool(

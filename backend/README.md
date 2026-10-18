@@ -12,6 +12,7 @@ Python の要件と依存は [pyproject.toml](pyproject.toml)、解決した run
 
 `make package` はZIPとhash/source revision付きmanifestを生成し、展開したZIPでimport・疎通・通常入力拒否も検証する。
 `make verify FUNCTION=video` で受領物を再検証できる。配布用にはcleanな承認済みcommitからbuildする。
+wheel/ZIPの時刻・格納順等とpip由来のローカル情報は正規化する。依存wheel hash・取得元・build toolchainは完全固定ではないため、将来や別runnerまで同hashを保証するものではない。詳しくは初回配布契約の再現性の限界を参照。
 appは成果物作成、infraはコード参照とAWS反映の唯一の所有者とする提案で、app CIにAWS配布処理は追加していない。
 以下の `make dev` はmemory実装とlocal tokenを使い、このAWS入口のmode設定には依存しない。
 

@@ -39,9 +39,7 @@ CDK は stack/resource/state と infra 定義の対応を確認後に移管ま�
 
 ## 既知の制約
 
-`youtube-upload-script/main.sh` は `#!/bin/sh` だが bash 配列を使用する。構文検査は bash で行い、POSIX sh での実行成功とは扱わない。
-同 Dockerfile の pip install 引数や古い base image / 依存も移管元のまま。upload / whisper の build・実稼働確認は未完了。
-外部サイトから取得する Deno / Whisper 等は完全固定ではない。挙動修正・依存固定化は別段階で扱う。
+外部サイトから取得する Deno 等は完全固定ではない。挙動修正・依存固定化は別段階で扱う。
 
 ## このブランチの検証（2026-10-12）
 

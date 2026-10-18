@@ -1,7 +1,7 @@
 # YouTube Backup
 
 frontend・backend（Lambda）・batch を1つの repo で変更・検証し、各部分の独立した build / deploy を維持するための初期整備。
-現在の repo 名は `youtube-backup-front-v2`。将来 `youtube-backup-v2` へ改名する。
+現在の repo 名は `youtube-backup-v2`（旧名 `youtube-backup-front-v2`）。
 [Issue #41](https://github.com/hiroki1117/projects/issues/41) の移行途中で、本番のコード一致・配布切替は未完了。
 
 | 配置                               | 役割と現在の配布元                                                                                            |
@@ -15,6 +15,13 @@ AWS 定義・state の管理先は [hiroki1117/infra](https://github.com/hiroki1
 app は source と成果物作成、infra は AWS 設定と成果物参照を担当する。Lambda code 更新の唯一の所有者は切替前に確定する。
 `youtube_backup2` はインフラ用、`youtube-backup-front` は旧 CRA 実装で、今回のアプリ移管元ではない。
 出所は [source-manifest.json](docs/source-manifest.json)、境界・制約・切替条件は [migration.md](docs/migration.md) を参照。
+
+## v2 Lambda の初回配布準備
+
+Issue #43 の第1段階は、旧API・通知・定期イベントに接続しない専用5関数の準備。
+[初回配布契約と直接invoke手順](docs/lambda-v2-deployment.md) に成果物・handler・環境・権限・app/infraの責任を記載した。
+各ZIPはmanifest付きで検証し、AWS入口は既定で `validation` モード。固定の疎通入力以外は拒否する。
+実AWSへの配布・invokeとIAM変更は未実施。Batch/frontend切替は次段階。
 
 ## セットアップと起動
 

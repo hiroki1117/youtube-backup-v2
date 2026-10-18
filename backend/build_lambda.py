@@ -1,6 +1,9 @@
 """Build a standard wheel plus vendored dependencies into a review-only Lambda ZIP."""
 
 import argparse
+import base64
+import hashlib
+import json
 import shutil
 import subprocess
 import sys
@@ -22,6 +25,7 @@ def main():
     args = parser.parse_args()
     root = Path(__file__).resolve().parent
     wheels = root / "build/dist"
+    shutil.rmtree(wheels, ignore_errors=True)
     subprocess.run(
         [sys.executable, "-m", "build", "--wheel", "--outdir", str(wheels), str(root)], check=True
     )
@@ -77,11 +81,35 @@ def main():
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as output:
         for path in sorted(target.rglob("*")):
             if path.is_file() and "__pycache__" not in path.parts:
-                output.write(path, path.relative_to(target))
-    print(
-        f"Review candidate: {archive.name}; handler: {HANDLERS[args.function]}; "
-        "runtime: python3.14; x86_64"
+                info = zipfile.ZipInfo(path.relative_to(target).as_posix(), (2020, 1, 1, 0, 0, 0))
+                info.compress_type = zipfile.ZIP_DEFLATED
+                info.external_attr = 0o100644 << 16
+                output.writestr(info, path.read_bytes())
+    digest = hashlib.sha256(archive.read_bytes()).digest()
+    revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+    dirty = bool(
+        subprocess.check_output(["git", "status", "--porcelain"], cwd=root, text=True).strip()
     )
+    manifest = {
+        "schema_version": 1,
+        "function": args.function,
+        "artifact": archive.name,
+        "handler": HANDLERS[args.function],
+        "runtime": "python3.14",
+        "architecture": "x86_64",
+        "source_revision": revision,
+        "source_tree_dirty": dirty,
+        "sha256": digest.hex(),
+        "code_sha256": base64.b64encode(digest).decode(),
+        "requirements_sha256": hashlib.sha256(
+            (root / "requirements.lock").read_bytes()
+        ).hexdigest(),
+        "execution_mode": "validation",
+    }
+    manifest_path = archive.with_suffix(".manifest.json")
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
+    subprocess.run([sys.executable, str(root / "verify_lambda.py"), str(manifest_path)], check=True)
+    print(f"Review candidate: {archive.name}; manifest: {manifest_path.name}; no AWS deployment")
 
 
 if __name__ == "__main__":

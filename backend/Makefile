@@ -1,6 +1,6 @@
 PYTHON ?= .venv/bin/python
 FUNCTION ?= video
-.PHONY: install check legacy-check export package dev
+.PHONY: install check legacy-check export package verify dev
 install:
 	python3.14 -m venv .venv
 	$(PYTHON) -m pip install -c requirements.lock -e '.[dev]'
@@ -15,5 +15,7 @@ export:
 	$(PYTHON) -m api.export
 package:
 	$(PYTHON) build_lambda.py $(FUNCTION)
+verify:
+	$(PYTHON) verify_lambda.py build/$(FUNCTION).manifest.json
 dev:
 	$(PYTHON) -m uvicorn api.local:create_app --factory --host 127.0.0.1 --port 8000

@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from mangum import Mangum
 
 from api.dependencies import require_auth
+from api.deployment import deployment_entrypoint
 from api.routes import backup_router, video_router
 from usecases.models import DomainError
 
@@ -34,5 +35,5 @@ def create_app(kind: str = "all") -> FastAPI:
 
 # Export/local aggregate only. AWS functions use the same routers in resource-specific apps.
 app = create_app()
-video_handler = Mangum(create_app("video"), lifespan="off")
-backup_handler = Mangum(create_app("backup"), lifespan="off")
+video_handler = deployment_entrypoint("video")(Mangum(create_app("video"), lifespan="off"))
+backup_handler = deployment_entrypoint("backup")(Mangum(create_app("backup"), lifespan="off"))

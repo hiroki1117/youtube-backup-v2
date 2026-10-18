@@ -88,6 +88,7 @@ def gateway_event(path, claims=None):
 
 
 def test_lambda_authorizer_and_resource_split(service, monkeypatch):
+    monkeypatch.setenv("BACKEND_EXECUTION_MODE", "application")
     monkeypatch.setenv("BACKEND_LOCAL_TOKEN", "should-not-authorize-lambda")
     with patch("api.dependencies.get_service", return_value=service):
         # Override the original dependency used by both resource-specific apps.
@@ -137,7 +138,8 @@ def test_runtime_apps_have_no_unauthenticated_documentation_routes(kind, monkeyp
 
 
 @pytest.mark.parametrize("handler", [video_handler, backup_handler])
-def test_lambda_documentation_routes_are_disabled(handler):
+def test_lambda_documentation_routes_are_disabled(handler, monkeypatch):
+    monkeypatch.setenv("BACKEND_EXECUTION_MODE", "application")
     for path in ("/docs", "/redoc", "/openapi.json", "/docs/oauth2-redirect"):
         with patch("boto3.Session", side_effect=AssertionError("AWS at docs request")):
             assert handler(gateway_event(path), None)["statusCode"] == 404

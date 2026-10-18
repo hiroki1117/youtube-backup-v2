@@ -4,6 +4,17 @@ FastAPI routes / Pydantic を新 API の正とする実装候補。本番と未�
 Python の要件と依存は [pyproject.toml](pyproject.toml)、解決した runtime 依存は [requirements.lock](requirements.lock)。
 [AWS 公式 runtime 一覧](https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html) を確認し、最新の正式安定版 Python 3.14 を採用（3.15 は preview）。
 
+## v2 専用関数の配布候補
+
+[初回配布契約](../docs/lambda-v2-deployment.md) を参照。AWS入口の5 handlerは既定で `BACKEND_EXECUTION_MODE=validation`。
+`deployment/check.json` と完全一致する入力のみAWSアクセスなしで疎通応答し、通常入力は拒否する。
+通常処理にはinfra管理の `application` 設定が必要。初回はログ専用実行ロール・triggerなしの専用関数を使い、旧関数へ配布しない。
+
+`make package` はZIPとhash/source revision付きmanifestを生成し、展開したZIPでimport・疎通・通常入力拒否も検証する。
+`make verify FUNCTION=video` で受領物を再検証できる。配布用にはcleanな承認済みcommitからbuildする。
+appは成果物作成、infraはコード参照とAWS反映の唯一の所有者とする提案で、app CIにAWS配布処理は追加していない。
+以下の `make dev` はmemory実装とlocal tokenを使い、このAWS入口のmode設定には依存しない。
+
 ## 最短手順
 
 Python 3.14 を用意し、`backend/` 内で:

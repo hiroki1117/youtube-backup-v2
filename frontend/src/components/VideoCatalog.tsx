@@ -18,9 +18,12 @@ export interface RowActionHandlers {
 export interface VideoCatalogProps {
   /** UiStateKit の表示状態（ready.data = 現在ページの表示行）。 */
   state: ViewState<Video[]>;
-  page: number;
-  pageCount: number;
-  onPageChange: (page: number) => void;
+  /** まだ続きがあるときだけ「もっと見る」を表示する。 */
+  hasMore?: boolean;
+  /** 「もっと見る」の押下（取得件数を増やして続きを読み込む）。 */
+  onLoadMore?: () => void;
+  /** 続きの読み込み中（ボタンを無効化して二重押下を防ぐ）。 */
+  isLoadingMore?: boolean;
   /** error 時の再取得口（C4）。 */
   onRetry?: () => void;
   /** 行アクション起動口（C6）。未提供のアクションはボタンを描画しない。 */
@@ -47,9 +50,9 @@ const EMPTY_MESSAGE: Record<"nodata" | "filtered", string> = {
  */
 export function VideoCatalog({
   state,
-  page,
-  pageCount,
-  onPageChange,
+  hasMore,
+  onLoadMore,
+  isLoadingMore,
   onRetry,
   handlers,
 }: VideoCatalogProps) {
@@ -118,29 +121,13 @@ export function VideoCatalog({
               </li>
             ))}
           </ul>
-          <nav aria-label="ページ送り" className="flex items-center justify-center gap-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onPageChange(page - 1)}
-              disabled={page <= 1}
-              aria-label="前のページ"
-            >
-              前へ
-            </Button>
-            <span aria-live="polite" className="text-sm text-muted-foreground">
-              {page} / {pageCount}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onPageChange(page + 1)}
-              disabled={page >= pageCount}
-              aria-label="次のページ"
-            >
-              次へ
-            </Button>
-          </nav>
+          {hasMore && onLoadMore ? (
+            <div className="flex justify-center">
+              <Button variant="outline" size="sm" onClick={onLoadMore} disabled={isLoadingMore}>
+                {isLoadingMore ? "読み込み中..." : "もっと見る"}
+              </Button>
+            </div>
+          ) : null}
         </div>
       )}
     </StatusView>

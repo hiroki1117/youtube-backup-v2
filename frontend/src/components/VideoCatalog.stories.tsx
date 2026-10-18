@@ -24,9 +24,6 @@ const meta = {
   title: "Components/VideoCatalog",
   component: VideoCatalog,
   args: {
-    page: 1,
-    pageCount: 1,
-    onPageChange: fn(),
     onRetry: fn(),
   },
 } satisfies Meta<typeof VideoCatalog>;
@@ -54,11 +51,22 @@ export const MixedStatuses: Story = {
   },
 };
 
-export const MultiPage: Story = {
+/** 続きがある一覧（「もっと見る」を表示）。 */
+export const HasMore: Story = {
   args: {
     state: { status: "ready", data: completeVideos },
-    page: 2,
-    pageCount: 3,
+    hasMore: true,
+    onLoadMore: fn(),
+  },
+};
+
+/** 続きを読み込み中（「もっと見る」は無効）。 */
+export const LoadingMore: Story = {
+  args: {
+    state: { status: "ready", data: completeVideos },
+    hasMore: true,
+    onLoadMore: fn(),
+    isLoadingMore: true,
   },
 };
 

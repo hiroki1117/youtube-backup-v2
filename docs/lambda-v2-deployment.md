@@ -33,13 +33,14 @@ ECR/Batch/DynamoDB/S3 は infra 管理。実AWSは未照合。旧ソースと稼
 | scrapbox_scan | `events.handlers.scrapbox_scan` | Scrapbox巡回・登録・Batch投入 | なし |
 | retry | `events.handlers.retry` | 追跡済み失敗job再投入（最大1ページ） | なし |
 
-初回設定案: timeout 30秒、memory 256 MiB、reserved concurrency 1、既存環境の関数を参照しない。
-これは疎通確認用の提案値で、業務運用・外部API巡回に必要なtimeout等は次段階で計測する。
+初回採用値: timeout 15秒、memory 256 MiB、reserved concurrency は未設定（Terraformでは `-1`）、`publish = true`。
+共有concurrency枠は予約せず、5関数を1つずつ逐次invokeする。既存環境の関数を参照しない。
+これは初回疎通確認用の採用値で、業務運用・外部API巡回に必要なtimeout等は次段階で計測する。
 Function URL、API Gateway integration、S3 notification、EventBridge schedule、DLQ等の既存接続は作成・切替しない。
 
 ## 初回の環境・権限と直接 invoke
 
-環境変数は `BACKEND_EXECUTION_MODE=validation` のみ。resource/SSM名や `BACKEND_LOCAL_TOKEN` は渡さない。
+infraは環境変数 `BACKEND_EXECUTION_MODE=validation` を明示設定する。resource/SSM名や `BACKEND_LOCAL_TOKEN` は渡さない。
 未設定も validation。未知のmode値は拒否。イベントの値で application モードへ昇格できない。
 
 全入口で、`backend/deployment/check.json` と完全一致する入力だけを受理する。AWS repository の生成・ネットワーク接続前に以下を返す。
@@ -61,21 +62,29 @@ HTTP入口の通常処理はGateway claimsを信頼するため、直接invoke�
 
 承認後、infraが作成した各関数について以下を実施する（この作業では実行しない）。実値はprivateな環境設定から渡す。
 
-1. `GetFunctionConfiguration` の限定queryで runtime/architecture/handler/State/LastUpdateStatus/CodeSha256 と modeだけを確認し、全envや秘密をログへ出さない。
-2. CodeSha256 を対応manifestの `code_sha256` と照合。State=Active、LastUpdateStatus=Successful を確認。発行したversionを指定する。
-3. 対応関数名・versionを設定してinvoke:
+1. infraは `publish = true` で専用関数のコード・設定を発行し、Terraform outputから各関数の発行済み数値versionを取得する。未発行・空のversion、`$LATEST`、aliasは使わず、取得できなければ検証を停止する。appや検証担当から追加publishは行わない。
+2. 最新更新の State=Active / LastUpdateStatus=Successful を確認した後、取得した数値versionをqualifierにした `GetFunctionConfiguration` の限定queryでruntime/architecture/handler/State/CodeSha256とmodeのみを確認する。CodeSha256を対応manifestの `code_sha256` と照合し、modeがvalidationであることを確認。全envや秘密をログへ出さない。
+3. 対応関数名・照合済み数値versionを設定し、以下の2回を逐次invokeする。**各関数2回、5関数で計10回**。並列化しない:
 
 ```bash
 # V2_FUNCTION_NAME / V2_FUNCTION_VERSION / AWS_REGION は承認済みprivate設定。
 aws lambda invoke \
   --function-name "$V2_FUNCTION_NAME" --qualifier "$V2_FUNCTION_VERSION" \
+  --invocation-type RequestResponse \
   --cli-binary-format raw-in-base64-out \
   --payload fileb://backend/deployment/check.json \
   /tmp/v2-lambda-check.json
+# 上の応答が手順4の条件を満たした場合だけ、同じ数値versionへ拒否確認を1回。
+aws lambda invoke \
+  --function-name "$V2_FUNCTION_NAME" --qualifier "$V2_FUNCTION_VERSION" \
+  --invocation-type RequestResponse \
+  --cli-binary-format raw-in-base64-out \
+  --payload fileb://backend/deployment/application-disabled.json \
+  /tmp/v2-lambda-rejection.json
 ```
 
 4. CLI exit codeだけで判定しない。metadata の StatusCode=200、FunctionErrorなし、ExecutedVersionが指定versionと一致、payloadが上記と完全一致することを5関数ごとに確認。
-5. 空の `{}` を専用関数へinvokeし、FunctionErrorが返ることも確認。共有DB/S3/Batchへの許可がないことと、旧関数・API・通知・scheduleが無変更であることをinfra差分で確認。
+5. 2回目の空入力 `{}` はStatusCode=200 / FunctionErrorあり / ExecutedVersionが同じ数値versionであることに加え、payloadのerrorType=`RuntimeError`、errorMessage=`Application invocation is disabled in validation mode`を確認。任意の例外を成功扱いしない。共有DB/S3/Batchへの許可がないことと、旧関数・API・通知・scheduleが無変更であることをinfra差分で確認。
 6. 失敗時は通常処理へ切り替えず、専用関数だけを修正する。旧本番sourceをrollback用として上書きしない。
 
 ## 成果物を作る・照合する

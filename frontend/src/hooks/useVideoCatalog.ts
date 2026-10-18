@@ -19,10 +19,11 @@ export const DEFAULT_UPLOAD_STATUS: UploadStatus = "complete";
 /** 既定ソート順。API GSI（backupdate 降順）と同順。 */
 export const DEFAULT_SORT_ORDER: SortOrder = "desc";
 /**
- * 実質全件取得の取得件数上限。API はカーソルページング非対応（R-03）のため大きめに指定し、
- * ソート／ページングはクライアントサイドで行う。
+ * 一覧の取得件数。初期表示の速さのため、API の既定順（backupdate 降順）で新しい側から取得する。
+ * API はカーソルページング非対応（R-03）のため、これより古い動画は一覧に出ない（ID 検索では開ける）。
+ * ソート／ページングは取得した件数の範囲でクライアントサイドに行う。
  */
-export const CATALOG_FETCH_NUM = 1000;
+export const CATALOG_FETCH_NUM = 50;
 
 export interface VideoCatalogController {
   /** TanStack Query の取得状態。 */

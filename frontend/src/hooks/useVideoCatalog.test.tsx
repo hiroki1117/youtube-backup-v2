@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { server } from "@/test/server";
 import { INIT_RAW_VIDEOS, TEST_API_BASE } from "@/test/handlers";
 import { makeRawVideos } from "@/test/factories";
-import { useVideoCatalog } from "./useVideoCatalog";
+import { CATALOG_FETCH_NUM, useVideoCatalog } from "./useVideoCatalog";
 
 function createWrapper() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -27,6 +27,21 @@ describe("useVideoCatalog（U2 / US2.1・US2.2・US2.4・US2.5）", () => {
     expect(result.current.sortOrder).toBe("desc");
     expect(result.current.page).toBe(1);
     expect(result.current.pageCount).toBe(1);
+  });
+
+  it("取得件数は CATALOG_FETCH_NUM（50）をクエリに付ける", async () => {
+    let fetchNum: string | null = null;
+    server.use(
+      http.get(`${TEST_API_BASE}/videos`, ({ request }) => {
+        fetchNum = new URL(request.url).searchParams.get("fetch_num");
+        return HttpResponse.json([]);
+      }),
+    );
+    const { result } = renderHook(() => useVideoCatalog(), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(result.current.status).toBe("success"));
+    expect(CATALOG_FETCH_NUM).toBe(50);
+    expect(fetchNum).toBe(String(CATALOG_FETCH_NUM));
   });
 
   it("init フィルタへ切り替えると再取得し page を先頭へリセットする（US2.2）", async () => {

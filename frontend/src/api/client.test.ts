@@ -308,3 +308,30 @@ describe("ApiClient の認証ヘッダと HTTP エラー", () => {
     expect(result.kind).toBe("notFound");
   });
 });
+
+describe("ApiClient.updateVideoTitle（PATCH /videos/{id}）", () => {
+  it("title を JSON で送り、更新後の Video を返す", async () => {
+    let body: unknown = null;
+    server.use(
+      http.patch(`${TEST_API_BASE}/videos/:id`, async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(makeRawVideo({ title: "更新後" }));
+      }),
+    );
+    const result = await client.updateVideoTitle("v1", "更新後");
+    expect(body).toEqual({ title: "更新後" });
+    expect(result.kind).toBe("ok");
+    if (result.kind === "ok") {
+      expect(result.data.title).toBe("更新後");
+    }
+  });
+
+  it("404 は notFound、422 は invalidInput に正規化する（error-path）", async () => {
+    server.use(
+      http.patch(`${TEST_API_BASE}/videos/:id`, () => errorResponse(404, "video_not_found")),
+    );
+    expect((await client.updateVideoTitle("missing", "x")).kind).toBe("notFound");
+    server.use(http.patch(`${TEST_API_BASE}/videos/:id`, () => errorResponse(422, "invalid")));
+    expect((await client.updateVideoTitle("v1", "x")).kind).toBe("invalidInput");
+  });
+});

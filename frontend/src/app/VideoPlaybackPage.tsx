@@ -1,9 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { StatusView, type ViewState } from "@/components/StatusView";
 import { VideoDetail } from "@/components/VideoDetail";
+import { VideoTitleEditor } from "@/components/VideoTitleEditor";
 import { useVideoDownload } from "@/hooks/useVideoDownload";
+import { useVideoTitleEdit } from "@/hooks/useVideoTitleEdit";
 import { useVideoPlayback, type PlaybackSource } from "@/hooks/useVideoPlayback";
 import { ROUTES } from "@/lib/routes";
 
@@ -36,6 +38,8 @@ export function VideoPlaybackPage() {
   const { videoId } = useParams<{ videoId: string }>();
   const playback = useVideoPlayback(videoId ?? "");
   const download = useVideoDownload();
+  const titleEdit = useVideoTitleEdit(videoId ?? "");
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   // 表示時に見出しへフォーカスする（アクセシビリティ。ページ遷移でフォーカスを画面先頭へ移す）。
@@ -44,8 +48,16 @@ export function VideoPlaybackPage() {
   }, []);
 
   const state = playback.state;
-  const headingText =
-    state.kind === "ready" || state.kind === "notPlayable" ? state.video.title : "動画再生";
+  const loadedVideo = state.kind === "ready" || state.kind === "notPlayable" ? state.video : null;
+  const headingText = loadedVideo?.title ?? "動画再生";
+
+  const saveTitle = async (title: string) => {
+    const saved = await titleEdit.save(title);
+    if (saved) {
+      setIsEditingTitle(false);
+    }
+    return saved;
+  };
 
   return (
     <section aria-label="動画再生" className="space-y-4">
@@ -58,14 +70,36 @@ export function VideoPlaybackPage() {
           ← 一覧へ戻る
         </Link>
       </div>
-      <h2
-        ref={headingRef}
-        tabIndex={-1}
-        className="text-xl font-semibold outline-hidden"
-        data-testid="playback-heading"
-      >
-        {headingText}
-      </h2>
+      {loadedVideo !== null && isEditingTitle ? (
+        <VideoTitleEditor
+          title={loadedVideo.title}
+          isSaving={titleEdit.isSaving}
+          onSave={saveTitle}
+          onCancel={() => setIsEditingTitle(false)}
+        />
+      ) : (
+        <div className="flex items-start gap-2">
+          <h2
+            ref={headingRef}
+            tabIndex={-1}
+            className="min-w-0 flex-1 break-words text-xl font-semibold outline-hidden"
+            data-testid="playback-heading"
+          >
+            {headingText}
+          </h2>
+          {loadedVideo !== null ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditingTitle(true)}
+              aria-label="タイトルを編集"
+              data-testid="title-edit-button"
+            >
+              編集
+            </Button>
+          ) : null}
+        </div>
+      )}
 
       {state.kind === "loading" && (
         <StatusView state={{ status: "loading" }} loadingLabel="動画情報を読み込んでいます...">

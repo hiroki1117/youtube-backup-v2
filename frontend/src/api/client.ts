@@ -34,6 +34,8 @@ export interface ApiClient {
   }): Promise<ApiResult<Video[]>>;
   getVideo(videoId: string): Promise<ApiResult<Video>>;
   submitVideo(url: string): Promise<ApiResult<SubmitResult>>;
+  /** タイトルを更新する（`PATCH /videos/{id}`）。成功は更新後の Video。 */
+  updateVideoTitle(videoId: string, title: string): Promise<ApiResult<Video>>;
   /** 成功は 204（本文なし）。 */
   deleteVideo(videoId: string): Promise<ApiResult<null>>;
   /** 再生/ダウンロード用の署名付き URL（`GET /videos/{id}/playback_url`）。 */
@@ -223,6 +225,21 @@ export class HttpApiClient implements ApiClient {
         batchJobId: parsed.data.backup.batch_job_id ?? "",
       },
     };
+  }
+
+  async updateVideoTitle(videoId: string, title: string): Promise<ApiResult<Video>> {
+    const res = await this.request(`/videos/${encodeURIComponent(videoId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ title }),
+    });
+    if (!res.ok) {
+      return res.failure;
+    }
+    const video = parseVideo(res.body);
+    if (video === null) {
+      return { kind: "transport", message: "video schema mismatch in PATCH /videos/{id}" };
+    }
+    return { kind: "ok", data: video };
   }
 
   async deleteVideo(videoId: string): Promise<ApiResult<null>> {

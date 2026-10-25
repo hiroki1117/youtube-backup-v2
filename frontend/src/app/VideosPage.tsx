@@ -1,4 +1,3 @@
-import { generatePath, useNavigate } from "react-router-dom";
 import { CatalogControls } from "@/components/CatalogControls";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import type { ViewState } from "@/components/StatusView";
@@ -9,8 +8,6 @@ import {
   type VideoCatalogController,
 } from "@/hooks/useVideoCatalog";
 import { useVideoDeletion } from "@/hooks/useVideoDeletion";
-import { useVideoDownload } from "@/hooks/useVideoDownload";
-import { ROUTES } from "@/lib/routes";
 import type { Video } from "@/types/video";
 
 /**
@@ -19,8 +16,8 @@ import type { Video } from "@/types/video";
  * VideoCatalog（状態別描画 + 行アクション起動口）へ接続する。
  *
  * 行アクション（C6 RowActionHandlers）の onDelete に useVideoDeletion.requestDelete を配線し（U5）、
- * DeleteConfirmDialog で削除前確認を行う（FR5.1）。onPlay は再生ページ（/videos/:videoId）へ遷移し、
- * onDownload は complete 動画のダウンロード（useVideoDownload）を起動する（U6 / US6.1・US6.2・C6）。
+ * DeleteConfirmDialog で削除前確認を行う（FR5.1）。再生・ダウンロードは行のタイトルから移る
+ * 再生ページ（/videos/:videoId）で行う（U6 / US6.1・US6.2）。
  * StatusView（C4）で loading/error/empty を統一描画する。
  */
 
@@ -46,8 +43,6 @@ function deriveCatalogState(catalog: VideoCatalogController): ViewState<Video[]>
 export function VideosPage() {
   const catalog = useVideoCatalog();
   const deletion = useVideoDeletion();
-  const download = useVideoDownload();
-  const navigate = useNavigate();
   const state = deriveCatalogState(catalog);
 
   return (
@@ -69,13 +64,8 @@ export function VideosPage() {
         onLoadMore={catalog.loadMore}
         isLoadingMore={catalog.isFetching}
         onRetry={catalog.refetch}
-        // 行アクションを配線（C6）: onDelete=U5 削除フロー、onPlay=再生ページ遷移、
-        // onDownload=U6 ダウンロード（VideoCatalog は complete 行にのみ DL ボタンを描画。hook 側も A3 ガード）。
-        handlers={{
-          onDelete: deletion.requestDelete,
-          onPlay: (video) => navigate(generatePath(ROUTES.videoDetail, { videoId: video.videoId })),
-          onDownload: (video) => download.download(video),
-        }}
+        // 行アクションを配線（C6）: onDelete=U5 削除フロー。
+        handlers={{ onDelete: deletion.requestDelete }}
       />
       <DeleteConfirmDialog
         video={deletion.pendingVideo}

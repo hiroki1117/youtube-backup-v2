@@ -32,7 +32,7 @@ export function VideoDetail({ video }: VideoDetailProps) {
       <dd>{STATUS_LABEL[video.uploadStatus]}</dd>
       {parseHttpsUrl(video.videoUrl) !== null ? (
         <>
-          <dt className="text-muted-foreground">元のページ</dt>
+          <dt className="text-muted-foreground">掲載元</dt>
           <dd>
             <SourceLink video={video} />
           </dd>

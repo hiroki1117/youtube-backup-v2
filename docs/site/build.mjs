@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 // Only these inputs enter the Pages artifact. Never copy .env, dist, or backend files.
-const root = fileURLToPath(new URL("../", import.meta.url));
+const root = fileURLToPath(new URL("../../", import.meta.url));
 const output = path.join(root, "build/docs");
 const spec = JSON.parse(await readFile(path.join(root, "openapi/openapi.json"), "utf8"));
 const escape = (value) =>

@@ -3,10 +3,10 @@ name: Documentation
 on:
   push:
     branches: [main]
-    paths: ["frontend/**", "openapi/**", "scripts/build-docs.mjs", ".github/workflows/docs.yml"]
+    paths: ["frontend/**", "openapi/**", "docs/site/**", ".github/workflows/docs.yml"]
   pull_request:
     branches: [main]
-    paths: ["frontend/**", "openapi/**", "scripts/build-docs.mjs", ".github/workflows/docs.yml"]
+    paths: ["frontend/**", "openapi/**", "docs/site/**", ".github/workflows/docs.yml"]
   workflow_dispatch:
     inputs:
       publish:
@@ -40,7 +40,7 @@ jobs:
       - run: pnpm --dir frontend install --frozen-lockfile
       # Storybook fixes VITE_* to synthetic values; no production variables or secrets.
       - run: pnpm --dir frontend build-storybook
-      - run: node scripts/build-docs.mjs
+      - run: node docs/site/build.mjs
       - uses: actions/upload-pages-artifact@v4
         with:
           path: build/docs

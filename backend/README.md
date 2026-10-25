@@ -1,6 +1,6 @@
 # Backend
 
-FastAPI の API と、S3 通知・定期実行のイベント処理。全 Lambda で 1 つの ZIP を共有し、handler だけを変える。Python 3.14 / x86_64。
+FastAPI の API と、S3 通知・定期実行のイベント処理。全 Lambda で 1 つの ZIP を共有し、handler だけを変える。Python 3.14 / x86_64、依存は [pyproject.toml](pyproject.toml) と [requirements.txt](requirements.txt)。
 
 ## 開発
 
@@ -70,5 +70,5 @@ Lambda を足すときは `entrypoints/` に 1 ファイル追加し、[build_la
   - ジョブが SUCCEEDED、見つからない、状態が未知
   - 投入中、または投入結果が不明
   - S3 に該当キー配下のオブジェクトがある（FAILED でも拡張子付きファイルが後から届くため）
-  - job ID を持たない古い `init` レコードは、オブジェクトがなければ取り消せる
+- job ID を持たない古い `init` レコードは、オブジェクトがなければ取り消せる。
 - 送信結果が不明な投入や途中で失敗した削除は、自動再試行せず状態を残す（`*_needs_reconciliation`）。job ID のない古い `init`（`legacy_untracked`）も自動では再投入しない。

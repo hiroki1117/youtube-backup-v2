@@ -1,0 +1,5 @@
+Redoc CE 3.0.1 is distributed under the MIT license (see redoc-LICENSE.txt in the generated site).
+The renderer's Redocly attribution is retained. Its original branding SVGs are mirrored locally
+to avoid a runtime CDN dependency; they are otherwise unchanged.
+https://cdn.redoc.ly/redoc/logo-mini.svg
+https://cdn.redoc.ly/redoc/logo-mini-full.svg

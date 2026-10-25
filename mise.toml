@@ -20,7 +20,7 @@ run = "pnpm install --frozen-lockfile"
 [tasks."install:backend"]
 description = "backend の依存を入れる"
 dir = "backend"
-run = 'python -m pip install -c requirements.lock -e ".[dev]"'
+run = 'python -m pip install -c requirements.txt -e ".[dev]"'
 
 [tasks.install]
 description = "frontend と backend の依存を入れる"

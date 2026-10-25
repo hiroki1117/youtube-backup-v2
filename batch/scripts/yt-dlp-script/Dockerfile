@@ -1,8 +1,9 @@
 FROM python:3.12-slim-bookworm
 
+COPY requirements.txt /tmp/requirements.txt
+
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install "yt-dlp[default]==2026.10.21" \
-    && pip install awscli==1.32.0
+    && pip install --no-cache-dir -r /tmp/requirements.txt
 
 RUN apt-get update \
     && apt-get install -y ffmpeg curl unzip \

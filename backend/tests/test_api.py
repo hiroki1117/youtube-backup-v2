@@ -11,6 +11,7 @@ from api.dependencies import get_service
 from api.factory import build_app
 from api.routes import backup_router, video_router
 from build_lambda import HANDLERS
+from build_lambda import HANDLERS
 from entrypoints.backup import handler as backup_handler
 from entrypoints.video import handler as video_handler
 
@@ -28,6 +29,7 @@ def test_register_read_update_and_duplicate(client, service):
     assert service.jobs.submissions == 1
     assert client.get("/videos/abcdefghijk").status_code == 200
     assert client.patch("/videos/abcdefghijk", json={"title": "Edited"}).json()["title"] == "Edited"
+    assert client.patch("/videos/abcdefghijk", json={"title": "  Trim  "}).json()["title"] == "Trim"
     assert len(client.get("/videos?upload_status=init").json()) == 1
     assert client.get("/videos/abcdefghijk/backup").json()["state"] == "submitted"
     assert client.post("/videos/abcdefghijk/backup").status_code == 200
@@ -62,6 +64,7 @@ def test_input_and_not_found(client):
     assert client.get("/videos?upload_status=failed").status_code == 422
     assert client.get("/videos/missing").status_code == 404
     assert client.patch("/videos/missing", json={"title": ""}).status_code == 422
+    assert client.patch("/videos/missing", json={"title": "   "}).status_code == 422
     assert client.post("/videos/missing/backup").status_code == 404
 
 

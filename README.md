@@ -42,7 +42,9 @@ python -m http.server 8000 --directory build/docs
 
 `http://localhost:8000/` に Storybook と読取専用 OpenAPI リファレンスの入口を生成する。OpenAPI の原本は [openapi/openapi.json](openapi/openapi.json)。backend を変更したら `make -C backend export` で更新する。Pages のリポジトリサブパスにも対応し、Storybook の MSW worker は自身と同じディレクトリから取得する。
 
-[Documentation workflow](.github/workflows/docs.yml) は PR・main 更新で再生成し、Pages 用 artifact を保存する。push だけでは公開しない。公開承認後、管理者が Pages の Source を GitHub Actions に設定し、公開範囲・履歴と生成物・`github-pages` Environment の保護を確認してから、main に対して `workflow_dispatch` の `publish=true` を実行する。想定入口は `https://hiroki1117.github.io/youtube-backup-v2/`（未公開）。設定変更と初回公開は別途承認が必要。
+[Documentation workflow](.github/workflows/docs.yml) は PR では build と Pages 用 artifact の保存だけを行う。対象パスの main 更新では、build 成功後に同じ単一 artifact を Pages へ自動公開する。初回は管理者が Pages の Source を GitHub Actions に設定し、公開範囲・履歴と生成物、`github-pages` Environment が main からの公開を許可することを確認する。初回設定後は対象の main 更新ごとに自動公開が続く（Environment に必須承認などがある場合はその条件にも従う）。想定入口は `https://hiroki1117.github.io/youtube-backup-v2/`（未公開）。現時点では設定変更・merge・初回公開は別途承認が必要。
+
+手動の `workflow_dispatch` は既定の `publish=false` なら build のみ。main で `publish=true` を指定すると、再 build に成功した artifact を再公開する。main 以外のブランチや PR からは公開しない。
 
 サイトの組み立ては [docs/site/build.mjs](docs/site/build.mjs) が担当する。生成対象は Storybook・OpenAPI JSON・静的 HTML のみ。実 `VITE_*` や secrets を注入せず、Storybook は合成認証と MSW を使う。OpenAPI ページは外部ライブラリや API 実行機能を持たない。
 

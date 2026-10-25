@@ -8,7 +8,12 @@ import { Toaster } from "@/components/Toaster";
 import { VideoPlaybackPage } from "@/app/VideoPlaybackPage";
 import { server } from "@/test/server";
 import { TEST_API_BASE, TEST_PRESIGNED_URL, errorResponse } from "@/test/handlers";
-import { makeRawCommentBackup, makeRawVideo } from "@/test/factories";
+import {
+  makeRawCommentBackup,
+  makeRawVideo,
+  makeRawYoutubeComment,
+  makeRawYoutubeCommentPage,
+} from "@/test/factories";
 
 /**
  * 再生ページのユニットテスト（U6 / US6.2・FR7・OQ2・A3・C4）。
@@ -112,7 +117,7 @@ describe("VideoPlaybackPage のコメントのバックアップ", () => {
   it("YouTube の complete 動画はボタンでコメントの取得を開始し、取得中にする", async () => {
     let posted = 0;
     server.use(
-      http.post(`${TEST_API_BASE}/videos/:videoId/comments`, () => {
+      http.post(`${TEST_API_BASE}/videos/:videoId/comments/backup`, () => {
         posted += 1;
         return HttpResponse.json(makeRawCommentBackup({ state: "running" }), { status: 202 });
       }),
@@ -130,7 +135,7 @@ describe("VideoPlaybackPage のコメントのバックアップ", () => {
 
   it("取得済みの動画は「コメントを最新化」を出す", async () => {
     server.use(
-      http.get(`${TEST_API_BASE}/videos/:videoId/comments`, () =>
+      http.get(`${TEST_API_BASE}/videos/:videoId/comments/backup`, () =>
         HttpResponse.json(
           makeRawCommentBackup({ state: "complete", comment_count: 3, completed_at: 1792713600 }),
         ),
@@ -144,7 +149,7 @@ describe("VideoPlaybackPage のコメントのバックアップ", () => {
 
   it("取得中で何もしなかった応答（200）は、その旨を通知する", async () => {
     server.use(
-      http.post(`${TEST_API_BASE}/videos/:videoId/comments`, () =>
+      http.post(`${TEST_API_BASE}/videos/:videoId/comments/backup`, () =>
         HttpResponse.json(makeRawCommentBackup({ state: "running" })),
       ),
     );
@@ -158,7 +163,7 @@ describe("VideoPlaybackPage のコメントのバックアップ", () => {
 
   it("開始の拒否は通知し、状態は変えない（error-path）", async () => {
     server.use(
-      http.post(`${TEST_API_BASE}/videos/:videoId/comments`, () =>
+      http.post(`${TEST_API_BASE}/videos/:videoId/comments/backup`, () =>
         errorResponse(409, "backup_not_complete"),
       ),
     );
@@ -174,7 +179,9 @@ describe("VideoPlaybackPage のコメントのバックアップ", () => {
   });
 
   it("状態の照会に失敗したら、欄の中で再試行できる（error-path）", async () => {
-    server.use(http.get(`${TEST_API_BASE}/videos/:videoId/comments`, () => HttpResponse.error()));
+    server.use(
+      http.get(`${TEST_API_BASE}/videos/:videoId/comments/backup`, () => HttpResponse.error()),
+    );
     renderPage();
 
     const panel = await screen.findByTestId("comment-backup-panel");
@@ -206,5 +213,88 @@ describe("VideoPlaybackPage のコメントのバックアップ", () => {
 
     await screen.findByText(/まだ再生・ダウンロードできません/);
     expect(screen.queryByTestId("comment-backup-panel")).not.toBeInTheDocument();
+  });
+});
+
+describe("VideoPlaybackPage のバックアップしたコメントの一覧", () => {
+  const completed = () =>
+    http.get(`${TEST_API_BASE}/videos/:videoId/comments/backup`, () =>
+      HttpResponse.json(
+        makeRawCommentBackup({ state: "complete", comment_count: 2, completed_at: 1792713600 }),
+      ),
+    );
+
+  it("取得が完了していれば、コメントと件数を表示する", async () => {
+    server.use(
+      completed(),
+      http.get(`${TEST_API_BASE}/videos/:videoId/comments`, () =>
+        HttpResponse.json(
+          makeRawYoutubeCommentPage([
+            {
+              ...makeRawYoutubeComment({ text: "最初のコメント" }),
+              replies: [makeRawYoutubeComment({ comment_id: "r1", parent: "Ugx1" })],
+            },
+          ]),
+        ),
+      ),
+    );
+    renderPage();
+
+    expect(await screen.findByText("最初のコメント")).toBeInTheDocument();
+    expect(screen.getByTestId("youtube-comment-total")).toHaveTextContent("2 件（スレッド 1 件）");
+    expect(screen.getByText("返信 1 件")).toBeInTheDocument();
+  });
+
+  it("「もっと見る」で次のページを継ぎ足す", async () => {
+    server.use(
+      completed(),
+      http.get(`${TEST_API_BASE}/videos/:videoId/comments`, ({ request }) => {
+        const offset = new URL(request.url).searchParams.get("offset");
+        const page =
+          offset === "0"
+            ? makeRawYoutubeCommentPage(
+                [
+                  {
+                    ...makeRawYoutubeComment({ comment_id: "a", text: "1 ページ目" }),
+                    replies: [],
+                  },
+                ],
+                20,
+              )
+            : makeRawYoutubeCommentPage([
+                { ...makeRawYoutubeComment({ comment_id: "b", text: "2 ページ目" }), replies: [] },
+              ]);
+        return HttpResponse.json(page);
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "もっと見る" }));
+
+    expect(await screen.findByText("2 ページ目")).toBeInTheDocument();
+    expect(screen.getByText("1 ページ目")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "もっと見る" })).not.toBeInTheDocument();
+  });
+
+  it("まだ一度も取得が完了していなければ、一覧を出さない", async () => {
+    renderPage();
+
+    await screen.findByRole("button", { name: "コメントをバックアップ" });
+    expect(screen.queryByTestId("youtube-comment-list")).not.toBeInTheDocument();
+  });
+
+  it("一覧の読み込みに失敗したら、一覧の中で再試行できる（error-path）", async () => {
+    server.use(
+      completed(),
+      http.get(`${TEST_API_BASE}/videos/:videoId/comments`, () => HttpResponse.error()),
+    );
+    renderPage();
+
+    const list = await screen.findByTestId("youtube-comment-list");
+    expect(await within(list).findByRole("alert")).toHaveTextContent(
+      "コメントを読み込めませんでした",
+    );
+    expect(screen.getByRole("button", { name: "コメントを最新化" })).toBeEnabled();
   });
 });

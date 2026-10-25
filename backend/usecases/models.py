@@ -52,6 +52,32 @@ class CommentBackup(BaseModel):
     completed_at: int | None = None
 
 
+class YoutubeComment(BaseModel):
+    comment_id: str
+    parent: str  # "root" or the parent comment ID
+    text: str
+    like_count: int
+    author: str | None = None
+    author_id: str | None = None
+    author_is_uploader: bool = False
+    is_pinned: bool = False
+    posted_at: int | None = None
+    # Missing from the latest completed fetch: deleted or hidden on YouTube since it was backed up.
+    removed: bool = False
+
+
+class YoutubeCommentThread(YoutubeComment):
+    replies: list[YoutubeComment] = []
+
+
+class YoutubeCommentPage(BaseModel):
+    platform: Literal["youtube"] = "youtube"
+    total_threads: int
+    total_comments: int
+    threads: list[YoutubeCommentThread]
+    next_offset: int | None
+
+
 class Registration(BaseModel):
     video: Video
     backup: Backup

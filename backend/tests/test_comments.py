@@ -8,11 +8,12 @@ from repositories.comments import (
     CommentBackupRepository,
     CommentJobRepository,
     CommentObjectRepository,
+    YoutubeCommentRepository,
 )
-from repositories.memory import MemoryCommentObjects, MemoryYoutubeComments
+from repositories.memory import MemoryCommentObjects
 from usecases.comments import SUBMISSION_TIMEOUT
 from usecases.models import DomainError, source_identity
-from usecases.youtube_comments import YoutubeCommentIngest, comment_item
+from usecases.youtube_comments import YoutubeCommentIngest, comment_item, comment_threads
 
 URL = "https://www.youtube.com/watch?v=abcdefghijk"
 VIDEO_ID = "abcdefghijk"
@@ -56,8 +57,10 @@ def s3_event(key, bucket="comments-bucket", name="ObjectCreated:Put"):
 
 @pytest.fixture
 def ingest(comment_service):
+    # Shares the comment store with the service's YouTube reader, as both use one table.
+    comments = comment_service.readers["youtube"].comments
     return YoutubeCommentIngest(
-        comment_service.backups, MemoryCommentObjects(), MemoryYoutubeComments(), clock=lambda: NOW
+        comment_service.backups, MemoryCommentObjects(), comments, clock=lambda: NOW
     )
 
 
@@ -230,12 +233,12 @@ def test_comment_item_drops_missing_values():
 
 def test_api_starts_and_reports_comment_backup(client, service):
     backed_up(service)
-    assert client.get(f"/videos/{VIDEO_ID}/comments").json()["state"] == "not_started"
-    response = client.post(f"/videos/{VIDEO_ID}/comments")
+    assert client.get(f"/videos/{VIDEO_ID}/comments/backup").json()["state"] == "not_started"
+    response = client.post(f"/videos/{VIDEO_ID}/comments/backup")
     assert response.status_code == 202 and response.json()["state"] == "running"
-    assert client.post(f"/videos/{VIDEO_ID}/comments").status_code == 200
-    assert client.get(f"/videos/{VIDEO_ID}/comments").json()["state"] == "running"
-    assert client.post("/videos/zzzzzzzzzzz/comments").status_code == 404
+    assert client.post(f"/videos/{VIDEO_ID}/comments/backup").status_code == 200
+    assert client.get(f"/videos/{VIDEO_ID}/comments/backup").json()["state"] == "running"
+    assert client.post("/videos/zzzzzzzzzzz/comments/backup").status_code == 404
 
 
 def conditional_failure():
@@ -301,3 +304,87 @@ def test_object_repository_reads_gzip_json():
     repo.s3.get_object.return_value = {"Body": Mock(read=lambda: gzip.compress(b'{"id": "v"}'))}
     assert repo.read_json("b", "k") == {"id": "v"}
     assert repo.s3.get_object.call_args.kwargs == {"Bucket": "b", "Key": "k"}
+
+
+def test_threads_put_pinned_first_then_newest_with_replies_oldest_first():
+    def item(comment_id, posted_at, parent="root", **extra):
+        return comment_item(
+            VIDEO_ID,
+            "a",
+            {"id": comment_id, "parent": parent, "timestamp": posted_at, **extra},
+        )
+
+    items = [
+        item("old", 100),
+        item("new", 300),
+        item("pinned", 50, is_pinned=True),
+        item("new.r2", 320, parent="new"),
+        item("new.r1", 310, parent="new"),
+        item("lost.r", 200, parent="lost"),  # parent cut off by the comment limit
+    ]
+    threads = comment_threads(items, completed_attempt=None)
+    assert [t.comment_id for t in threads] == ["pinned", "new", "lost.r", "old"]
+    assert [r.comment_id for r in threads[1].replies] == ["new.r1", "new.r2"]
+    assert not any(t.removed for t in threads)  # unknown without a completed attempt
+
+
+def test_items_pages_threads_of_the_backed_up_comments(service, comment_service, ingest):
+    backed_up(service)
+    assert comment_service.items(VIDEO_ID, 0, 20).model_dump() == {
+        "platform": "youtube",
+        "total_threads": 0,
+        "total_comments": 0,
+        "threads": [],
+        "next_offset": None,
+    }
+    started, _ = comment_service.start(VIDEO_ID)
+    many = [{"id": f"c{i}", "text": str(i), "timestamp": i} for i in range(3)]
+    stored(ingest, f"youtube/{VIDEO_ID}/{started.attempt_id}.json.gz", info(comments=many))
+    first = comment_service.items(VIDEO_ID, 0, 2)
+    assert [t.comment_id for t in first.threads] == ["c2", "c1"]
+    assert (first.total_threads, first.total_comments, first.next_offset) == (3, 3, 2)
+    rest = comment_service.items(VIDEO_ID, 2, 2)
+    assert [t.comment_id for t in rest.threads] == ["c0"] and rest.next_offset is None
+
+
+def test_items_mark_comments_missing_from_the_latest_fetch_as_removed(
+    service, comment_service, ingest
+):
+    backed_up(service)
+    first, _ = comment_service.start(VIDEO_ID)
+    stored(ingest, f"youtube/{VIDEO_ID}/{first.attempt_id}.json.gz", info(comments=COMMENTS))
+    second, _ = comment_service.start(VIDEO_ID)
+    stored(ingest, f"youtube/{VIDEO_ID}/{second.attempt_id}.json.gz", info(comments=COMMENTS[:1]))
+    [thread] = comment_service.items(VIDEO_ID, 0, 20).threads
+    assert thread.removed is False
+    assert [(r.comment_id, r.removed) for r in thread.replies] == [("Ugx1.reply", True)]
+
+
+def test_items_reject_unknown_and_unsupported_videos(service, comment_service):
+    with pytest.raises(DomainError) as error:
+        comment_service.items(VIDEO_ID, 0, 20)
+    assert error.value.status == 404
+    other = backed_up(service, "https://example.invalid/video.mp4")
+    with pytest.raises(DomainError) as error:
+        comment_service.items(other, 0, 20)
+    assert (error.value.status, error.value.code) == (422, "comments_not_supported")
+
+
+def test_api_lists_comment_threads_and_validates_paging(client, service):
+    backed_up(service)
+    response = client.get(f"/videos/{VIDEO_ID}/comments", params={"limit": 5})
+    assert response.status_code == 200 and response.json()["threads"] == []
+    assert client.get(f"/videos/{VIDEO_ID}/comments?limit=0").status_code == 422
+    assert client.get(f"/videos/{VIDEO_ID}/comments?limit=101").status_code == 422
+    assert client.get(f"/videos/{VIDEO_ID}/comments?offset=-1").status_code == 422
+
+
+def test_comment_repository_lists_every_query_page():
+    repo = object.__new__(YoutubeCommentRepository)
+    repo.table = Mock()
+    repo.table.query.side_effect = [
+        {"Items": [{"comment_id": "a"}], "LastEvaluatedKey": {"k": 1}},
+        {"Items": [{"comment_id": "b"}]},
+    ]
+    assert [i["comment_id"] for i in repo.list(VIDEO_ID)] == ["a", "b"]
+    assert repo.table.query.call_args.kwargs["ExclusiveStartKey"] == {"k": 1}

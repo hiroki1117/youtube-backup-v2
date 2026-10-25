@@ -1,5 +1,8 @@
 import time
+from collections import defaultdict
 from urllib.parse import unquote_plus
+
+from usecases.models import YoutubeComment, YoutubeCommentPage, YoutubeCommentThread
 
 SUFFIX = ".json.gz"
 
@@ -56,3 +59,56 @@ class YoutubeCommentIngest:
             self.comments.put(items)
             ingested += self.backups.complete(video_id, attempt, len(items), int(self.clock()))
         return {"ingested": ingested, "received": len(event.get("Records", []))}
+
+
+def comment_view(item: dict, completed_attempt: str | None) -> dict:
+    fields = {name: item[name] for name in YoutubeComment.model_fields if name in item}
+    # Unknown (False) until an attempt completes with completed_attempt recorded.
+    fields["removed"] = (
+        completed_attempt is not None and item.get("last_seen_attempt") != completed_attempt
+    )
+    return fields
+
+
+def comment_threads(items: list[dict], completed_attempt: str | None) -> list[YoutubeCommentThread]:
+    """Top-level comments with their replies: pinned first, then newest; replies oldest first."""
+    parents, replies = {}, defaultdict(list)
+    for item in items:
+        if item.get("parent", "root") == "root":
+            parents[item["comment_id"]] = item
+        else:
+            replies[item["parent"]].append(item)
+    threads = []
+    for comment_id, item in parents.items():
+        children = sorted(replies.pop(comment_id, []), key=lambda r: r.get("posted_at") or 0)
+        threads.append(
+            YoutubeCommentThread(
+                **comment_view(item, completed_attempt),
+                replies=[YoutubeComment(**comment_view(r, completed_attempt)) for r in children],
+            )
+        )
+    # Replies whose parent was not fetched (e.g. cut off by the comment limit) stand alone.
+    for orphans in replies.values():
+        threads.extend(YoutubeCommentThread(**comment_view(r, completed_attempt)) for r in orphans)
+    threads.sort(key=lambda t: (not t.is_pinned, -(t.posted_at or 0), t.comment_id))
+    return threads
+
+
+class YoutubeCommentReader:
+    """Reads youtube_comments as pages of threads for GET /videos/{id}/comments."""
+
+    def __init__(self, backups, comments):
+        self.backups = backups
+        self.comments = comments
+
+    def page(self, video_id: str, offset: int, limit: int) -> YoutubeCommentPage:
+        backup = self.backups.get(video_id)
+        items = self.comments.list(video_id)
+        threads = comment_threads(items, backup.get("completed_attempt") if backup else None)
+        end = offset + limit
+        return YoutubeCommentPage(
+            total_threads=len(threads),
+            total_comments=len(items),
+            threads=threads[offset:end],
+            next_offset=end if end < len(threads) else None,
+        )

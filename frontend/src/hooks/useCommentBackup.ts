@@ -5,7 +5,7 @@ import { notify } from "@/lib/notify";
 import { shouldPollCommentBackup, type CommentBackup } from "@/types/commentBackup";
 
 /**
- * コメントバックアップフック（`GET/POST /videos/{id}/comments`）。
+ * コメントバックアップフック（`GET/POST /videos/{id}/comments/backup`）。
  * 状態を照会し、取得中・取り込み待ちの間は一定間隔で照会し直す（ジョブの完了を画面に反映する）。
  * `start()` で取得を開始（取得済みなら最新化）し、結果を通知する。
  * ApiClient が正規化した ApiResult を kind で判別する（表示テキストでは分岐しない）。

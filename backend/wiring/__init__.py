@@ -10,7 +10,7 @@ from repositories.jobs import JobRepository
 from repositories.videos import VideoRepository
 from usecases.backup import BackupService
 from usecases.comments import CommentService
-from usecases.youtube_comments import YoutubeCommentIngest
+from usecases.youtube_comments import YoutubeCommentIngest, YoutubeCommentReader
 
 
 @cache
@@ -22,7 +22,9 @@ def get_service() -> BackupService:
 
 @cache
 def get_comment_service() -> CommentService:
-    return CommentService(VideoRepository(), CommentBackupRepository(), CommentJobRepository())
+    backups = CommentBackupRepository()
+    readers = {"youtube": YoutubeCommentReader(backups, YoutubeCommentRepository())}
+    return CommentService(VideoRepository(), backups, CommentJobRepository(), readers)
 
 
 @cache

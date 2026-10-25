@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { CommentBackupPanel } from "@/components/CommentBackupPanel";
+import { YoutubeCommentList } from "@/components/YoutubeCommentList";
 import { StatusView, type ViewState } from "@/components/StatusView";
 import { VideoDetail } from "@/components/VideoDetail";
 import { VideoTitleEditor } from "@/components/VideoTitleEditor";
 import { useCommentBackup } from "@/hooks/useCommentBackup";
 import { useVideoDownload } from "@/hooks/useVideoDownload";
+import { useYoutubeComments } from "@/hooks/useYoutubeComments";
 import { useVideoTitleEdit } from "@/hooks/useVideoTitleEdit";
 import { useVideoPlayback, type PlaybackSource } from "@/hooks/useVideoPlayback";
 import { ROUTES } from "@/lib/routes";
@@ -23,7 +25,8 @@ import { supportsCommentBackup } from "@/types/commentBackup";
  * アクセシビリティ: 表示時に見出しへフォーカスし、role/aria を付与する。
  * レイヤ境界: app 層。取得・DL ロジックは hooks（useVideoPlayback / useVideoDownload）へ委譲し、
  * 詳細表示は components（VideoDetail）へ委譲する。
- * 対応プラットフォームの complete 動画には、コメントのバックアップ欄（CommentBackupPanel）を出す。
+ * 対応プラットフォームの complete 動画には、コメントのバックアップ欄（CommentBackupPanel）を出し、
+ * 取得が一度でも完了していれば、バックアップしたコメントの一覧（YoutubeCommentList）も出す。
  */
 
 /** 署名 URL の取得状態（PlaybackSource）を StatusView の ViewState へ変換する。 */
@@ -57,6 +60,9 @@ export function VideoPlaybackPage() {
   // コメントは動画のバックアップが完了してから取得できる（backend は未完了を 409 にする）。
   const showComments = state.kind === "ready" && supportsCommentBackup(state.video.platform);
   const comments = useCommentBackup(videoId ?? "", showComments);
+  // 完了時刻が変わる（再取得が完了する）たびに一覧を読み直す。
+  const completedAt = comments.state.kind === "ready" ? comments.state.backup.completedAt : null;
+  const commentList = useYoutubeComments(videoId ?? "", completedAt, showComments);
 
   const saveTitle = async (title: string) => {
     const saved = await titleEdit.save(title);
@@ -177,6 +183,15 @@ export function VideoPlaybackPage() {
               isStarting={comments.isStarting}
               onStart={() => void comments.start()}
               onRetry={comments.refetch}
+            />
+          ) : null}
+          {showComments && completedAt !== null ? (
+            <YoutubeCommentList
+              state={commentList.state}
+              hasMore={commentList.hasMore}
+              isLoadingMore={commentList.isLoadingMore}
+              onLoadMore={commentList.loadMore}
+              onRetry={commentList.refetch}
             />
           ) : null}
         </div>

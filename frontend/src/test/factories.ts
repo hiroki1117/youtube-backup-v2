@@ -82,3 +82,51 @@ export interface RawCommentBackup {
 export function makeRawCommentBackup(overrides: Partial<RawCommentBackup> = {}): RawCommentBackup {
   return { video_id: "v1", platform: "youtube", state: "not_started", ...overrides };
 }
+
+/** API の生レスポンス形状（YouTube コメント 1 件）。 */
+export interface RawYoutubeComment {
+  comment_id: string;
+  parent: string;
+  text: string;
+  like_count: number;
+  author: string | null;
+  author_id: string | null;
+  author_is_uploader: boolean;
+  is_pinned: boolean;
+  posted_at: number | null;
+  removed: boolean;
+}
+
+/** 有効な生 YouTube コメントを生成する。 */
+export function makeRawYoutubeComment(
+  overrides: Partial<RawYoutubeComment> = {},
+): RawYoutubeComment {
+  return {
+    comment_id: "Ugx1",
+    parent: "root",
+    text: "いい動画でした",
+    like_count: 3,
+    author: "@viewer",
+    author_id: "UC1",
+    author_is_uploader: false,
+    is_pinned: false,
+    posted_at: 1792713600,
+    removed: false,
+    ...overrides,
+  };
+}
+
+/** GET /videos/{id}/comments の生レスポンス。既定はコメントなし。 */
+export function makeRawYoutubeCommentPage(
+  threads: (RawYoutubeComment & { replies: RawYoutubeComment[] })[] = [],
+  nextOffset: number | null = null,
+) {
+  const total = threads.reduce((n, t) => n + 1 + t.replies.length, 0);
+  return {
+    platform: "youtube" as const,
+    total_threads: threads.length,
+    total_comments: total,
+    threads,
+    next_offset: nextOffset,
+  };
+}

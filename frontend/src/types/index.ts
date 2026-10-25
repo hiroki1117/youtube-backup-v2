@@ -7,3 +7,5 @@ export {
   shouldPollCommentBackup,
 } from "./commentBackup";
 export type { CommentBackup, CommentBackupState } from "./commentBackup";
+export { parseYoutubeCommentPage } from "./youtubeComments";
+export type { YoutubeComment, YoutubeCommentThread, YoutubeCommentPage } from "./youtubeComments";

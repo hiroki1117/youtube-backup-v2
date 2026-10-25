@@ -42,7 +42,7 @@ wiring/        repository を組み立てて BackupService を返す
 | s3_complete | `entrypoints.s3_complete.handler` | S3 通知 | 動画を `complete` にする |
 | scrapbox_scan | `entrypoints.scrapbox_scan.handler` | 毎時 | Scrapbox の新しい動画 URL を登録 |
 | retry | `entrypoints.retry.handler` | 手動 | 失敗ジョブを最大 100 件再投入 |
-| comments | `entrypoints.comments.handler` | HTTP API | コメントバックアップの照会・開始 |
+| comments | `entrypoints.comments.handler` | HTTP API | コメントバックアップの照会・開始、コメントの一覧 |
 | youtube_comments | `entrypoints.youtube_comments.handler` | S3 通知（コメント用バケット `youtube/`） | 取得した YouTube コメントを DynamoDB へ取り込む |
 
 Lambda を足すときは `entrypoints/` に 1 ファイル追加し、[build_lambda.py](build_lambda.py) の `HANDLERS` と [deploy-backend.yml](../.github/workflows/deploy-backend.yml) の `FUNCTIONS` に 1 行足す。関数本体は infra で作る。
@@ -61,8 +61,9 @@ Lambda を足すときは `entrypoints/` に 1 ファイル追加し、[build_la
 | `GET /videos/{id}/backup` | バックアップ状態の照会 |
 | `POST /videos/{id}/backup` | 失敗ジョブの再投入。処理中・完了は不可 |
 | `DELETE /videos/{id}/backup` | 未完了バックアップの取り消し。`complete` は 409 |
-| `GET /videos/{id}/comments` | コメントバックアップの状態の照会 |
-| `POST /videos/{id}/comments` | コメントの取得開始（再取得も同じ）。開始は 202、取得中は 200。動画が未完了なら 409、YouTube 以外は 422 |
+| `GET /videos/{id}/comments/backup` | コメントバックアップの状態の照会 |
+| `POST /videos/{id}/comments/backup` | コメントの取得開始（再取得も同じ）。開始は 202、取得中は 200。動画が未完了なら 409、YouTube 以外は 422 |
+| `GET /videos/{id}/comments` | バックアップしたコメントをスレッド単位で返す（`offset`・`limit` 最大 100）。形式は platform ごと（現状 YouTube のみ、それ以外は 422） |
 
 対応 URL は YouTube（watch・shorts・live・youtu.be）とその他の URL（URL のハッシュを ID にする）。Twitter / X は未対応で 422。
 
@@ -82,7 +83,7 @@ Lambda を足すときは `entrypoints/` に 1 ファイル追加し、[build_la
 動画のバックアップとは別系統で、既存のジョブ・バケット・テーブルは使わない。
 
 ```
-POST /videos/{id}/comments → comments Lambda: comment_backups を submitting にして、platform のジョブ定義で Batch 投入
+POST /videos/{id}/comments/backup → comments Lambda: comment_backups を submitting にして、platform のジョブ定義で Batch 投入
   → Batch（batch/scripts/youtube-comments）: yt-dlp でコメントだけ取得し、コメント JSON を gzip で
     コメント用バケットの youtube/<video_id>/<attempt_id>.json.gz へ置く
   → S3 通知 → youtube_comments Lambda: youtube_comments テーブルへ upsert し、comment_backups を complete にする
@@ -92,5 +93,6 @@ POST /videos/{id}/comments → comments Lambda: comment_backups を submitting �
 - S3 のコメント JSON（yt-dlp の `id`・`comment_count`・`comments` だけ。字幕・フォーマット一覧は含まない）が原本で、取得ごとに attempt 別のキーで残る。DynamoDB には検索に使う項目だけを入れる。
 - 取り込みは現在の attempt のオブジェクトだけを反映する。置き換わった attempt の結果は無視するので、失敗・不明な取得は新しい attempt でやり直せる（ジョブが重複しても害がない）。
 - 取り込みは upsert のみ。再取得で消えていたコメントも残り、`last_seen_attempt` で最後に取得できた回が分かる。
+- 一覧は動画 1 本分のコメントをまとめて読み、固定コメント→新しい順に親コメントを並べ、返信を古い順で親の下に付けてからページを切り出す。最後に完了した取得（`completed_attempt`）に含まれなかったコメントは `removed`（YouTube では削除済み）になる。
 - 状態: `not_started` / `submitting` / `running` / `awaiting_ingest`（ジョブ成功・取り込み待ち）/ `complete` / `failed`。`running` は照会時に Batch の状態を見て判定する。投入途中で止まった `submitting` は 5 分で `failed` 扱いになる。
 - 動画の削除とは連動しない（削除してもコメントは残る）。

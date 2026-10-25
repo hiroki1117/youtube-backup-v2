@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * コメントバックアップのドメイン型（`GET/POST /videos/{id}/comments` の CommentBackup）。
+ * コメントバックアップのドメイン型（`GET/POST /videos/{id}/comments/backup` の CommentBackup）。
  * 要求の追跡状態だけを表し、コメント本文は含まない。API 境界では zod で parse した値のみ扱う。
  */
 

@@ -143,7 +143,9 @@ class MemoryCommentBackups:
         current = self.items.get(video_id)
         if not current or current["attempt_id"] != attempt:
             return False
-        current.update(state="complete", comment_count=count, completed_at=now)
+        current.update(
+            state="complete", comment_count=count, completed_at=now, completed_attempt=attempt
+        )
         return True
 
 
@@ -173,6 +175,9 @@ class MemoryCommentObjects:
 class MemoryYoutubeComments:
     def __init__(self):
         self.items = {}
+
+    def list(self, video_id):
+        return [deepcopy(v) for (vid, _), v in self.items.items() if vid == video_id]
 
     def put(self, items):
         for item in items:

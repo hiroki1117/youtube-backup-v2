@@ -4,6 +4,7 @@ import os
 from functools import cached_property
 
 import boto3
+from boto3.dynamodb.conditions import Key
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
@@ -68,7 +69,8 @@ class CommentBackupRepository:
         try:
             self.table.update_item(
                 Key={"video_id": video_id},
-                UpdateExpression="SET #state=:complete, comment_count=:count, completed_at=:now",
+                UpdateExpression="SET #state=:complete, comment_count=:count, completed_at=:now, "
+                "completed_attempt=:attempt",
                 ConditionExpression="attempt_id = :attempt",
                 ExpressionAttributeNames={"#state": "state"},
                 ExpressionAttributeValues={
@@ -149,6 +151,16 @@ class YoutubeCommentRepository:
     @cached_property
     def table(self):
         return self.session.resource("dynamodb").Table(os.environ["YOUTUBE_COMMENTS_TABLE_NAME"])
+
+    def list(self, video_id: str) -> list[dict]:
+        # Every comment of the video (bounded by the job's comment limit), across Query pages.
+        items, start = [], {}
+        while True:
+            page = self.table.query(KeyConditionExpression=Key("video_id").eq(video_id), **start)
+            items.extend(page["Items"])
+            if "LastEvaluatedKey" not in page:
+                return items
+            start = {"ExclusiveStartKey": page["LastEvaluatedKey"]}
 
     def put(self, items: list[dict]) -> None:
         # batch_writer sends 25 per request and resends unprocessed items; puts are idempotent.

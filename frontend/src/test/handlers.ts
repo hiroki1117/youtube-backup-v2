@@ -1,5 +1,10 @@
 import { http, HttpResponse } from "msw";
-import { makeRawCommentBackup, makeRawVideo, type RawVideo } from "./factories";
+import {
+  makeRawCommentBackup,
+  makeRawVideo,
+  makeRawYoutubeCommentPage,
+  type RawVideo,
+} from "./factories";
 
 // vitest.config.ts の test.env と一致させる（テスト用 placeholder）。
 export const TEST_API_BASE = "https://api.test.invalid";
@@ -137,12 +142,16 @@ export const handlers = [
   http.get(`${TEST_API_BASE}/videos/:videoId/playback_url`, () =>
     HttpResponse.json(makePlaybackUrl()),
   ),
-  // GET /videos/{video_id}/comments: 既定は未取得。
-  http.get(`${TEST_API_BASE}/videos/:videoId/comments`, () =>
+  // GET /videos/{video_id}/comments/backup: 既定は未取得。
+  http.get(`${TEST_API_BASE}/videos/:videoId/comments/backup`, () =>
     HttpResponse.json(makeRawCommentBackup()),
   ),
-  // POST /videos/{video_id}/comments: 既定は取得開始（202）。取得中（200）・失敗は各テストで上書き。
-  http.post(`${TEST_API_BASE}/videos/:videoId/comments`, () =>
+  // GET /videos/{video_id}/comments: 既定はコメントなし。
+  http.get(`${TEST_API_BASE}/videos/:videoId/comments`, () =>
+    HttpResponse.json(makeRawYoutubeCommentPage()),
+  ),
+  // POST /videos/{video_id}/comments/backup: 既定は取得開始（202）。取得中（200）・失敗は各テストで上書き。
+  http.post(`${TEST_API_BASE}/videos/:videoId/comments/backup`, () =>
     HttpResponse.json(
       makeRawCommentBackup({ state: "running", attempt_id: "a1", batch_job_id: "job-c1" }),
       { status: 202 },

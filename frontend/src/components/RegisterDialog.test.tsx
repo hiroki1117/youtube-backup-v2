@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { StrictMode, useState } from "react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { delay, http, HttpResponse } from "msw";
@@ -18,6 +19,39 @@ function renderDialog(onClose: () => void = vi.fn()) {
     </QueryClientProvider>,
   );
   return { ...utils, onClose };
+}
+
+function renderToggleableDialog() {
+  function Harness() {
+    const [open, setOpen] = useState(true);
+    return (
+      <>
+        <button onClick={() => setOpen(true)}>再表示</button>
+        <button onClick={() => setOpen(false)}>親から閉じる</button>
+        <RegisterDialog open={open} onClose={() => setOpen(false)} />
+      </>
+    );
+  }
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <Harness />
+      </QueryClientProvider>
+    </StrictMode>,
+  );
+}
+
+function deferredClipboardRead() {
+  let resolve!: (text: string) => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<string>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
 }
 
 describe("RegisterDialog（U4 / US4.1）", () => {
@@ -101,6 +135,87 @@ describe("RegisterDialog（U4 / US4.1）", () => {
 describe("RegisterDialog のクリップボードから登録", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it.each(["キャンセル", "親から閉じる"])(
+    "%s 後に読み取りが完了しても登録しない",
+    async (closeButton) => {
+      const user = userEvent.setup();
+      const read = deferredClipboardRead();
+      vi.spyOn(navigator.clipboard, "readText").mockReturnValue(read.promise);
+      const submitSpy = vi.spyOn(apiClient, "submitVideo").mockResolvedValue({ kind: "empty" });
+      renderToggleableDialog();
+
+      await user.click(screen.getByRole("button", { name: "クリップボードから登録" }));
+      await user.click(screen.getByRole("button", { name: closeButton }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      await act(async () => read.resolve("https://youtu.be/cancelled"));
+
+      expect(submitSpy).not.toHaveBeenCalled();
+    },
+  );
+
+  it("再表示後は前回の読み取りを無視し、新しい読み取りだけを登録する", async () => {
+    const user = userEvent.setup();
+    const oldRead = deferredClipboardRead();
+    const newRead = deferredClipboardRead();
+    vi.spyOn(navigator.clipboard, "readText")
+      .mockReturnValueOnce(oldRead.promise)
+      .mockReturnValueOnce(newRead.promise);
+    const submitSpy = vi.spyOn(apiClient, "submitVideo").mockResolvedValue({ kind: "empty" });
+    renderToggleableDialog();
+
+    await user.click(screen.getByRole("button", { name: "クリップボードから登録" }));
+    await user.click(screen.getByRole("button", { name: "キャンセル" }));
+    await user.click(screen.getByRole("button", { name: "再表示" }));
+    await user.click(screen.getByRole("button", { name: "クリップボードから登録" }));
+    await act(async () => oldRead.resolve("https://youtu.be/old"));
+    expect(submitSpy).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("動画 URL")).toHaveValue("");
+
+    await act(async () => newRead.resolve("https://youtu.be/new"));
+    expect(submitSpy).toHaveBeenCalledExactlyOnceWith("https://youtu.be/new");
+  });
+
+  it.each(["resolve", "reject"] as const)(
+    "連続読み取りでは古い結果（%s）を無視する",
+    async (settlement) => {
+      const user = userEvent.setup();
+      const oldRead = deferredClipboardRead();
+      const newRead = deferredClipboardRead();
+      vi.spyOn(navigator.clipboard, "readText")
+        .mockReturnValueOnce(oldRead.promise)
+        .mockReturnValueOnce(newRead.promise);
+      const submitSpy = vi.spyOn(apiClient, "submitVideo").mockResolvedValue({ kind: "empty" });
+      renderToggleableDialog();
+
+      await user.click(screen.getByRole("button", { name: "クリップボードから登録" }));
+      await user.click(screen.getByRole("button", { name: "クリップボードから登録" }));
+      await act(async () => newRead.resolve("https://youtu.be/new"));
+      await act(async () => {
+        if (settlement === "resolve") oldRead.resolve("https://youtu.be/old");
+        else oldRead.reject(new Error("denied"));
+      });
+
+      expect(submitSpy).toHaveBeenCalledExactlyOnceWith("https://youtu.be/new");
+      expect(screen.getByLabelText("動画 URL")).toHaveValue("https://youtu.be/new");
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    },
+  );
+
+  it("読み取り待ちに手入力で登録したら、古い読み取りから登録しない", async () => {
+    const user = userEvent.setup();
+    const read = deferredClipboardRead();
+    vi.spyOn(navigator.clipboard, "readText").mockReturnValue(read.promise);
+    const submitSpy = vi.spyOn(apiClient, "submitVideo").mockResolvedValue({ kind: "empty" });
+    renderToggleableDialog();
+    await user.type(screen.getByLabelText("動画 URL"), "https://youtu.be/manual");
+    await user.click(screen.getByRole("button", { name: "クリップボードから登録" }));
+    await user.click(screen.getByRole("button", { name: "登録" }));
+    await waitFor(() => expect(submitSpy).toHaveBeenCalledOnce());
+    await act(async () => read.resolve("https://youtu.be/old"));
+
+    expect(submitSpy).toHaveBeenCalledExactlyOnceWith("https://youtu.be/manual");
   });
 
   it("開いたら URL 入力欄にフォーカスする", () => {

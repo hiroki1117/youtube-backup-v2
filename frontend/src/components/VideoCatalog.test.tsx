@@ -1,9 +1,16 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactElement } from "react";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { makeVideo } from "@/test/factories";
 import type { Video } from "@/types/video";
 import { VideoCatalog, type RowActionHandlers } from "./VideoCatalog";
+
+// タイトルが再生ページへの Link のため Router 下で描画する。
+function renderInRouter(ui: ReactElement) {
+  return render(ui, { wrapper: MemoryRouter });
+}
 
 function renderCatalog(overrides: {
   data?: Video[];
@@ -16,7 +23,7 @@ function renderCatalog(overrides: {
   const data = overrides.data ?? [
     makeVideo({ videoId: "c1", title: "完了動画", platform: "youtube", backupDate: "2026-08-03" }),
   ];
-  return render(
+  return renderInRouter(
     <VideoCatalog
       state={{ status: "ready", data }}
       hasMore={overrides.hasMore}
@@ -54,17 +61,30 @@ describe("VideoCatalog（U2 / US2.1・C6 / FR8）", () => {
     expect(screen.getByText("処理中")).toBeInTheDocument();
   });
 
-  it("各行に元のページへのリンクを新しいタブで開く形で描画する", () => {
+  it("タイトルは再生ページ（/videos/:videoId）へのリンクになる（処理中の行も同様）", () => {
+    renderCatalog({
+      data: [
+        makeVideo({ videoId: "c1", title: "完了動画" }),
+        makeVideo({ videoId: "i1", title: "処理中動画", uploadStatus: "init" }),
+      ],
+    });
+    expect(screen.getByRole("link", { name: "完了動画" })).toHaveAttribute("href", "/videos/c1");
+    expect(screen.getByRole("link", { name: "処理中動画" })).toHaveAttribute("href", "/videos/i1");
+  });
+
+  it("各行に元の動画を「<プラットフォーム> で開く」リンクとして新しいタブで開く形で描画する", () => {
     renderCatalog({
       data: [
         makeVideo({
           videoId: "c1",
           title: "完了動画",
+          platform: "youtube",
           videoUrl: "https://www.youtube.com/watch?v=abc123",
         }),
       ],
     });
-    const link = screen.getByRole("link", { name: "元のページを開く: 完了動画" });
+    const link = screen.getByRole("link", { name: "YouTube で開く: 完了動画" });
+    expect(link).toHaveTextContent("YouTube で開く");
     expect(link).toHaveAttribute("href", "https://www.youtube.com/watch?v=abc123");
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
@@ -77,56 +97,48 @@ describe("VideoCatalog（U2 / US2.1・C6 / FR8）", () => {
         makeVideo({ videoId: "x2", title: "http の URL", videoUrl: "http://example.com/v" }),
       ],
     });
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /で開く/ })).not.toBeInTheDocument();
   });
 
-  it("ハンドラ未提供時は行アクションボタンを描画しない（C6）", () => {
-    renderCatalog({ handlers: undefined });
+  it("未知のプラットフォームは値そのもの、空なら「元サイト」で開くと表示する", () => {
+    renderCatalog({
+      data: [
+        makeVideo({ videoId: "n1", title: "ニコ動", platform: "niconico" }),
+        makeVideo({ videoId: "e1", title: "不明", platform: "" }),
+      ],
+    });
+    expect(screen.getByRole("link", { name: "niconico で開く: ニコ動" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "元サイト で開く: 不明" })).toBeInTheDocument();
+  });
+
+  it("行に再生・ダウンロードのボタンを置かない（再生ページで行う）", () => {
+    renderCatalog({ handlers: { onDelete: vi.fn() } });
     expect(screen.queryByRole("button", { name: /再生/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /削除/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /ダウンロード/ })).not.toBeInTheDocument();
   });
 
-  it("提供されたハンドラのみボタンを描画し、その行の Video を渡す（C6）", async () => {
+  it("onDelete 未提供時は削除ボタンを描画せず、提供時はその行の Video を渡す（C6）", async () => {
     const user = userEvent.setup();
-    const onPlay = vi.fn();
-    const onDelete = vi.fn();
     const video = makeVideo({ videoId: "c1", title: "完了動画" });
-    renderCatalog({ data: [video], handlers: { onPlay, onDelete } });
+    const { unmount } = renderCatalog({ data: [video], handlers: undefined });
+    expect(screen.queryByRole("button", { name: /削除/ })).not.toBeInTheDocument();
+    unmount();
 
-    // onDownload は未提供 → 描画されない
-    expect(screen.queryByRole("button", { name: /ダウンロード/ })).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "再生: 完了動画" }));
+    const onDelete = vi.fn();
+    renderCatalog({ data: [video], handlers: { onDelete } });
     await user.click(screen.getByRole("button", { name: "削除: 完了動画" }));
-    expect(onPlay).toHaveBeenCalledWith(video);
     expect(onDelete).toHaveBeenCalledWith(video);
   });
 
-  it("onDownload は complete 行のみ描画する（init 行では非表示）", () => {
-    const onDownload = vi.fn();
-    renderCatalog({
-      data: [
-        makeVideo({ videoId: "c1", title: "完了動画", uploadStatus: "complete" }),
-        makeVideo({ videoId: "i1", title: "処理中動画", uploadStatus: "init" }),
-      ],
-      handlers: { onDownload },
-    });
-    expect(screen.getByRole("button", { name: "ダウンロード: 完了動画" })).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "ダウンロード: 処理中動画" }),
-    ).not.toBeInTheDocument();
-  });
-
   it("loading 状態は role=status を描画する", () => {
-    render(<VideoCatalog state={{ status: "loading" }} />);
+    renderInRouter(<VideoCatalog state={{ status: "loading" }} />);
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
 
   it("error 状態は role=alert + 再試行で onRetry を発火する（FR8 error-path）", async () => {
     const user = userEvent.setup();
     const onRetry = vi.fn();
-    render(
+    renderInRouter(
       <VideoCatalog state={{ status: "error", message: "取得に失敗しました" }} onRetry={onRetry} />,
     );
     expect(screen.getByRole("alert")).toHaveTextContent("取得に失敗しました");
@@ -135,11 +147,13 @@ describe("VideoCatalog（U2 / US2.1・C6 / FR8）", () => {
   });
 
   it("empty:nodata と empty:filtered で別メッセージを描画する（FR8）", () => {
-    const { unmount } = render(<VideoCatalog state={{ status: "empty", variant: "nodata" }} />);
+    const { unmount } = renderInRouter(
+      <VideoCatalog state={{ status: "empty", variant: "nodata" }} />,
+    );
     expect(screen.getByText("バックアップ済み動画がありません")).toBeInTheDocument();
     unmount();
 
-    render(<VideoCatalog state={{ status: "empty", variant: "filtered" }} />);
+    renderInRouter(<VideoCatalog state={{ status: "empty", variant: "filtered" }} />);
     expect(screen.getByText("条件に一致するデータがありません")).toBeInTheDocument();
   });
 

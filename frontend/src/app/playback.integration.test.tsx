@@ -60,7 +60,7 @@ describe("再生/ダウンロード 結合（一覧→再生・DL / US6.1・US6.
     downloadMock.mockReturnValue(true);
   });
 
-  it("一覧の「再生」→ /videos/:id へ遷移しプレイヤーを表示する（US6.2 / C6）", async () => {
+  it("一覧のタイトル → /videos/:id へ遷移しプレイヤーを表示する（US6.2 / C6）", async () => {
     const user = userEvent.setup();
     server.use(
       http.get(`${TEST_API_BASE}/videos`, () =>
@@ -76,25 +76,30 @@ describe("再生/ダウンロード 結合（一覧→再生・DL / US6.1・US6.
     renderApp();
     await screen.findByText("再生対象動画");
 
-    await user.click(screen.getByRole("button", { name: "再生: 再生対象動画" }));
+    await user.click(screen.getByRole("link", { name: "再生対象動画" }));
 
     // 再生ページのプレイヤーが署名 URL を source に表示される。
     const player = await screen.findByTestId("video-player");
     expect(player).toHaveAttribute("src", TEST_PRESIGNED_URL);
   });
 
-  it("一覧の「ダウンロード」→ 署名 URL を取得し download を起動する（US6.1 / FR6 / C6）", async () => {
+  it("一覧のタイトル → 再生ページの「ダウンロード」で署名 URL を取得し download を起動する（US6.1 / FR6）", async () => {
     const user = userEvent.setup();
     server.use(
       http.get(`${TEST_API_BASE}/videos`, () =>
         HttpResponse.json([makeRawVideo({ video_id: "c1", title: "DL対象動画" })]),
       ),
+      http.get(`${TEST_API_BASE}/videos/:videoId`, ({ params }) =>
+        HttpResponse.json(makeRawVideo({ video_id: String(params.videoId), title: "DL対象動画" })),
+      ),
     );
     renderApp();
     await screen.findByText("DL対象動画");
 
-    // complete 行にのみ DL ボタンが描画される（C6 / A3）。
-    await user.click(screen.getByRole("button", { name: "ダウンロード: DL対象動画" }));
+    // 一覧行に DL ボタンはなく、再生ページで行う。
+    expect(screen.queryByRole("button", { name: /ダウンロード/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("link", { name: "DL対象動画" }));
+    await user.click(await screen.findByRole("button", { name: "ダウンロード: DL対象動画" }));
 
     await vi.waitFor(() => expect(downloadMock).toHaveBeenCalledTimes(1));
     expect(downloadMock).toHaveBeenCalledWith(TEST_PRESIGNED_URL, expect.any(String));
@@ -117,7 +122,7 @@ describe("再生/ダウンロード 結合（一覧→再生・DL / US6.1・US6.
     renderApp();
     await screen.findByText("再生失敗動画");
 
-    await user.click(screen.getByRole("button", { name: "再生: 再生失敗動画" }));
+    await user.click(screen.getByRole("link", { name: "再生失敗動画" }));
 
     // error フォールバック（C4 role=alert）+ 再試行。プレイヤーは表示しない。
     expect(await screen.findByRole("alert")).toBeInTheDocument();

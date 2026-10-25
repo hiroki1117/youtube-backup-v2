@@ -32,6 +32,11 @@ const PLATFORMS: Record<string, PlatformDef> = {
   x: X,
 };
 
+/** プラットフォームの表示名（既知はブランド名、未知は値そのもの）。リンク文言などアイコン以外で使う。 */
+export function platformLabel(platform: string): string {
+  return PLATFORMS[platform.toLowerCase()]?.label ?? platform;
+}
+
 export function PlatformIcon({ platform, className }: PlatformIconProps) {
   const def = PLATFORMS[platform.toLowerCase()];
   if (def === undefined) {

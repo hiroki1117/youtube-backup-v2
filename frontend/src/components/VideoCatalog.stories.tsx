@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 import { VideoCatalog } from "@/components/VideoCatalog";
 import { makeVideos } from "@/test/factories";
+import { withMemoryRouter } from "@/test/storybook/decorators";
 
 /**
  * 状態別動画一覧（presentational、props 駆動）（US-2）。
@@ -23,6 +24,7 @@ const mixedVideos = makeVideos([
 const meta = {
   title: "Components/VideoCatalog",
   component: VideoCatalog,
+  decorators: [withMemoryRouter],
   args: {
     onRetry: fn(),
   },
@@ -35,19 +37,19 @@ export const List: Story = {
   args: { state: { status: "ready", data: completeVideos } },
 };
 
-/** 行アクション（再生 / ダウンロード / 削除）を全て配線した形（VideosPage の実配線と同じ）。 */
+/** 行アクション（削除）を配線した形（VideosPage の実配線と同じ）。 */
 export const ListWithActions: Story = {
   args: {
     state: { status: "ready", data: completeVideos },
-    handlers: { onPlay: fn(), onDownload: fn(), onDelete: fn() },
+    handlers: { onDelete: fn() },
   },
 };
 
-/** complete / init 混在。init 行にはダウンロードが出ない（A3）。 */
+/** complete / init 混在。init 行の削除は「取り消し」になる。 */
 export const MixedStatuses: Story = {
   args: {
     state: { status: "ready", data: mixedVideos },
-    handlers: { onPlay: fn(), onDownload: fn(), onDelete: fn() },
+    handlers: { onDelete: fn() },
   },
 };
 

@@ -47,7 +47,7 @@ describe("VideoDetail（US-6 抽出コンポーネント）", () => {
     expect(detail.tagName).toBe("DL");
   });
 
-  it("5 組の dt/dd（タイトル・プラットフォーム・バックアップ日・状態・元のページ）を持つ", () => {
+  it("5 組の dt/dd（タイトル・プラットフォーム・バックアップ日・状態・掲載元）を持つ", () => {
     render(<VideoDetail video={makeVideo()} />);
 
     const detail = screen.getByTestId("playback-detail");
@@ -60,22 +60,22 @@ describe("VideoDetail（US-6 抽出コンポーネント）", () => {
       "プラットフォーム",
       "バックアップ日",
       "状態",
-      "元のページ",
+      "掲載元",
     ]);
   });
 
-  it("元のページは動画の元 URL を新しいタブで開くリンクになる", () => {
+  it("掲載元は動画の元 URL を新しいタブで開くリンクになる", () => {
     render(
       <VideoDetail video={makeVideo({ videoUrl: "https://www.youtube.com/watch?v=abc123" })} />,
     );
 
-    const link = screen.getByRole("link", { name: /元のページを開く/ });
+    const link = screen.getByRole("link", { name: /で開く/ });
     expect(link).toHaveAttribute("href", "https://www.youtube.com/watch?v=abc123");
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
 
-  it("https 以外の URL では「元のページ」の行を表示しない（4 組）", () => {
+  it("https 以外の URL では「掲載元」の行を表示しない（4 組）", () => {
     render(<VideoDetail video={makeVideo({ videoUrl: "javascript:alert(1)" })} />);
 
     const detail = screen.getByTestId("playback-detail");

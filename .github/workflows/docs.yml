@@ -36,8 +36,11 @@ jobs:
         with:
           node-version-file: frontend/.node-version
           cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          cache-dependency-path: |
+            frontend/pnpm-lock.yaml
+            docs/site/pnpm-lock.yaml
       - run: pnpm --dir frontend install --frozen-lockfile
+      - run: pnpm --dir docs/site install --frozen-lockfile --ignore-scripts
       # Storybook fixes VITE_* to synthetic values; no production variables or secrets.
       - run: pnpm --dir frontend build-storybook
       - run: node docs/site/build.mjs

@@ -1,6 +1,7 @@
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { createRequire } from "node:module";
 
 // Only these inputs enter the Pages artifact. Never copy .env, dist, or backend files.
 const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -18,7 +19,6 @@ const escape = (value) =>
         "'": "&#39;",
       })[char],
   );
-const json = (value) => `<pre>${escape(JSON.stringify(value, null, 2))}</pre>`;
 const page = (title, content) => `<!doctype html>
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
@@ -29,39 +29,49 @@ pre{overflow:auto;padding:1rem;background:#edf2f7;font-size:.85rem}code{overflow
 nav ul{display:flex;flex-wrap:wrap;gap:1rem;list-style:none;padding:0}dt{font-weight:600}dd{margin:0 0 1rem}
 </style></head><body>${content}</body></html>\n`;
 
-const methods = new Set(["get", "post", "put", "patch", "delete", "head", "options", "trace"]);
-let count = 0;
-const operations = Object.entries(spec.paths).flatMap(([route, item]) =>
-  Object.entries(item)
-    .filter(([method]) => methods.has(method))
-    .map(([method, operation]) => {
-      const id = `operation-${++count}`;
-      return {
-        id,
-        label: `${method.toUpperCase()} ${route}`,
-        html: `<section id="${id}">
-<h2><code>${escape(method.toUpperCase())} ${escape(route)}</code></h2>
-<p>${escape(operation.summary ?? "")}</p>${operation.description ? `<p>${escape(operation.description)}</p>` : ""}
-<h3>認証</h3>${json(operation.security ?? spec.security ?? [])}
-${item.parameters || operation.parameters ? `<h3>パラメータ</h3>${json([...(item.parameters ?? []), ...(operation.parameters ?? [])])}` : ""}
-${operation.requestBody ? `<h3>リクエスト</h3>${json(operation.requestBody)}` : ""}
-<h3>レスポンス</h3>${Object.entries(operation.responses)
-          .map(
-            ([status, response]) =>
-              `<details><summary>${escape(status)} — ${escape(response.description ?? "")}</summary>${json(response)}</details>`,
-          )
-          .join("\n")}
-</section>`,
-      };
-    }),
-);
+const require = createRequire(import.meta.url);
+const redocRoot = path.dirname(require.resolve("redoc/package.json"));
+const redocPackage = JSON.parse(await readFile(path.join(redocRoot, "package.json"), "utf8"));
+const sitePackage = JSON.parse(await readFile(new URL("./package.json", import.meta.url), "utf8"));
+if (redocPackage.version !== sitePackage.dependencies.redoc || redocPackage.license !== "MIT") {
+  throw new Error("Expected the pinned MIT Redoc CE package");
+}
+let redocBundle = await readFile(path.join(redocRoot, "bundles/redoc.standalone.js"), "utf8");
+// Redoc CE 3.0.1 hardcodes these branding URLs. Mirror the unchanged official SVGs
+// locally, retaining the attribution instead of requiring the CDN at runtime.
+const logos = ["logo-mini.svg", "logo-mini-full.svg"];
+for (const logo of logos) {
+  const remote = `https://cdn.redoc.ly/redoc/${logo}`;
+  if (!redocBundle.includes(remote)) throw new Error(`Redoc branding URL changed: ${logo}`);
+  redocBundle = redocBundle.replaceAll(remote, `./assets/${logo}`);
+}
 
 await rm(output, { recursive: true, force: true });
-await mkdir(path.join(output, "openapi"), { recursive: true });
+await mkdir(path.join(output, "openapi/assets"), { recursive: true });
 await cp(path.join(root, "frontend/storybook-static"), path.join(output, "storybook"), {
   recursive: true,
 });
 await cp(path.join(root, "openapi/openapi.json"), path.join(output, "openapi/openapi.json"));
+await writeFile(path.join(output, "openapi/assets/redoc.standalone.js"), redocBundle);
+await cp(path.join(redocRoot, "LICENSE"), path.join(output, "openapi/assets/redoc-LICENSE.txt"));
+for (const logo of [...logos, "NOTICE.txt"]) {
+  await cp(new URL(`./assets/${logo}`, import.meta.url), path.join(output, "openapi/assets", logo));
+}
+await writeFile(
+  path.join(output, "openapi/init.js"),
+  `import { init } from "./assets/redoc.standalone.js";
+// Embed the unchanged specification: no network access, proxy, or credentials.
+init(${JSON.stringify(spec).replaceAll("<", "\\u003c")}, {
+  disableTelemetry: true,
+  skipBundle: true,
+  hideDownloadButtons: true,
+  schemaDefinitionsTagName: "Schemas",
+  jsonSamplesExpandLevel: 1,
+  sortRequiredPropsFirst: true,
+  router: "hash"
+}, document.getElementById("redoc"));
+`,
+);
 await writeFile(path.join(output, ".nojekyll"), "");
 await writeFile(
   path.join(output, "index.html"),
@@ -75,21 +85,18 @@ await writeFile(
 );
 await writeFile(
   path.join(output, "openapi/index.html"),
-  page(
-    spec.info.title,
-    `
-<a href="../">ドキュメントへ戻る</a><h1>${escape(spec.info.title)}</h1>
-<p>API ${escape(spec.info.version)} / OpenAPI ${escape(spec.openapi)} · <a href="./openapi.json">JSON 定義</a></p>
-<p>認証は API Gateway の Cognito JWT。ここでは API を実行できません。<code>$ref</code> の参照先は下部のスキーマを参照してください。</p>
-<nav aria-label="エンドポイント"><ul>${operations.map(({ id, label }) => `<li><a href="#${id}">${escape(label)}</a></li>`).join("")}</ul></nav>
-${operations.map(({ html }) => html).join("\n")}
-<section><h2>スキーマ</h2>${Object.entries(spec.components?.schemas ?? {})
-      .map(
-        ([name, schema]) =>
-          `<details id="schema-${escape(name)}"><summary>${escape(name)}</summary>${json(schema)}</details>`,
-      )
-      .join("\n")}
-<h2>認証方式</h2>${json(spec.components?.securitySchemes ?? {})}</section>`,
-  ),
+  `<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self' data:; font-src data:; base-uri 'none'; form-action 'none'">
+<title>${escape(spec.info.title)}</title><style>
+body{margin:0;font-family:system-ui,sans-serif}
+header{padding:12px 24px;border-bottom:1px solid #d7e0eb;background:#fff;color:#17263a}
+nav{display:flex;flex-wrap:wrap;gap:1rem}a{color:#1258a6}header p{margin:.5rem 0 0;font-size:.85rem}
+</style></head><body><header><nav aria-label="ドキュメント">
+<a href="../">ドキュメントへ戻る</a><a href="./openapi.json">OpenAPI JSON</a>
+<a href="./assets/redoc-LICENSE.txt">Redoc CE ${escape(redocPackage.version)} · MIT</a>
+</nav><p>読取専用 API リファレンス。API の実行や認証情報の入力はありません。</p></header>
+<div id="redoc"></div><noscript><p>表示には JavaScript が必要です。<a href="./openapi.json">JSON 定義</a>も参照できます。</p></noscript>
+<script type="module" src="./init.js"></script></body></html>\n`,
 );
-console.log(`Built ${count} API operations and Storybook in build/docs`);
+console.log(`Built Redoc CE ${redocPackage.version} and Storybook in build/docs`);

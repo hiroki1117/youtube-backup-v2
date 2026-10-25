@@ -71,3 +71,9 @@ def start_backup(video_id: VideoId, response: Response, service: Service):
     result, started = service.start(video_id)
     response.status_code = 202 if started else 200
     return result
+
+
+@backup_router.delete("/videos/{video_id}/backup", status_code=204)
+def cancel_backup(video_id: VideoId, service: Service):
+    """Cancel an unfinished backup: stops its job and removes the unfinished video record."""
+    service.cancel(video_id)

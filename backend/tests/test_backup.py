@@ -115,7 +115,7 @@ def test_legacy_records_untouched_and_retry_only_failed_jobs(service):
     service.jobs.items[tracked["batch_job_id"]]["status"] = "FAILED"
     assert service.retry_failed() == {"started": 1, "skipped": 1}
     # An untracked legacy record that never produced an object can be dismissed.
-    service.delete("legacy-video")
+    service.cancel("legacy-video")
     assert service.videos.get("legacy-video") is None
 
 
@@ -186,7 +186,7 @@ def test_failed_job_with_uploaded_object_and_delayed_event_is_not_deleted(servic
     service.videos.has_object = Mock(return_value=True)
     service.jobs.items[video["batch_job_id"]]["status"] = "FAILED"
     with pytest.raises(DomainError, match="backup_object_needs_reconciliation"):
-        service.delete("abcdefghijk")
+        service.cancel("abcdefghijk")
     service.videos.delete.assert_not_called()
     assert service.videos.get("abcdefghijk") == video
     assert objects == {actual_path}
@@ -203,7 +203,7 @@ def test_cancel_stops_active_job_and_scheduled_retry_cannot_restart_it(service):
     video = service.video("abcdefghijk")
     job_id = video["batch_job_id"]
     service.jobs.terminate = Mock(wraps=service.jobs.terminate)
-    service.delete("abcdefghijk")
+    service.cancel("abcdefghijk")
     service.jobs.terminate.assert_called_once_with(job_id, "Cancelled by the user")
     assert service.videos.get("abcdefghijk") is None
     assert service.retry_failed() == {"started": 0, "skipped": 0}
@@ -217,7 +217,7 @@ def test_cancel_failed_job_removes_record_without_terminating(service):
     video = service.video("abcdefghijk")
     service.jobs.items[video["batch_job_id"]]["status"] = "FAILED"
     service.jobs.terminate = Mock()
-    service.delete("abcdefghijk")
+    service.cancel("abcdefghijk")
     service.jobs.terminate.assert_not_called()
     assert service.videos.get("abcdefghijk") is None
 
@@ -238,7 +238,7 @@ def test_cancel_is_refused_when_the_outcome_is_not_certain(service, setup, code)
     setup(service, video)
     service.jobs.terminate = Mock()
     with pytest.raises(DomainError, match=code):
-        service.delete("abcdefghijk")
+        service.cancel("abcdefghijk")
     assert service.videos.get("abcdefghijk") == video
 
 
@@ -255,7 +255,7 @@ def test_cancel_is_refused_while_a_submission_is_unresolved(service, state, code
     service.videos.items["abcdefghijk"].pop("batch_job_id")
     service.videos.items["abcdefghijk"]["backup_state"] = state
     with pytest.raises(DomainError, match=code):
-        service.delete("abcdefghijk")
+        service.cancel("abcdefghijk")
     assert service.videos.get("abcdefghijk") is not None
     assert video["backup_attempt_id"]
 
@@ -272,5 +272,30 @@ def test_cancel_loses_to_a_concurrent_retry(service):
 
     service.videos.has_object = retry_claims_meanwhile
     with pytest.raises(DomainError, match="concurrent_change"):
+        service.cancel("abcdefghijk")
+    assert service.videos.get("abcdefghijk") is not None
+
+
+def test_delete_and_cancel_are_separate_operations(service):
+    service.register(URL)
+    with pytest.raises(DomainError, match="backup_not_complete"):
         service.delete("abcdefghijk")
     assert service.videos.get("abcdefghijk") is not None
+    video = service.video("abcdefghijk")
+    assert service.complete_records(event_for(video))["updated"] == 1
+    with pytest.raises(DomainError, match="backup_already_complete"):
+        service.cancel("abcdefghijk")
+    assert service.videos.get("abcdefghijk") is not None
+
+
+def test_refused_cancel_does_not_stop_the_job(service):
+    # The S3 check runs before the job is stopped, so a refusal cannot leave a stopped job
+    # that the scheduled retry would then restart.
+    service.register(URL)
+    video = service.video("abcdefghijk")
+    service.videos.has_object = Mock(return_value=True)
+    service.jobs.terminate = Mock()
+    with pytest.raises(DomainError, match="backup_object_needs_reconciliation"):
+        service.cancel("abcdefghijk")
+    service.jobs.terminate.assert_not_called()
+    assert service.jobs.items[video["batch_job_id"]]["status"] == "SUBMITTED"

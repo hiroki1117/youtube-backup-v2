@@ -108,17 +108,21 @@ class BackupService:
     def delete(self, video_id: str) -> None:
         video = self.video(video_id)
         if video["upload_status"] != "complete":
-            self.cancel(video)
-            return
+            # An unfinished backup is cancelled (DELETE /videos/{id}/backup), not deleted.
+            raise DomainError(409, "backup_not_complete")
         self.videos.delete(video, uuid4().hex)
 
-    def cancel(self, video: dict) -> None:
-        """Stop an unfinished backup and remove its record.
+    def cancel(self, video_id: str) -> None:
+        """Cancel an unfinished backup: stop its Batch job, then remove the video record.
 
-        Deleting an in-progress or stuck item means cancelling it: the Batch job is terminated
-        (so the scheduled retry cannot restart it) and the record is removed.
+        The job is stopped so the scheduled retry cannot restart it. Nothing is changed unless
+        the outcome is certain; see the 409 cases below.
         """
+        video = self.video(video_id)
+        if video["upload_status"] == "complete":
+            raise DomainError(409, "backup_already_complete")
         job_id = video.get("batch_job_id")
+        active = False
         if job_id:
             job = self.jobs.get(job_id)
             if job is None:
@@ -126,19 +130,21 @@ class BackupService:
             if job["status"] == "SUCCEEDED":
                 # The object is on its way; the S3 notification will complete the record.
                 raise DomainError(409, "backup_object_needs_reconciliation")
-            if job["status"] in ACTIVE:
-                self.jobs.terminate(job_id, "Cancelled by the user")
-            elif job["status"] != "FAILED":
+            active = job["status"] in ACTIVE
+            if not active and job["status"] != "FAILED":
                 raise DomainError(409, "job_needs_reconciliation")
         elif video.get("backup_attempt_id"):
             # Submission in flight or unknown: a job may exist that cannot be found.
             if video.get("backup_state") == "submitting":
                 raise DomainError(409, "concurrent_change")
             raise DomainError(409, "submission_needs_reconciliation")
-        # A terminated or FAILED job does not prove nothing was uploaded: yt-dlp appends the
-        # actual extension and its S3 completion notification may arrive after the job ends.
+        # A FAILED job does not prove nothing was uploaded: yt-dlp appends the actual extension
+        # and its S3 completion notification may arrive after the job ends. Check before
+        # stopping the job so a refusal never leaves a stopped job that the retry would restart.
         if self.videos.has_object(video):
             raise DomainError(409, "backup_object_needs_reconciliation")
+        if active:
+            self.jobs.terminate(job_id, "Cancelled by the user")
         self.videos.cancel(video)
 
     def playback(self, video_id: str) -> str:

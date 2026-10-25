@@ -15,6 +15,9 @@ class MemoryVideos:
     def list(self, status, limit):
         return [deepcopy(v) for v in self.items.values() if v["upload_status"] == status][:limit]
 
+    def iterate(self, status):
+        return iter(self.list(status, len(self.items)))
+
     def make_video(self, url, now):
         video_id, platform, normalized = source_identity(url)
         return {
@@ -127,6 +130,9 @@ class MemoryCommentBackups:
 
     def get(self, video_id):
         return deepcopy(self.items.get(video_id))
+
+    def tracked(self, video_ids):
+        return {video_id for video_id in video_ids if video_id in self.items}
 
     def claim(self, video_id, platform, attempt, now, expected):
         current = self.items.get(video_id)

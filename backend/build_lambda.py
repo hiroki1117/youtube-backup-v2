@@ -17,6 +17,7 @@ HANDLERS = {
     "retry": "entrypoints.retry.handler",
     "comments": "entrypoints.comments.handler",
     "youtube_comments": "entrypoints.youtube_comments.handler",
+    "comments_backfill": "entrypoints.comments_backfill.handler",
 }
 
 

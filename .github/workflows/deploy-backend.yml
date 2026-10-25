@@ -34,6 +34,7 @@ jobs:
         youtube-backup-retry entrypoints.retry.handler
         youtube-backup-api-comments entrypoints.comments.handler
         youtube-backup-youtube-comments-ingest entrypoints.youtube_comments.handler
+        youtube-backup-comments-backfill entrypoints.comments_backfill.handler
     steps:
       - uses: actions/checkout@v7
 

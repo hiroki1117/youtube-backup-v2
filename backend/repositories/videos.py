@@ -48,6 +48,22 @@ class VideoRepository:
             ScanIndexForward=False,
         )["Items"]
 
+    def iterate(self, status: str):
+        # Every video in the status, newest first, across Query pages (id and platform only).
+        start = {}
+        while True:
+            page = self.table.query(
+                IndexName="upload_status-backupdate-index",
+                KeyConditionExpression=Key("upload_status").eq(status),
+                ProjectionExpression="video_id, platform",
+                ScanIndexForward=False,
+                **start,
+            )
+            yield from page["Items"]
+            if "LastEvaluatedKey" not in page:
+                return
+            start = {"ExclusiveStartKey": page["LastEvaluatedKey"]}
+
     def make_video(self, url: str, now: int) -> dict:
         video_id, platform, normalized = source_identity(url)
         title = video_id

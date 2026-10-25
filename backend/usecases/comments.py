@@ -1,5 +1,6 @@
 import logging
 import time
+from itertools import batched
 from uuid import uuid4
 
 from usecases.backup import ACTIVE
@@ -91,6 +92,32 @@ class CommentService:
                 self.start(video_id)
         except Exception:
             logger.exception("Comment backup was not started for video %s", video_id)
+
+    def backfill(self, limit: int) -> dict:
+        """Starts the comment backup of up to `limit` complete videos that never had one.
+
+        For videos backed up before comment backups existed (newer ones start on completion).
+        Only videos without a record are picked, so a failed start is not retried here and one
+        pass over the catalog ends; `remaining` is False once nothing is left to start.
+        """
+        started = skipped = 0
+        for videos in batched(self.videos.iterate("complete"), 100, strict=False):
+            ids = [v["video_id"] for v in videos if v.get("platform") in PLATFORMS]
+            tracked = self.backups.tracked(ids)
+            for video_id in ids:
+                if video_id in tracked:
+                    continue
+                if started >= limit:
+                    return {"started": started, "skipped": skipped, "remaining": True}
+                try:
+                    self.start(video_id)
+                    started += 1
+                except DomainError as error:
+                    if error.status == 503:
+                        raise  # Batch or SSM is failing: stop instead of claiming more videos.
+                    # Being deleted or claimed concurrently: nothing to start for this video.
+                    skipped += 1
+        return {"started": started, "skipped": skipped, "remaining": False}
 
     def delete_for_video(self, video: dict) -> None:
         """Removes a video's comment backup while the video deletion holds its lock.

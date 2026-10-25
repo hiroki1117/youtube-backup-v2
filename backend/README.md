@@ -83,13 +83,13 @@ Lambda を足すときは `entrypoints/` に 1 ファイル追加し、[build_la
 
 ```
 POST /videos/{id}/comments → comments Lambda: comment_backups を submitting にして、platform のジョブ定義で Batch 投入
-  → Batch（batch/scripts/youtube-comments）: yt-dlp でコメントだけ取得し、info.json を gzip で
+  → Batch（batch/scripts/youtube-comments）: yt-dlp でコメントだけ取得し、コメント JSON を gzip で
     コメント用バケットの youtube/<video_id>/<attempt_id>.json.gz へ置く
   → S3 通知 → youtube_comments Lambda: youtube_comments テーブルへ upsert し、comment_backups を complete にする
 ```
 
 - コメントの形式はプラットフォームごとに違うため、共通化するのは要求の追跡（`comment_backups`）だけ。取得ジョブ・S3 の prefix・取り込み Lambda・コメントのテーブルはプラットフォームごとに持つ。対応 platform は [usecases/comments.py](usecases/comments.py) の `PLATFORMS`。
-- S3 の info.json が原本（取得ごとに attempt 別のキーで残る）。DynamoDB には検索に使う項目だけを入れる。
+- S3 のコメント JSON（yt-dlp の `id`・`comment_count`・`comments` だけ。字幕・フォーマット一覧は含まない）が原本で、取得ごとに attempt 別のキーで残る。DynamoDB には検索に使う項目だけを入れる。
 - 取り込みは現在の attempt のオブジェクトだけを反映する。置き換わった attempt の結果は無視するので、失敗・不明な取得は新しい attempt でやり直せる（ジョブが重複しても害がない）。
 - 取り込みは upsert のみ。再取得で消えていたコメントも残り、`last_seen_attempt` で最後に取得できた回が分かる。
 - 状態: `not_started` / `submitting` / `running` / `awaiting_ingest`（ジョブ成功・取り込み待ち）/ `complete` / `failed`。`running` は照会時に Batch の状態を見て判定する。投入途中で止まった `submitting` は 5 分で `failed` 扱いになる。

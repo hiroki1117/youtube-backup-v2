@@ -5,7 +5,7 @@ SUFFIX = ".json.gz"
 
 
 def comment_item(video_id: str, attempt: str, comment: dict) -> dict:
-    # Only the fields worth querying are copied; the full yt-dlp info.json stays in S3.
+    # Only the fields worth querying are copied; the job's full comment JSON stays in S3.
     timestamp = comment.get("timestamp")
     item = {
         "video_id": video_id,
@@ -25,7 +25,7 @@ def comment_item(video_id: str, attempt: str, comment: dict) -> dict:
 
 
 class YoutubeCommentIngest:
-    """Applies a YouTube comment job's info.json (youtube/<video_id>/<attempt>.json.gz)."""
+    """Applies a YouTube comment job's comment JSON (youtube/<video_id>/<attempt>.json.gz)."""
 
     def __init__(self, backups, objects, comments, clock=time.time):
         self.backups = backups

@@ -1,6 +1,7 @@
 #!/bin/sh
-# YouTube のコメントだけを取得し、yt-dlp の info.json を加工せず gzip して S3 へ置く。
-# 動画はダウンロードしない。置いたオブジェクトの S3 通知で取り込み Lambda が DynamoDB へ反映する。
+# YouTube のコメントだけを取得し、yt-dlp のコメント JSON を加工せず gzip して S3 へ置く。
+# 動画・字幕・フォーマット一覧は取得も出力もしない。置いたオブジェクトの S3 通知で取り込み Lambda が
+# DynamoDB へ反映する。
 #
 # 環境変数（Lambda が SubmitJob で渡す）:
 #   URL            動画 URL
@@ -14,9 +15,11 @@ echo "$S3PATH"
 
 aws s3 cp "$COOKIE_S3_PATH" ./cookies.txt
 
-yt-dlp --cookies ./cookies.txt --skip-download --write-comments --write-info-json \
+# --write-comments は info.json の書き出しも有効にするため --no-write-info-json で止め、
+# 出力テンプレートで id・comment_count・comments の 3 キーだけを JSON にして書き出す。
+yt-dlp --cookies ./cookies.txt --skip-download --write-comments --no-write-info-json \
   --extractor-args "youtube:max_comments=${MAX_COMMENTS:-10000},all,all,all" \
-  -o "comments" "$URL"
+  --print-to-file "%(.{id,comment_count,comments})j" comments.json "$URL"
 
-gzip -c comments.info.json > comments.json.gz
+gzip -c comments.json > comments.json.gz
 aws s3 cp comments.json.gz "$S3PATH" --content-type application/gzip

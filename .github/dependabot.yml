@@ -1,21 +1,67 @@
 version: 2
-# NFR5.1: 依存自動更新を週次で有効化（依存陳腐化の再発防止）。
+# Version updates only; security updates/alerts are managed in GitHub settings.
 updates:
-  - package-ecosystem: npm # pnpm-lock.yaml を対象（Dependabot は pnpm ロックに対応）
-    directory: "/frontend"
+  - package-ecosystem: npm
+    directory: '/frontend'
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 10
+      time: '09:00'
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 3
     groups:
-      # マイナー/パッチはまとめて PR 化しレビュー負荷を下げる
       minor-and-patch:
-        update-types:
-          - minor
-          - patch
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  - package-ecosystem: pip
+    directory: '/backend'
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 3
+    groups:
+      minor-and-patch:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  - package-ecosystem: pip
+    directory: '/batch/scripts/yt-dlp-script'
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 3
+    groups:
+      minor-and-patch:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  - package-ecosystem: docker
+    directory: '/batch/scripts/yt-dlp-script'
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 3
+    groups:
+      minor-and-patch:
+        patterns: ['*']
+        update-types: [minor, patch]
 
   - package-ecosystem: github-actions
-    directory: "/"
+    directory: '/'
     schedule:
       interval: weekly
       day: monday
+      time: '09:00'
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 3
+    groups:
+      minor-and-patch:
+        patterns: ['*']
+        update-types: [minor, patch]

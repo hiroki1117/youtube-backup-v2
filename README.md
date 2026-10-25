@@ -63,6 +63,14 @@ python -m http.server 8000 --directory build/docs
 
 frontend の入口は画面が [src/app/](frontend/src/app/)、API 呼び出しが [src/api/](frontend/src/api/)、ドメイン型が [src/types/](frontend/src/types/)。レイヤは `components → hooks → api → types`。
 
+## 依存ライブラリの継続更新
+
+[Dependabot](.github/dependabot.yml) が毎週月曜 09:00（Asia/Tokyo）に frontend（pnpm）、backend（pip）、batch（yt-dlp・awscli と Docker ベースイメージ）、GitHub Actions を確認する。minor/patch は ecosystem ごとにまとめ、major は個別 PR にする。未完了の version update PR は各 ecosystem 最大 3 件。自動 merge は行わず、CI と差分を確認してから merge する。
+
+backend の固定依存は `backend/requirements.txt`（旧 `requirements.lock`）で、CI の制約と Lambda ZIP のインストールに同じファイルを使う。`pyproject.toml` と合わせてレビューする。frontend は `package.json` と `pnpm-lock.yaml` を同じ PR で更新する。PR の CI は secrets 不要で実行され、main への merge 後は変更された領域の既存 production 配布 workflow が動く（CI の完了を待つ構成ではない）。batch 更新 PR は secrets を使わず Docker image の build とツール起動を CI で確認する。
+
+batch の yt-dlp・awscli は `batch/scripts/yt-dlp-script/requirements.txt` で管理する。apt パッケージや Deno インストーラー、mise の Node/Python/pnpm 固定値はこの設定では更新されない。これらは base image 更新時に確認し、ツール更新時は mise・`.node-version`・`packageManager`・CI の指定を同じ PR で揃える。Dependabot alerts / security updates は GitHub 側の別設定。実際の更新ジョブは設定が default branch に入ってから確認する。別途導入予定の `docs/site/package.json` と lockfile は、main に入った後で `/docs/site` の npm 更新設定を追加する。
+
 ## 配布
 
 main への push で、変更のあった部分だけが production Environment の OIDC ロールで配布される。

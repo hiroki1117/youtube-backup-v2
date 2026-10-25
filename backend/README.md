@@ -1,6 +1,6 @@
 # Backend
 
-FastAPI の API と、S3 通知・定期実行で動くイベント処理。全 Lambda で 1 つの ZIP を共有し、handler だけを変える。Python 3.14 / x86_64、依存は [pyproject.toml](pyproject.toml) と [requirements.lock](requirements.lock)。
+FastAPI の API と、S3 通知・定期実行で動くイベント処理。全 Lambda で 1 つの ZIP を共有し、handler だけを変える。Python 3.14 / x86_64、依存は [pyproject.toml](pyproject.toml) と [requirements.txt](requirements.txt)。
 
 ## 開発
 

@@ -112,12 +112,25 @@ jobs:
         with:
           python-version: "3.14"
           cache: pip
-          cache-dependency-path: backend/requirements.lock
+          cache-dependency-path: backend/requirements.txt
       - run: python -m venv backend/.venv
-      - run: backend/.venv/bin/python -m pip install -c backend/requirements.lock -e "backend[dev]"
+      - run: backend/.venv/bin/python -m pip install -c backend/requirements.txt -e "backend[dev]"
       - run: make backend batch
       - run: make -C backend export
       - run: git diff --exit-code -- openapi/openapi.json
+
+  batch-image:
+    name: Batch image build (no push)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build and smoke test
+        run: |
+          docker build -t youtube-backup-batch:ci batch/scripts/yt-dlp-script
+          docker run --rm youtube-backup-batch:ci sh -c 'yt-dlp --version && aws --version && deno --version && ffmpeg -version && sh -n /work/main.sh'
 
   backend-package:
     name: Backend ZIP (shared by all Lambdas)
@@ -132,9 +145,9 @@ jobs:
         with:
           python-version: "3.14"
           cache: pip
-          cache-dependency-path: backend/requirements.lock
+          cache-dependency-path: backend/requirements.txt
       - run: python -m venv .venv
-      - run: .venv/bin/python -m pip install -c requirements.lock -e '.[dev]'
+      - run: .venv/bin/python -m pip install -c requirements.txt -e '.[dev]'
       - run: make package
       - uses: actions/upload-artifact@v7
         with:

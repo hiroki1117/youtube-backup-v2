@@ -49,7 +49,7 @@ def main():
             "--target",
             str(target),
             "-r",
-            str(root / "requirements.lock"),
+            str(root / "requirements.txt"),
             str(wheel),
         ],
         check=True,

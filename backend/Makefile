@@ -2,7 +2,7 @@ PYTHON ?= .venv/bin/python
 .PHONY: install check export package dev
 install:
 	python3.14 -m venv .venv
-	$(PYTHON) -m pip install -c requirements.lock -e '.[dev]'
+	$(PYTHON) -m pip install -c requirements.txt -e '.[dev]'
 check:
 	$(PYTHON) -m ruff check .
 	$(PYTHON) -m ruff format --check .

@@ -205,3 +205,16 @@ class MemoryYoutubeComments:
     def put(self, items):
         for item in items:
             self.items[(item["video_id"], item["comment_id"])] = deepcopy(item)
+
+
+class MemoryPlaylists:
+    """Local/test playlists: {playlist_id: (videos, unavailable_count)}."""
+
+    def __init__(self, items=None):
+        self.items = items or {}
+
+    def videos(self, playlist_id):
+        if playlist_id not in self.items:
+            raise DomainError(404, "playlist_not_found")
+        videos, unavailable = self.items[playlist_id]
+        return deepcopy(videos), unavailable

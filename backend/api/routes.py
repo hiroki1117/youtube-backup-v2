@@ -2,7 +2,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Path, Query, Response
 
-from api.dependencies import get_comment_service, get_service
+from api.dependencies import get_comment_service, get_playlist_service, get_service
 from usecases.backup import BackupService
 from usecases.comments import CommentService
 from usecases.models import (
@@ -15,14 +15,18 @@ from usecases.models import (
     UpdateVideo,
     Video,
     YoutubeCommentPage,
+    YoutubePlaylist,
 )
+from usecases.playlists import PlaylistService
 
 errors = {status: {"model": ErrorResponse} for status in (401, 404, 409, 502, 503)}
 video_router = APIRouter(tags=["videos"], responses=errors)
 backup_router = APIRouter(tags=["backup"], responses=errors)
 comment_router = APIRouter(tags=["comments"], responses=errors | {422: {"model": ErrorResponse}})
+youtube_router = APIRouter(tags=["youtube"], responses=errors | {422: {"model": ErrorResponse}})
 Service = Annotated[BackupService, Depends(get_service)]
 Comments = Annotated[CommentService, Depends(get_comment_service)]
+Playlists = Annotated[PlaylistService, Depends(get_playlist_service)]
 VideoId = Annotated[str, Path(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")]
 
 
@@ -110,3 +114,13 @@ def list_comments(
 ):
     """Backed-up comments as threads (pinned first, then newest). The shape is per platform."""
     return comments.items(video_id, offset, limit)
+
+
+@youtube_router.get("/youtube/playlist", response_model=YoutubePlaylist)
+def get_youtube_playlist(
+    url: Annotated[str, Query(min_length=1, max_length=2048)], playlists: Playlists
+):
+    """The playlist in a YouTube URL (`list`), read from YouTube as is: its videos in order.
+
+    Nothing is stored or registered; register the videos with POST /videos."""
+    return playlists.get(url)

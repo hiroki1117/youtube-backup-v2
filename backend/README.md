@@ -37,7 +37,7 @@ wiring/        repository を組み立てて BackupService を返す
 
 | Lambda | handler | 起動 | 処理 |
 |---|---|---|---|
-| video | `entrypoints.video.handler` | HTTP API | 動画の登録・一覧・取得・更新・削除・再生 URL |
+| video | `entrypoints.video.handler` | HTTP API | 動画の登録・一覧・取得・更新・削除・再生 URL、YouTube の再生リストの取得 |
 | backup | `entrypoints.backup.handler` | HTTP API | バックアップの照会・再投入・取り消し |
 | s3_complete | `entrypoints.s3_complete.handler` | S3 通知 | 動画を `complete` にし、対応 platform ならコメントのバックアップを開始する |
 | scrapbox_scan | `entrypoints.scrapbox_scan.handler` | 毎時 | Scrapbox の新しい動画 URL を登録 |
@@ -65,8 +65,19 @@ Lambda を足すときは `entrypoints/` に 1 ファイル追加し、[build_la
 | `GET /videos/{id}/comments/backup` | コメントバックアップの状態の照会 |
 | `POST /videos/{id}/comments/backup` | コメントの取得開始（再取得も同じ）。開始は 202、取得中は 200。動画が未完了なら 409、YouTube 以外は 422 |
 | `GET /videos/{id}/comments` | バックアップしたコメントをスレッド単位で返す（`offset`・`limit` 最大 100）。形式は platform ごと（現状 YouTube のみ、それ以外は 422） |
+| `GET /youtube/playlist` | YouTube の再生リスト（query: `url`）を YouTube から読み、動画を並び順で返す。保存・登録はしない（下記） |
 
 対応 URL は YouTube（watch・shorts・live・youtu.be）とその他の URL（URL のハッシュを ID にする）。Twitter / X は未対応で 422。
+
+### YouTube の再生リスト
+
+`GET /youtube/playlist?url=...` は YouTube Data API の `playlistItems.list` で再生リストをその場で読み、各動画の `video_id`・`url`（`POST /videos` にそのまま渡せる watch URL）・`title` を返す。再生リストは保存しない（URL で指定して読むだけなので query にしている。保存する再生リストを作るなら `/youtube/playlists` を使う）。登録は呼び出し側が `POST /videos` で 1 本ずつ行う。
+
+- 再生リスト ID は URL の `list` から取る。`playlist?list=`、動画を再生中の `watch?v=…&list=`、`youtu.be/…?list=`、`m.`・`music.youtube.com` を受け付ける。`list` がなければ 422 `not_a_youtube_playlist`。
+- ミックス（`RD…`）、後で見る（`WL`）、高く評価した動画（`LL`）は 422 `unsupported_playlist`。ミックスは視聴者ごとに作られ、残りの 2 つは本人のログインが必要で、API キーでは読めない。
+- 存在しない再生リストと非公開の再生リストは 404 `playlist_not_found`。それ以外の API の失敗（quota 超過を含む）は 502 `playlist_unavailable`。
+- 非公開・削除済みの動画は `videos` に含めず、件数だけを `unavailable_count` で返す。同じ動画が 2 回入っていても 1 回だけ返す。
+- 本数の上限はない。quota は 50 本ごとに 1 unit（1 日 10,000 unit。動画登録のタイトル取得と同じ API キー `SSM_YOUTUBE_API_KEY_PARAMETER` を共有）。
 
 ## データの扱い
 

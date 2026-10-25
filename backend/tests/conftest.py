@@ -2,17 +2,19 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.app import create_app
-from api.dependencies import get_comment_service, get_service
+from api.dependencies import get_comment_service, get_playlist_service, get_service
 from repositories.memory import (
     MemoryCommentBackups,
     MemoryCommentJobs,
     MemoryCommentObjects,
     MemoryJobs,
+    MemoryPlaylists,
     MemoryVideos,
     MemoryYoutubeComments,
 )
 from usecases.backup import BackupService
 from usecases.comments import CommentService
+from usecases.playlists import PlaylistService
 from usecases.youtube_comments import YoutubeCommentStore
 
 
@@ -37,10 +39,16 @@ def comment_service(service):
 
 
 @pytest.fixture
-def client(service, comment_service, monkeypatch):
+def playlists():
+    return MemoryPlaylists()
+
+
+@pytest.fixture
+def client(service, comment_service, playlists, monkeypatch):
     monkeypatch.setenv("BACKEND_LOCAL_TOKEN", "test-local-token")
     app = create_app()
     app.dependency_overrides[get_service] = lambda: service
     app.dependency_overrides[get_comment_service] = lambda: comment_service
+    app.dependency_overrides[get_playlist_service] = lambda: PlaylistService(playlists)
     with TestClient(app, headers={"Authorization": "Bearer test-local-token"}) as client:
         yield client

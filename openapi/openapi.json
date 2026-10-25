@@ -926,13 +926,13 @@
         }
       }
     },
-    "/videos/{video_id}/comments": {
+    "/videos/{video_id}/comments/backup": {
       "get": {
         "tags": [
           "comments"
         ],
-        "summary": "Get Comments",
-        "operationId": "get_comments_videos__video_id__comments_get",
+        "summary": "Get Comment Backup",
+        "operationId": "get_comment_backup_videos__video_id__comments_backup_get",
         "security": [
           {
             "HTTPBearer": []
@@ -1029,9 +1029,9 @@
         "tags": [
           "comments"
         ],
-        "summary": "Start Comments",
+        "summary": "Start Comment Backup",
         "description": "Fetch the video's comments (again); a fetch already in progress is not resubmitted.",
-        "operationId": "start_comments_videos__video_id__comments_post",
+        "operationId": "start_comment_backup_videos__video_id__comments_backup_post",
         "security": [
           {
             "HTTPBearer": []
@@ -1135,14 +1135,14 @@
         }
       }
     },
-    "/videos/{video_id}/comments/items": {
+    "/videos/{video_id}/comments": {
       "get": {
         "tags": [
           "comments"
         ],
         "summary": "List Comments",
         "description": "Backed-up comments as threads (pinned first, then newest). The shape is per platform.",
-        "operationId": "list_comments_videos__video_id__comments_items_get",
+        "operationId": "list_comments_videos__video_id__comments_get",
         "security": [
           {
             "HTTPBearer": []

@@ -240,10 +240,10 @@ describe("ApiClient.getPresignedUrl（GET /videos/{id}/playback_url）", () => {
   });
 });
 
-describe("ApiClient のコメントバックアップ（GET/POST /videos/{id}/comments）", () => {
+describe("ApiClient のコメントバックアップ（GET/POST /videos/{id}/comments/backup）", () => {
   it("状態を ok(CommentBackup) に正規化する", async () => {
     server.use(
-      http.get(`${TEST_API_BASE}/videos/:id/comments`, () =>
+      http.get(`${TEST_API_BASE}/videos/:id/comments/backup`, () =>
         HttpResponse.json(
           makeRawCommentBackup({ state: "complete", comment_count: 246, completed_at: 1792713600 }),
         ),
@@ -264,7 +264,7 @@ describe("ApiClient のコメントバックアップ（GET/POST /videos/{id}/co
 
   it("未知の状態は transport 失敗に正規化する（error-path）", async () => {
     server.use(
-      http.get(`${TEST_API_BASE}/videos/:id/comments`, () =>
+      http.get(`${TEST_API_BASE}/videos/:id/comments/backup`, () =>
         HttpResponse.json({ ...makeRawCommentBackup(), state: "unknown" }),
       ),
     );
@@ -279,7 +279,7 @@ describe("ApiClient のコメントバックアップ（GET/POST /videos/{id}/co
       backup: { state: "running" },
     });
     server.use(
-      http.post(`${TEST_API_BASE}/videos/:id/comments`, () =>
+      http.post(`${TEST_API_BASE}/videos/:id/comments/backup`, () =>
         HttpResponse.json(makeRawCommentBackup({ state: "running" })),
       ),
     );
@@ -289,7 +289,7 @@ describe("ApiClient のコメントバックアップ（GET/POST /videos/{id}/co
 
   it("422 comments_not_supported は利用者向けメッセージの invalidInput に正規化する", async () => {
     server.use(
-      http.post(`${TEST_API_BASE}/videos/:id/comments`, () =>
+      http.post(`${TEST_API_BASE}/videos/:id/comments/backup`, () =>
         errorResponse(422, "comments_not_supported"),
       ),
     );
@@ -301,7 +301,7 @@ describe("ApiClient のコメントバックアップ（GET/POST /videos/{id}/co
 
   it("開始応答の形が不正なら transport 失敗に正規化する（error-path）", async () => {
     server.use(
-      http.post(`${TEST_API_BASE}/videos/:id/comments`, () =>
+      http.post(`${TEST_API_BASE}/videos/:id/comments/backup`, () =>
         HttpResponse.json({ state: "running" }, { status: 202 }),
       ),
     );
@@ -309,11 +309,11 @@ describe("ApiClient のコメントバックアップ（GET/POST /videos/{id}/co
   });
 });
 
-describe("ApiClient.getYoutubeComments（GET /videos/{id}/comments/items）", () => {
+describe("ApiClient.getYoutubeComments（GET /videos/{id}/comments）", () => {
   it("offset と limit をクエリに付け、ページを ok に正規化する", async () => {
     let capturedUrl = "";
     server.use(
-      http.get(`${TEST_API_BASE}/videos/:id/comments/items`, ({ request }) => {
+      http.get(`${TEST_API_BASE}/videos/:id/comments`, ({ request }) => {
         capturedUrl = request.url;
         return HttpResponse.json(
           makeRawYoutubeCommentPage([{ ...makeRawYoutubeComment(), replies: [] }], 40),
@@ -328,9 +328,7 @@ describe("ApiClient.getYoutubeComments（GET /videos/{id}/comments/items）", ()
 
   it("本文の形が不正なら transport 失敗に正規化する（error-path）", async () => {
     server.use(
-      http.get(`${TEST_API_BASE}/videos/:id/comments/items`, () =>
-        HttpResponse.json({ threads: "x" }),
-      ),
+      http.get(`${TEST_API_BASE}/videos/:id/comments`, () => HttpResponse.json({ threads: "x" })),
     );
     const result = await client.getYoutubeComments("v1", { offset: 0, limit: 20 });
     expect(result.kind).toBe("transport");
@@ -338,7 +336,7 @@ describe("ApiClient.getYoutubeComments（GET /videos/{id}/comments/items）", ()
 
   it("422 comments_not_supported は invalidInput に正規化する（error-path）", async () => {
     server.use(
-      http.get(`${TEST_API_BASE}/videos/:id/comments/items`, () =>
+      http.get(`${TEST_API_BASE}/videos/:id/comments`, () =>
         errorResponse(422, "comments_not_supported"),
       ),
     );

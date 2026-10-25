@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * バックアップした YouTube コメントのドメイン型（`GET /videos/{id}/comments/items`）。
+ * バックアップした YouTube コメントのドメイン型（`GET /videos/{id}/comments`）。
  * コメントの形式はプラットフォームごとに違うため、YouTube 専用の型として持つ。
  * API 境界では zod で parse した値のみ扱う。
  */

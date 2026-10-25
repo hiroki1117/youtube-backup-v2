@@ -142,16 +142,16 @@ export const handlers = [
   http.get(`${TEST_API_BASE}/videos/:videoId/playback_url`, () =>
     HttpResponse.json(makePlaybackUrl()),
   ),
-  // GET /videos/{video_id}/comments: 既定は未取得。
-  http.get(`${TEST_API_BASE}/videos/:videoId/comments`, () =>
+  // GET /videos/{video_id}/comments/backup: 既定は未取得。
+  http.get(`${TEST_API_BASE}/videos/:videoId/comments/backup`, () =>
     HttpResponse.json(makeRawCommentBackup()),
   ),
-  // GET /videos/{video_id}/comments/items: 既定はコメントなし。
-  http.get(`${TEST_API_BASE}/videos/:videoId/comments/items`, () =>
+  // GET /videos/{video_id}/comments: 既定はコメントなし。
+  http.get(`${TEST_API_BASE}/videos/:videoId/comments`, () =>
     HttpResponse.json(makeRawYoutubeCommentPage()),
   ),
-  // POST /videos/{video_id}/comments: 既定は取得開始（202）。取得中（200）・失敗は各テストで上書き。
-  http.post(`${TEST_API_BASE}/videos/:videoId/comments`, () =>
+  // POST /videos/{video_id}/comments/backup: 既定は取得開始（202）。取得中（200）・失敗は各テストで上書き。
+  http.post(`${TEST_API_BASE}/videos/:videoId/comments/backup`, () =>
     HttpResponse.json(
       makeRawCommentBackup({ state: "running", attempt_id: "a1", batch_job_id: "job-c1" }),
       { status: 202 },

@@ -4,7 +4,7 @@ import { apiClient, type ApiResult } from "@/api/client";
 import type { YoutubeCommentPage, YoutubeCommentThread } from "@/types/youtubeComments";
 
 /**
- * バックアップした YouTube コメントの一覧フック（`GET /videos/{id}/comments/items`）。
+ * バックアップした YouTube コメントの一覧フック（`GET /videos/{id}/comments`）。
  * スレッド単位のページを「もっと見る」で継ぎ足す。取得の完了時刻（`completedAt`）をキーに含め、
  * 再取得が完了したら一覧を最初から読み直す。ApiResult は kind で判別する。
  */

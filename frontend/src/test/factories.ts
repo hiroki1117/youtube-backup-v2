@@ -116,7 +116,7 @@ export function makeRawYoutubeComment(
   };
 }
 
-/** GET /videos/{id}/comments/items の生レスポンス。既定はコメントなし。 */
+/** GET /videos/{id}/comments の生レスポンス。既定はコメントなし。 */
 export function makeRawYoutubeCommentPage(
   threads: (RawYoutubeComment & { replies: RawYoutubeComment[] })[] = [],
   nextOffset: number | null = null,

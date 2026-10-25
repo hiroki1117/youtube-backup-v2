@@ -53,12 +53,12 @@ export interface ApiClient {
   cancelBackup(videoId: string): Promise<ApiResult<null>>;
   /** 再生/ダウンロード用の署名付き URL（`GET /videos/{id}/playback_url`）。 */
   getPresignedUrl(videoId: string): Promise<ApiResult<string>>;
-  /** コメントバックアップの状態（`GET /videos/{id}/comments`）。 */
+  /** コメントバックアップの状態（`GET /videos/{id}/comments/backup`）。 */
   getCommentBackup(videoId: string): Promise<ApiResult<CommentBackup>>;
-  /** コメントの取得を開始する（`POST /videos/{id}/comments`）。取得済みなら最新化する。 */
+  /** コメントの取得を開始する（`POST /videos/{id}/comments/backup`）。取得済みなら最新化する。 */
   startCommentBackup(videoId: string): Promise<ApiResult<CommentBackupStart>>;
   /**
-   * バックアップした YouTube コメントのページ（`GET /videos/{id}/comments/items`）。
+   * バックアップした YouTube コメントのページ（`GET /videos/{id}/comments`）。
    * スレッド（親コメントと返信）単位で、固定コメント→新しい順。
    */
   getYoutubeComments(
@@ -303,7 +303,7 @@ export class HttpApiClient implements ApiClient {
   }
 
   async getCommentBackup(videoId: string): Promise<ApiResult<CommentBackup>> {
-    const res = await this.request(`/videos/${encodeURIComponent(videoId)}/comments`);
+    const res = await this.request(`/videos/${encodeURIComponent(videoId)}/comments/backup`);
     if (!res.ok) {
       return res.failure;
     }
@@ -315,7 +315,7 @@ export class HttpApiClient implements ApiClient {
   }
 
   async startCommentBackup(videoId: string): Promise<ApiResult<CommentBackupStart>> {
-    const res = await this.request(`/videos/${encodeURIComponent(videoId)}/comments`, {
+    const res = await this.request(`/videos/${encodeURIComponent(videoId)}/comments/backup`, {
       method: "POST",
     });
     if (!res.ok) {
@@ -333,15 +333,13 @@ export class HttpApiClient implements ApiClient {
     params: { offset: number; limit: number },
   ): Promise<ApiResult<YoutubeCommentPage>> {
     const query = `offset=${params.offset}&limit=${params.limit}`;
-    const res = await this.request(
-      `/videos/${encodeURIComponent(videoId)}/comments/items?${query}`,
-    );
+    const res = await this.request(`/videos/${encodeURIComponent(videoId)}/comments?${query}`);
     if (!res.ok) {
       return res.failure;
     }
     const page = parseYoutubeCommentPage(res.body);
     if (page === null) {
-      return { kind: "transport", message: "unexpected response shape for GET comments/items" };
+      return { kind: "transport", message: "unexpected response shape for GET comments" };
     }
     return { kind: "ok", data: page };
   }

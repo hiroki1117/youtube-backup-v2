@@ -95,7 +95,7 @@ def comment_threads(items: list[dict], completed_attempt: str | None) -> list[Yo
 
 
 class YoutubeCommentReader:
-    """Reads youtube_comments as pages of threads for GET /videos/{id}/comments/items."""
+    """Reads youtube_comments as pages of threads for GET /videos/{id}/comments."""
 
     def __init__(self, backups, comments):
         self.backups = backups

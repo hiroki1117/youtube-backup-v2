@@ -233,12 +233,12 @@ def test_comment_item_drops_missing_values():
 
 def test_api_starts_and_reports_comment_backup(client, service):
     backed_up(service)
-    assert client.get(f"/videos/{VIDEO_ID}/comments").json()["state"] == "not_started"
-    response = client.post(f"/videos/{VIDEO_ID}/comments")
+    assert client.get(f"/videos/{VIDEO_ID}/comments/backup").json()["state"] == "not_started"
+    response = client.post(f"/videos/{VIDEO_ID}/comments/backup")
     assert response.status_code == 202 and response.json()["state"] == "running"
-    assert client.post(f"/videos/{VIDEO_ID}/comments").status_code == 200
-    assert client.get(f"/videos/{VIDEO_ID}/comments").json()["state"] == "running"
-    assert client.post("/videos/zzzzzzzzzzz/comments").status_code == 404
+    assert client.post(f"/videos/{VIDEO_ID}/comments/backup").status_code == 200
+    assert client.get(f"/videos/{VIDEO_ID}/comments/backup").json()["state"] == "running"
+    assert client.post("/videos/zzzzzzzzzzz/comments/backup").status_code == 404
 
 
 def conditional_failure():
@@ -372,11 +372,11 @@ def test_items_reject_unknown_and_unsupported_videos(service, comment_service):
 
 def test_api_lists_comment_threads_and_validates_paging(client, service):
     backed_up(service)
-    response = client.get(f"/videos/{VIDEO_ID}/comments/items", params={"limit": 5})
+    response = client.get(f"/videos/{VIDEO_ID}/comments", params={"limit": 5})
     assert response.status_code == 200 and response.json()["threads"] == []
-    assert client.get(f"/videos/{VIDEO_ID}/comments/items?limit=0").status_code == 422
-    assert client.get(f"/videos/{VIDEO_ID}/comments/items?limit=101").status_code == 422
-    assert client.get(f"/videos/{VIDEO_ID}/comments/items?offset=-1").status_code == 422
+    assert client.get(f"/videos/{VIDEO_ID}/comments?limit=0").status_code == 422
+    assert client.get(f"/videos/{VIDEO_ID}/comments?limit=101").status_code == 422
+    assert client.get(f"/videos/{VIDEO_ID}/comments?offset=-1").status_code == 422
 
 
 def test_comment_repository_lists_every_query_page():

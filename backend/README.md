@@ -44,7 +44,7 @@ wiring/        repository を組み立てて BackupService を返す
 | retry | `entrypoints.retry.handler` | 手動 | 失敗ジョブを最大 100 件再投入 |
 | comments | `entrypoints.comments.handler` | HTTP API | コメントバックアップの照会・開始、コメントの一覧 |
 | youtube_comments | `entrypoints.youtube_comments.handler` | S3 通知（コメント用バケット `youtube/`） | 取得した YouTube コメントを DynamoDB へ取り込む |
-| comments_backfill | `entrypoints.comments_backfill.handler` | 毎時（一時的） | コメントのバックアップがない完了済み動画を、1 回に `limit` 本ずつ開始する（下記） |
+| comments_backfill | `entrypoints.comments_backfill.handler` | 毎時（一時的） | コメントのバックアップがない完了済み動画を、1 回に `LIMIT` 本ずつ開始する（下記） |
 
 Lambda を足すときは `entrypoints/` に 1 ファイル追加し、[build_lambda.py](build_lambda.py) の `HANDLERS` と [deploy-backend.yml](../.github/workflows/deploy-backend.yml) の `FUNCTIONS` に 1 行足す。関数本体は infra で作る。
 
@@ -104,7 +104,8 @@ POST /videos/{id}/comments/backup（comments Lambda）または動画の complet
 
 コメントのバックアップ導入前に完了していた動画は、`comments_backfill` が毎時少しずつ取得する。
 
-- 毎時の入力 `{"limit": N}`（infra が設定）の本数まで、`complete` の YouTube 動画のうち `comment_backups` に記録がないものを新しい順に `CommentService.start` で開始する。
+- 1 回に [entrypoints/comments_backfill.py](entrypoints/comments_backfill.py) の `LIMIT`（10）本まで、`complete` の YouTube 動画のうち `comment_backups` に記録がないものを新しい順に `CommentService.start` で開始する。
 - 記録がない動画だけを選ぶので、失敗した動画をここで再試行することはなく、一巡すると終わる（失敗分は画面から再取得する）。投入が 503 で失敗したら、その回はそこで止める。
-- 開始する動画がなくなると、自分のスケジュール（`COMMENTS_BACKFILL_RULE_NAME`）を無効化する。手動で `{"limit": N}` を渡して invoke してもよい。
+- 本数の調整は `LIMIT` を変えて配布する（スケジュールは本数を渡さない）。手動で invoke するときは `{"limit": N}` で上書きできる。
+- 開始する動画がなくなると、自分のスケジュール（`COMMENTS_BACKFILL_RULE_NAME`）を無効化する。
 - 一巡したら、[entrypoints/comments_backfill.py](entrypoints/comments_backfill.py)・[tests/test_comments_backfill.py](tests/test_comments_backfill.py)・`CommentService.backfill` と、`HANDLERS`・`FUNCTIONS` の行を消す。先に infra の関数を消すと配布が失敗するため、アプリ側を先に消す。

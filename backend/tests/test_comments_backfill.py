@@ -2,7 +2,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from entrypoints.comments_backfill import backfill
+from entrypoints.comments_backfill import LIMIT, backfill
 from repositories.comments import CommentBackupRepository
 from repositories.videos import VideoRepository
 from usecases.models import DomainError
@@ -77,6 +77,14 @@ def test_handler_disables_the_schedule_once_nothing_is_left(service, comment_ser
     disable.assert_not_called()
     assert backfill(comment_service, {"limit": 1}, disable)["remaining"] is False
     disable.assert_called_once_with()
+
+
+def test_scheduled_runs_use_the_app_limit_and_manual_runs_may_override_it(service, comment_service):
+    backed_up(service, LIMIT + 2)
+    # A scheduled event carries no limit of its own.
+    scheduled = {"source": "aws.events", "detail-type": "Scheduled Event", "detail": {}}
+    assert backfill(comment_service, scheduled, Mock())["started"] == LIMIT
+    assert backfill(comment_service, {"limit": 1}, Mock())["started"] == 1
 
 
 def test_video_repository_iterates_every_query_page():

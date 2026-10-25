@@ -1,18 +1,21 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { CommentBackupPanel } from "@/components/CommentBackupPanel";
+import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { YoutubeCommentList } from "@/components/YoutubeCommentList";
 import { StatusView, type ViewState } from "@/components/StatusView";
 import { VideoDetail } from "@/components/VideoDetail";
 import { VideoTitleEditor } from "@/components/VideoTitleEditor";
 import { useCommentBackup } from "@/hooks/useCommentBackup";
+import { useVideoDeletion } from "@/hooks/useVideoDeletion";
 import { useVideoDownload } from "@/hooks/useVideoDownload";
 import { useYoutubeComments } from "@/hooks/useYoutubeComments";
 import { useVideoTitleEdit } from "@/hooks/useVideoTitleEdit";
 import { useVideoPlayback, type PlaybackSource } from "@/hooks/useVideoPlayback";
 import { ROUTES } from "@/lib/routes";
 import { supportsCommentBackup } from "@/types/commentBackup";
+import type { UploadStatus } from "@/types/video";
 
 /**
  * 動画再生ページ（U6 video-playback / US6.1・US6.2・FR6・FR7・OQ2・A3）。
@@ -27,7 +30,14 @@ import { supportsCommentBackup } from "@/types/commentBackup";
  * 詳細表示は components（VideoDetail）へ委譲する。
  * 対応プラットフォームの complete 動画には、コメントのバックアップ欄（CommentBackupPanel）を出し、
  * 取得が一度でも完了していれば、バックアップしたコメントの一覧（YoutubeCommentList）も出す。
+ * 削除（init は取り消し）もここから行える（スマホ幅の一覧では行に削除を出さないため）。成功したら一覧へ戻る。
  */
+
+// 削除ボタンのラベル。処理中（init）の動画に対する削除は、バックアップの取り消しになる。
+const REMOVE_LABEL: Record<UploadStatus, string> = {
+  init: "取り消し",
+  complete: "削除",
+};
 
 /** 署名 URL の取得状態（PlaybackSource）を StatusView の ViewState へ変換する。 */
 function toSourceViewState(source: PlaybackSource): ViewState<string> {
@@ -45,6 +55,11 @@ export function VideoPlaybackPage() {
   const { videoId } = useParams<{ videoId: string }>();
   const playback = useVideoPlayback(videoId ?? "");
   const download = useVideoDownload();
+  const navigate = useNavigate();
+  const deletion = useVideoDeletion({
+    // 削除した動画のページは残らないので、履歴を置き換えて一覧へ戻る（戻るで消えたページに来ない）。
+    onDeleted: () => navigate(ROUTES.videos, { replace: true }),
+  });
   const titleEdit = useVideoTitleEdit(videoId ?? "");
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -143,6 +158,16 @@ export function VideoPlaybackPage() {
           >
             この動画はまだ再生・ダウンロードできません（処理中）。
           </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => deletion.requestDelete(state.video)}
+              aria-label={`${REMOVE_LABEL.init}: ${state.video.title}`}
+              data-testid="playback-delete-button"
+            >
+              {REMOVE_LABEL.init}
+            </Button>
+          </div>
           <VideoDetail video={state.video} />
         </div>
       )}
@@ -175,6 +200,14 @@ export function VideoPlaybackPage() {
             >
               {download.isPreparing ? "準備中..." : "ダウンロード"}
             </Button>
+            <Button
+              variant="outline"
+              onClick={() => deletion.requestDelete(state.video)}
+              aria-label={`${REMOVE_LABEL[state.video.uploadStatus]}: ${state.video.title}`}
+              data-testid="playback-delete-button"
+            >
+              {REMOVE_LABEL[state.video.uploadStatus]}
+            </Button>
           </div>
           <VideoDetail video={state.video} />
           {showComments ? (
@@ -196,6 +229,13 @@ export function VideoPlaybackPage() {
           ) : null}
         </div>
       )}
+
+      <DeleteConfirmDialog
+        video={deletion.pendingVideo}
+        isDeleting={deletion.isDeleting}
+        onConfirm={deletion.confirmDelete}
+        onCancel={deletion.cancelDelete}
+      />
     </section>
   );
 }

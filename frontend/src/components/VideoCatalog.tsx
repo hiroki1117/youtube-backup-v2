@@ -80,7 +80,7 @@ export function VideoCatalog({
             {videos.map((video) => (
               <li
                 key={video.videoId}
-                className="flex flex-wrap items-center gap-2 p-3"
+                className="flex items-center gap-2 p-3"
                 data-testid="video-row"
               >
                 <span className="flex items-center" data-testid="video-platform">
@@ -94,21 +94,28 @@ export function VideoCatalog({
                 >
                   {video.title}
                 </Link>
-                <span className="text-sm text-muted-foreground">{video.backupDate}</span>
-                <span className="rounded bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">
-                  {STATUS_LABEL[video.uploadStatus]}
-                </span>
-                <SourceLink video={video} />
-                {onDelete ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onDelete(video)}
-                    aria-label={`${REMOVE_LABEL[video.uploadStatus]}: ${video.title}`}
-                  >
-                    {REMOVE_LABEL[video.uploadStatus]}
-                  </Button>
-                ) : null}
+                {/* スマホ幅ではタイトルを読めるよう、アイコンとタイトル以外は出さない。
+                    日付・状態・元サイト・削除は再生ページ（詳細）でも見られる・行える。 */}
+                <div
+                  className="hidden shrink-0 items-center gap-2 md:flex"
+                  data-testid="video-row-extras"
+                >
+                  <span className="text-sm text-muted-foreground">{video.backupDate}</span>
+                  <span className="rounded bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">
+                    {STATUS_LABEL[video.uploadStatus]}
+                  </span>
+                  <SourceLink video={video} />
+                  {onDelete ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onDelete(video)}
+                      aria-label={`${REMOVE_LABEL[video.uploadStatus]}: ${video.title}`}
+                    >
+                      {REMOVE_LABEL[video.uploadStatus]}
+                    </Button>
+                  ) : null}
+                </div>
               </li>
             ))}
           </ul>

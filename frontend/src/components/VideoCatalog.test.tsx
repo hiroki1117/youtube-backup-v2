@@ -69,6 +69,8 @@ describe("VideoCatalog（U2 / US2.1・C6 / FR8）", () => {
       ],
     });
     expect(screen.getByRole("link", { name: "完了動画" })).toHaveAttribute("href", "/videos/c1");
+    // 省略表示されても、ホバーで全文が見える。
+    expect(screen.getByRole("link", { name: "完了動画" })).toHaveAttribute("title", "完了動画");
     expect(screen.getByRole("link", { name: "処理中動画" })).toHaveAttribute("href", "/videos/i1");
   });
 

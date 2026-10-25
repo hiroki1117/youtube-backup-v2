@@ -89,6 +89,8 @@ export function VideoCatalog({
                 <Link
                   to={generatePath(ROUTES.videoDetail, { videoId: video.videoId })}
                   className="min-w-0 flex-1 truncate font-medium hover:underline"
+                  // 長いタイトルは省略表示になるため、ホバーで全文を出す。
+                  title={video.title}
                 >
                   {video.title}
                 </Link>

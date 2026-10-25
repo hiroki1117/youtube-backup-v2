@@ -44,7 +44,7 @@ jobs:
       # Storybook fixes VITE_* to synthetic values; no production variables or secrets.
       - run: pnpm --dir frontend build-storybook
       - run: node docs/site/build.mjs
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: build/docs
 

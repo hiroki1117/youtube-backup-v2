@@ -42,7 +42,7 @@ describe("VideoCatalog（U2 / US2.1・C6 / FR8）", () => {
     });
     expect(screen.getByRole("list", { name: "動画一覧" })).toBeInTheDocument();
     expect(screen.getByText("完了動画")).toBeInTheDocument();
-    expect(screen.getByText("youtube")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "YouTube" })).toBeInTheDocument();
     expect(screen.getByText("2026-08-03")).toBeInTheDocument();
     expect(screen.getByText("完了")).toBeInTheDocument(); // complete の表示ラベル
   });

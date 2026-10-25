@@ -21,3 +21,5 @@ export { Toaster } from "./Toaster";
 export { Button, buttonVariants } from "./ui/button";
 export { Input } from "./ui/input";
 export { Label } from "./ui/label";
+export { VideoTitleEditor } from "./VideoTitleEditor";
+export type { VideoTitleEditorProps } from "./VideoTitleEditor";

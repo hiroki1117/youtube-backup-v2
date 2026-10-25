@@ -22,3 +22,5 @@ export { useVideoPlayback } from "./useVideoPlayback";
 export type { VideoPlaybackController, PlaybackState, PlaybackSource } from "./useVideoPlayback";
 export { useVideoDownload } from "./useVideoDownload";
 export type { VideoDownloadController } from "./useVideoDownload";
+export { useVideoTitleEdit } from "./useVideoTitleEdit";
+export type { VideoTitleEditController } from "./useVideoTitleEdit";

@@ -9,7 +9,7 @@ import {
   makeRegistration,
   unauthorizedResponse,
 } from "@/test/handlers";
-import { makeRawVideo } from "@/test/factories";
+import { makeRawCommentBackup, makeRawVideo } from "@/test/factories";
 
 const client = new HttpApiClient(TEST_API_BASE, () => Promise.resolve("test-token"));
 
@@ -232,6 +232,75 @@ describe("ApiClient.getPresignedUrl（GET /videos/{id}/playback_url）", () => {
     );
     const result = await client.getPresignedUrl("v1");
     expect(result.kind).toBe("transport");
+  });
+});
+
+describe("ApiClient のコメントバックアップ（GET/POST /videos/{id}/comments）", () => {
+  it("状態を ok(CommentBackup) に正規化する", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/videos/:id/comments`, () =>
+        HttpResponse.json(
+          makeRawCommentBackup({ state: "complete", comment_count: 246, completed_at: 1792713600 }),
+        ),
+      ),
+    );
+    const result = await client.getCommentBackup("v1");
+    expect(result).toEqual({
+      kind: "ok",
+      data: {
+        videoId: "v1",
+        platform: "youtube",
+        state: "complete",
+        commentCount: 246,
+        completedAt: 1792713600,
+      },
+    });
+  });
+
+  it("未知の状態は transport 失敗に正規化する（error-path）", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/videos/:id/comments`, () =>
+        HttpResponse.json({ ...makeRawCommentBackup(), state: "unknown" }),
+      ),
+    );
+    expect((await client.getCommentBackup("v1")).kind).toBe("transport");
+  });
+
+  it("202 は新しく開始、200 は取得中で何もしなかったとして返す", async () => {
+    // 既定ハンドラは 202（取得開始）。
+    const started = await client.startCommentBackup("v1");
+    expect(started.kind === "ok" && started.data).toMatchObject({
+      started: true,
+      backup: { state: "running" },
+    });
+    server.use(
+      http.post(`${TEST_API_BASE}/videos/:id/comments`, () =>
+        HttpResponse.json(makeRawCommentBackup({ state: "running" })),
+      ),
+    );
+    const already = await client.startCommentBackup("v1");
+    expect(already.kind === "ok" && already.data.started).toBe(false);
+  });
+
+  it("422 comments_not_supported は利用者向けメッセージの invalidInput に正規化する", async () => {
+    server.use(
+      http.post(`${TEST_API_BASE}/videos/:id/comments`, () =>
+        errorResponse(422, "comments_not_supported"),
+      ),
+    );
+    expect(await client.startCommentBackup("v1")).toEqual({
+      kind: "invalidInput",
+      message: "この動画のプラットフォームはコメントのバックアップに対応していません。",
+    });
+  });
+
+  it("開始応答の形が不正なら transport 失敗に正規化する（error-path）", async () => {
+    server.use(
+      http.post(`${TEST_API_BASE}/videos/:id/comments`, () =>
+        HttpResponse.json({ state: "running" }, { status: 202 }),
+      ),
+    );
+    expect((await client.startCommentBackup("v1")).kind).toBe("transport");
   });
 });
 

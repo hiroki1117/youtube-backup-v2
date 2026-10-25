@@ -24,3 +24,5 @@ export { useVideoDownload } from "./useVideoDownload";
 export type { VideoDownloadController } from "./useVideoDownload";
 export { useVideoTitleEdit } from "./useVideoTitleEdit";
 export type { VideoTitleEditController } from "./useVideoTitleEdit";
+export { useCommentBackup, COMMENT_BACKUP_POLL_MS } from "./useCommentBackup";
+export type { CommentBackupController, CommentBackupView } from "./useCommentBackup";

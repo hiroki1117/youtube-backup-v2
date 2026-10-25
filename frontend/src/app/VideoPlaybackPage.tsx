@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { CommentBackupPanel } from "@/components/CommentBackupPanel";
 import { StatusView, type ViewState } from "@/components/StatusView";
 import { VideoDetail } from "@/components/VideoDetail";
 import { VideoTitleEditor } from "@/components/VideoTitleEditor";
+import { useCommentBackup } from "@/hooks/useCommentBackup";
 import { useVideoDownload } from "@/hooks/useVideoDownload";
 import { useVideoTitleEdit } from "@/hooks/useVideoTitleEdit";
 import { useVideoPlayback, type PlaybackSource } from "@/hooks/useVideoPlayback";
 import { ROUTES } from "@/lib/routes";
+import { supportsCommentBackup } from "@/types/commentBackup";
 
 /**
  * 動画再生ページ（U6 video-playback / US6.1・US6.2・FR6・FR7・OQ2・A3）。
@@ -20,6 +23,7 @@ import { ROUTES } from "@/lib/routes";
  * アクセシビリティ: 表示時に見出しへフォーカスし、role/aria を付与する。
  * レイヤ境界: app 層。取得・DL ロジックは hooks（useVideoPlayback / useVideoDownload）へ委譲し、
  * 詳細表示は components（VideoDetail）へ委譲する。
+ * 対応プラットフォームの complete 動画には、コメントのバックアップ欄（CommentBackupPanel）を出す。
  */
 
 /** 署名 URL の取得状態（PlaybackSource）を StatusView の ViewState へ変換する。 */
@@ -50,6 +54,9 @@ export function VideoPlaybackPage() {
   const state = playback.state;
   const loadedVideo = state.kind === "ready" || state.kind === "notPlayable" ? state.video : null;
   const headingText = loadedVideo?.title ?? "動画再生";
+  // コメントは動画のバックアップが完了してから取得できる（backend は未完了を 409 にする）。
+  const showComments = state.kind === "ready" && supportsCommentBackup(state.video.platform);
+  const comments = useCommentBackup(videoId ?? "", showComments);
 
   const saveTitle = async (title: string) => {
     const saved = await titleEdit.save(title);
@@ -164,6 +171,14 @@ export function VideoPlaybackPage() {
             </Button>
           </div>
           <VideoDetail video={state.video} />
+          {showComments ? (
+            <CommentBackupPanel
+              state={comments.state}
+              isStarting={comments.isStarting}
+              onStart={() => void comments.start()}
+              onRetry={comments.refetch}
+            />
+          ) : null}
         </div>
       )}
     </section>

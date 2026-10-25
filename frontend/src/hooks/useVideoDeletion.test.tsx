@@ -83,7 +83,7 @@ describe("useVideoDeletion（U5 / US5.1・FR5.1・C2・C4）", () => {
 
     await waitFor(() => expect(cap.get().some((n) => n.kind === "error")).toBe(true));
     const errorNote = cap.get().find((n) => n.kind === "error");
-    expect(errorNote?.message).toContain("バックアップ中");
+    expect(errorNote?.message).toContain("削除・取り消しできません");
     // 拒否時は一覧を無効化しない（一覧不変）。
     expect(invalidateSpy).not.toHaveBeenCalled();
     // 処理後は pending をクリアしダイアログを閉じる。

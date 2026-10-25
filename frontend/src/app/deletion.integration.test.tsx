@@ -86,7 +86,7 @@ describe("動画削除 結合（行→確認→削除 / US5.1・FR5.1・C4・C6�
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
   });
 
-  it("バックアップ中（init）動画の削除は拒否通知が出て一覧は変化しない（R-02 / error-path）", async () => {
+  it("確認が必要な処理中（init）動画の取り消しは拒否通知が出て一覧は変化しない（R-02 / error-path）", async () => {
     const user = userEvent.setup();
     let getCount = 0;
     server.use(
@@ -104,17 +104,46 @@ describe("動画削除 結合（行→確認→削除 / US5.1・FR5.1・C4・C6�
     await screen.findByText("処理中動画");
     const getCountAfterLoad = getCount;
 
-    await user.click(screen.getByRole("button", { name: "削除: 処理中動画" }));
+    await user.click(screen.getByRole("button", { name: "取り消し: 処理中動画" }));
     await screen.findByRole("alertdialog");
-    await user.click(screen.getByRole("button", { name: "削除する" }));
+    await user.click(screen.getByRole("button", { name: "取り消す" }));
 
     // 拒否通知（C4）。
-    expect(await screen.findByText(/バックアップ中/)).toBeInTheDocument();
+    expect(await screen.findByText(/削除・取り消しできません/)).toBeInTheDocument();
     // ダイアログは閉じるが、一覧は不変（行が残る）。
     await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
-    expect(screen.getByRole("button", { name: "削除: 処理中動画" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "取り消し: 処理中動画" })).toBeInTheDocument();
     // 拒否時は invalidate（再取得）が発生しない。
     expect(getCount).toBe(getCountAfterLoad);
+  });
+
+  it("処理中（init）動画を取り消すと行が消え、取り消しの success 通知が出る", async () => {
+    const user = userEvent.setup();
+    let videos = [
+      makeRawVideo({ video_id: "i1", title: "処理中動画", upload_status: "init" }),
+      makeRawVideo({ video_id: "i2", title: "別の処理中動画", upload_status: "init" }),
+    ];
+    server.use(
+      http.get(`${TEST_API_BASE}/videos`, () => HttpResponse.json(videos)),
+      http.delete(`${TEST_API_BASE}/videos/:videoId`, ({ params }) => {
+        videos = videos.filter((v) => v.video_id !== String(params.videoId));
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    renderApp();
+    await screen.findByText("処理中動画");
+
+    await user.click(screen.getByRole("button", { name: "取り消し: 処理中動画" }));
+    expect(await screen.findByText("バックアップを取り消し")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "取り消す" }));
+
+    expect(await screen.findByText(/バックアップを取り消しました/)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "取り消し: 処理中動画" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole("button", { name: "取り消し: 別の処理中動画" })).toBeInTheDocument();
   });
 
   it("transport 失敗は error 通知が出て一覧は変化しない（error-path / FR8）", async () => {

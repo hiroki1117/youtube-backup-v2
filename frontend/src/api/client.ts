@@ -72,7 +72,8 @@ const DETAIL_MESSAGES: Record<string, string> = {
   invalid_youtube_id: "YouTube の動画 URL として認識できません。",
   twitter_registration_not_migrated: "Twitter の動画登録にはまだ対応していません。",
   backup_not_complete: "バックアップが完了していないため実行できません。",
-  backup_object_needs_reconciliation: "バックアップ中、または確認が必要なため削除できません。",
+  backup_object_needs_reconciliation:
+    "動画の保存が完了しつつあるか、確認が必要なため今は削除・取り消しできません。しばらくしてから再試行してください。",
   concurrent_change: "他の処理と競合しました。時間をおいて再試行してください。",
   job_needs_reconciliation: "バックアップの状態確認が必要です。",
   submission_needs_reconciliation: "バックアップの状態確認が必要です。",

@@ -62,7 +62,12 @@ export function useVideoDeletion(): VideoDeletionController {
     mutationFn: (video) => apiClient.deleteVideo(video.videoId),
     onSuccess: (result, video) => {
       if (result.kind === "ok") {
-        notify("success", `動画を削除しました: ${video.title}`);
+        notify(
+          "success",
+          video.uploadStatus === "init"
+            ? `バックアップを取り消しました: ${video.title}`
+            : `動画を削除しました: ${video.title}`,
+        );
         // 削除された行を一覧へ反映する（US5.1）。prefix ["videos"] を全件無効化して再取得させる。
         void queryClient.invalidateQueries({ queryKey: ["videos"] });
         return;

@@ -90,3 +90,24 @@ describe("DeleteConfirmDialog（U5 / US5.1・FR5.1）", () => {
     expect(screen.getByRole("button", { name: "キャンセル" })).toBeDisabled();
   });
 });
+
+describe("DeleteConfirmDialog 処理中の動画（バックアップの取り消し）", () => {
+  it("init の動画は取り消しの文言を表示し、確定で onConfirm を呼ぶ", async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn();
+    render(
+      <DeleteConfirmDialog
+        video={makeVideo({ title: "処理中動画", uploadStatus: "init" })}
+        isDeleting={false}
+        onConfirm={onConfirm}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("バックアップを取り消し")).toBeInTheDocument();
+    expect(screen.getByText(/バックアップを中止し、一覧から削除します/)).toBeInTheDocument();
+    expect(screen.queryByText(/この操作は取り消せません/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "取り消す" }));
+    expect(onConfirm).toHaveBeenCalled();
+  });
+});

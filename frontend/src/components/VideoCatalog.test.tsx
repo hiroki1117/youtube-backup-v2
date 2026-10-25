@@ -162,3 +162,19 @@ describe("VideoCatalog（U2 / US2.1・C6 / FR8）", () => {
     expect(screen.getByRole("button", { name: "読み込み中..." })).toBeDisabled();
   });
 });
+
+describe("VideoCatalog 処理中の行の取り消し", () => {
+  it("init 行の onDelete ボタンは「取り消し」、complete 行は「削除」と表示し、どちらも onDelete を呼ぶ", async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn();
+    const processing = makeVideo({ videoId: "i1", title: "処理中動画", uploadStatus: "init" });
+    const done = makeVideo({ videoId: "c1", title: "完了動画", uploadStatus: "complete" });
+    renderCatalog({ data: [processing, done], handlers: { onDelete } });
+
+    expect(screen.queryByRole("button", { name: "削除: 処理中動画" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "取り消し: 処理中動画" }));
+    expect(onDelete).toHaveBeenCalledWith(processing);
+    await user.click(screen.getByRole("button", { name: "削除: 完了動画" }));
+    expect(onDelete).toHaveBeenCalledWith(done);
+  });
+});

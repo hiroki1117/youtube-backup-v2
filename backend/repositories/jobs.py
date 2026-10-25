@@ -48,6 +48,10 @@ class JobRepository:
         )
         return result["jobId"]
 
+    def terminate(self, job_id: str, reason: str) -> None:
+        # Works in any non-terminal state: queued jobs are cancelled, running ones stopped.
+        self.batch.terminate_job(jobId=job_id, reason=reason)
+
     def get(self, job_id: str) -> dict | None:
         jobs = self.batch.describe_jobs(jobs=[job_id])["jobs"]
         return jobs[0] if jobs else None

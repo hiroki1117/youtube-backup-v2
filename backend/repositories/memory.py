@@ -81,6 +81,20 @@ class MemoryVideos:
     def playback_url(self, video):
         return "https://local-preview.invalid/" + video["video_id"]
 
+    def has_object(self, video):
+        return False
+
+    def cancel(self, video):
+        current = self.items.get(video["video_id"])
+        if (
+            not current
+            or current["upload_status"] != "init"
+            or current["s3fullpath"] != video["s3fullpath"]
+            or current.get("deletion_token")
+        ):
+            raise DomainError(409, "concurrent_change")
+        del self.items[video["video_id"]]
+
     def delete(self, video, token):
         del self.items[video["video_id"]]
 
@@ -95,6 +109,10 @@ class MemoryJobs:
         job_id = f"local-job-{self.submissions}"
         self.items[job_id] = {"jobId": job_id, "status": "SUBMITTED"}
         return job_id
+
+    def terminate(self, job_id, reason):
+        self.items[job_id]["status"] = "FAILED"
+        self.items[job_id]["statusReason"] = reason
 
     def get(self, job_id):
         return deepcopy(self.items.get(job_id))

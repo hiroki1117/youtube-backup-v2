@@ -38,7 +38,7 @@ wiring/        repository を組み立てて BackupService を返す（HTTP 非�
 | Lambda | handler | 起動 | 処理 |
 |---|---|---|---|
 | video | `entrypoints.video.handler` | HTTP API | 動画の登録・一覧・取得・タイトル更新・削除・再生 URL |
-| backup | `entrypoints.backup.handler` | HTTP API | バックアップ状態の照会と失敗時の再投入 |
+| backup | `entrypoints.backup.handler` | HTTP API | バックアップ状態の照会・失敗時の再投入・未完了バックアップの取り消し |
 | s3_complete | `entrypoints.s3_complete.handler` | S3 通知 | アップロードされた動画を `complete` にする |
 | scrapbox_scan | `entrypoints.scrapbox_scan.handler` | 毎時 | Scrapbox の新しい動画 URL を登録する |
 | retry | `entrypoints.retry.handler` | 手動 | 失敗したジョブを最大 100 件まで再投入する |
@@ -59,5 +59,6 @@ Lambda を足すときは `entrypoints/` に 1 ファイル追加し、[build_la
 
 - 既存の DynamoDB 属性・GSI と Batch の環境変数をそのまま使い、ジョブ追跡用の属性（job ID・attempt・state・削除 lock）を必要なレコードにだけ追加する。
 - 再投入ごとに S3 キーへ attempt ID を含め、遅れて届いた古い完了通知で新しい試行が完了扱いにならないようにする。
-- 削除は `complete` の動画だけ。Batch が FAILED でも拡張子付きのファイルが後から届く可能性があるため `init` は削除しない。
+- 動画の削除（`DELETE /videos/{id}`）は `complete` の動画だけで、S3 のファイルと記録を消す。未完了（`init`）の動画は 409 を返し、代わりにバックアップの取り消し（`DELETE /videos/{id}/backup`）を使う。
+- バックアップの取り消しは、実行中の Batch ジョブを止めてから未完了の記録を消す（止めないと定期再試行がジョブを再開する）。`complete` の動画には使えず 409。次の場合は何も変えずに 409 を返す: ジョブが SUCCEEDED（ファイルが届く途中）、ジョブが見つからない・状態が未知、投入中または投入結果が不明、S3 に該当キー配下のオブジェクトがある（Batch が FAILED でも拡張子付きのファイルが後から届くため）。S3 の確認はジョブを止める前に行い、拒否したときにジョブだけが止まった状態を残さない。job ID を持たない古い `init` レコードは、オブジェクトがなければ取り消せる。
 - 送信結果が不明な投入や途中で失敗した削除は、自動で再試行せず状態を残す（`*_needs_reconciliation`）。job ID を持たない古い `init` レコード（`legacy_untracked`）も自動では再投入しない。

@@ -49,6 +49,7 @@ mise run storybook # Storybook（http://localhost:6006）
 
 ```bash
 pnpm --dir frontend build-storybook
+pnpm --dir docs/site install --frozen-lockfile --ignore-scripts
 node docs/site/build.mjs
 python -m http.server 8000 --directory build/docs
 ```
@@ -59,7 +60,7 @@ python -m http.server 8000 --directory build/docs
 
 手動の `workflow_dispatch` は既定の `publish=false` なら build のみ。main で `publish=true` を指定すると、再 build に成功した artifact を再公開する。main 以外のブランチや PR からは公開しない。
 
-サイトの組み立ては [docs/site/build.mjs](docs/site/build.mjs) が担当する。生成対象は Storybook・OpenAPI JSON・静的 HTML のみ。実 `VITE_*` や secrets を注入せず、Storybook は合成認証と MSW を使う。OpenAPI ページは外部ライブラリや API 実行機能を持たない。
+サイトの組み立ては [docs/site/build.mjs](docs/site/build.mjs) が担当する。生成対象は Storybook・OpenAPI JSON・静的 HTML のみ。実 `VITE_*` や secrets を注入せず、Storybook は合成認証と MSW を使う。OpenAPI は自前配信の Redoc CE で表示し、API の実行機能は持たない。
 
 frontend の入口は画面が [src/app/](frontend/src/app/)、API 呼び出しが [src/api/](frontend/src/api/)、ドメイン型が [src/types/](frontend/src/types/)。レイヤは `components → hooks → api → types`。
 

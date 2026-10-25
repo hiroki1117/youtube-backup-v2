@@ -128,6 +128,11 @@ export const handlers = [
   http.get(`${TEST_API_BASE}/videos/:videoId`, () => HttpResponse.json(makeRawVideo())),
   // DELETE /videos/{video_id}: 既定は削除成功（204 本文なし）。
   http.delete(`${TEST_API_BASE}/videos/:videoId`, () => new HttpResponse(null, { status: 204 })),
+  // DELETE /videos/{video_id}/backup: 既定はバックアップ取り消し成功（204 本文なし）。
+  http.delete(
+    `${TEST_API_BASE}/videos/:videoId/backup`,
+    () => new HttpResponse(null, { status: 204 }),
+  ),
   // GET /videos/{video_id}/playback_url: 既定は署名 URL 取得成功。
   http.get(`${TEST_API_BASE}/videos/:videoId/playback_url`, () =>
     HttpResponse.json(makePlaybackUrl()),

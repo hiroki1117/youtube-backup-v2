@@ -35,3 +35,8 @@ export const Deleting: Story = {
 export const Hidden: Story = {
   args: { video: null },
 };
+
+/** 処理中（init）の動画: 削除ではなくバックアップの取り消しとして確認する。 */
+export const CancelBackup: Story = {
+  args: { video: makeVideo({ title: "処理中の動画", uploadStatus: "init" }) },
+};

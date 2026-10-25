@@ -29,6 +29,8 @@ export function DeleteConfirmDialog({
   if (video === null) {
     return null;
   }
+  // 処理中（init）の動画の削除は、バックアップの取り消し（ジョブ停止 + 記録削除）になる。
+  const isCancel = video.uploadStatus === "init";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -41,10 +43,12 @@ export function DeleteConfirmDialog({
         data-testid="delete-confirm-dialog"
       >
         <h2 id="delete-dialog-title" className="text-lg font-semibold">
-          動画を削除
+          {isCancel ? "バックアップを取り消し" : "動画を削除"}
         </h2>
         <p id="delete-dialog-description" className="mt-4 text-sm text-muted-foreground">
-          「{video.title}」を削除します。この操作は取り消せません。
+          {isCancel
+            ? `「${video.title}」のバックアップを中止し、一覧から削除します。同じ URL はあとで再登録できます。`
+            : `「${video.title}」を削除します。この操作は取り消せません。`}
         </p>
         <div className="mt-6 flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={onCancel} disabled={isDeleting}>
@@ -58,7 +62,7 @@ export function DeleteConfirmDialog({
             aria-busy={isDeleting}
             data-testid="delete-confirm-button"
           >
-            削除する
+            {isCancel ? "取り消す" : "削除する"}
           </Button>
         </div>
       </div>

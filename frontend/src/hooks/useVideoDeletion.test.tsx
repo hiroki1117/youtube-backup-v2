@@ -71,7 +71,7 @@ describe("useVideoDeletion（U5 / US5.1・FR5.1・C2・C4）", () => {
 
   it("バックアップ中拒否（rejected/backupInProgress）は error 通知を出し invalidate しない＝一覧不変（error-path / R-02）", async () => {
     server.use(
-      http.delete(`${TEST_API_BASE}/videos/:videoId`, () =>
+      http.delete(`${TEST_API_BASE}/videos/:videoId/backup`, () =>
         errorResponse(409, "backup_object_needs_reconciliation"),
       ),
     );
@@ -83,7 +83,7 @@ describe("useVideoDeletion（U5 / US5.1・FR5.1・C2・C4）", () => {
 
     await waitFor(() => expect(cap.get().some((n) => n.kind === "error")).toBe(true));
     const errorNote = cap.get().find((n) => n.kind === "error");
-    expect(errorNote?.message).toContain("バックアップ中");
+    expect(errorNote?.message).toContain("削除・取り消しできません");
     // 拒否時は一覧を無効化しない（一覧不変）。
     expect(invalidateSpy).not.toHaveBeenCalled();
     // 処理後は pending をクリアしダイアログを閉じる。
@@ -141,5 +141,24 @@ describe("useVideoDeletion（U5 / US5.1・FR5.1・C2・C4）", () => {
 
     expect(deleteSpy).not.toHaveBeenCalled();
     deleteSpy.mockRestore();
+  });
+});
+
+describe("useVideoDeletion 呼び出す API の振り分け", () => {
+  it("init は cancelBackup、complete は deleteVideo を呼ぶ", async () => {
+    const cancelSpy = vi.spyOn(apiClient, "cancelBackup");
+    const deleteSpy = vi.spyOn(apiClient, "deleteVideo");
+    const { result } = setup();
+
+    act(() => result.current.requestDelete(makeVideo({ videoId: "i1", uploadStatus: "init" })));
+    act(() => result.current.confirmDelete());
+    await waitFor(() => expect(cancelSpy).toHaveBeenCalledWith("i1"));
+    expect(deleteSpy).not.toHaveBeenCalled();
+    await waitFor(() => expect(result.current.pendingVideo).toBeNull());
+
+    act(() => result.current.requestDelete(makeVideo({ videoId: "c1", uploadStatus: "complete" })));
+    act(() => result.current.confirmDelete());
+    await waitFor(() => expect(deleteSpy).toHaveBeenCalledWith("c1"));
+    expect(cancelSpy).toHaveBeenCalledTimes(1);
   });
 });

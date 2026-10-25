@@ -37,6 +37,12 @@ const STATUS_LABEL: Record<UploadStatus, string> = {
   complete: "完了",
 };
 
+// 行の onDelete ボタンのラベル。処理中（init）の動画に対する削除は、バックアップの取り消しになる。
+const REMOVE_LABEL: Record<UploadStatus, string> = {
+  init: "取り消し",
+  complete: "削除",
+};
+
 // 空表示の文言を variant（enum）で出し分ける。
 // nodata: 全件 0（データが存在しない） / filtered: フィルタ結果 0（FR8）。
 const EMPTY_MESSAGE: Record<"nodata" | "filtered", string> = {
@@ -112,9 +118,9 @@ export function VideoCatalog({
                         variant="ghost"
                         size="sm"
                         onClick={() => onDelete(video)}
-                        aria-label={`削除: ${video.title}`}
+                        aria-label={`${REMOVE_LABEL[video.uploadStatus]}: ${video.title}`}
                       >
-                        削除
+                        {REMOVE_LABEL[video.uploadStatus]}
                       </Button>
                     ) : null}
                   </span>

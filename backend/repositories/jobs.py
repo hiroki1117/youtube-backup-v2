@@ -1,4 +1,5 @@
 import os
+from functools import cached_property
 from urllib.parse import urlparse
 
 import boto3
@@ -9,10 +10,16 @@ class JobRepository:
     """Batch registration/query and its SSM inputs. No AWS work until constructed/called."""
 
     def __init__(self, session=None):
-        session = session or boto3.Session()
+        self.session = session or boto3.Session()
+
+    @cached_property
+    def batch(self):
         # SubmitJob has no idempotency token: never automatically resend an ambiguous request.
-        self.batch = session.client("batch", config=Config(retries={"total_max_attempts": 1}))
-        self.ssm = session.client("ssm")
+        return self.session.client("batch", config=Config(retries={"total_max_attempts": 1}))
+
+    @cached_property
+    def ssm(self):
+        return self.session.client("ssm")
 
     def submit(self, video: dict, attempt_id: str) -> str:
         path = urlparse(video["s3fullpath"])

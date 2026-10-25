@@ -64,7 +64,7 @@ jobs:
   # tsc / vite build が検証しない Storybook ランタイム側のバンドル整合（main.ts 設定・addon 登録・
   # デコレータ合成・MSW 初期化・static asset）を検証する。
   # 実 VITE_* は注入しない（Storybook は MSW モックで完結。値は .storybook/main.ts の define で固定）。
-  # 成果物 storybook-static/ は CI アーティファクトのみで、本番へは配信しない（deploy-frontend.yml は dist/ のみ）。
+  # 成果物は docs.yml で Pages 向けにも build する（deploy-frontend.yml は dist/ のみ）。
   storybook:
     name: Storybook build
     runs-on: ubuntu-latest

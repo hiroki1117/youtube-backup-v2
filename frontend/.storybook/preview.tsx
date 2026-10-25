@@ -49,6 +49,8 @@ async function startMockServiceWorker() {
   const worker = setupWorker(...storybookHandlers);
   await worker.start({
     quiet: true,
+    // Resolve beside iframe.html, including /<repository>/storybook/ on Pages.
+    serviceWorker: { url: new URL("./mockServiceWorker.js", window.location.href).href },
     onUnhandledRequest(request, print) {
       if (new URL(request.url).origin === window.location.origin) {
         return;

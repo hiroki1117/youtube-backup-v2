@@ -1,0 +1,65 @@
+name: Documentation
+
+on:
+  push:
+    branches: [main]
+    paths: ["frontend/**", "openapi/**", "docs/site/**", ".github/workflows/docs.yml"]
+  pull_request:
+    branches: [main]
+    paths: ["frontend/**", "openapi/**", "docs/site/**", ".github/workflows/docs.yml"]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Republish Pages from main (default: build artifact only)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: frontend/.node-version
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm --dir frontend install --frozen-lockfile
+      # Storybook fixes VITE_* to synthetic values; no production variables or secrets.
+      - run: pnpm --dir frontend build-storybook
+      - run: node docs/site/build.mjs
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: build/docs
+
+  publish:
+    if: >-
+      needs.build.result == 'success' &&
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish))
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy documentation
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,12 @@
+{
+  "name": "youtube-backup-documentation",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.5",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "redoc": "3.0.1"
+  }
+}

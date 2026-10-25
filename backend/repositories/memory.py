@@ -8,6 +8,10 @@ class MemoryVideos:
 
     def __init__(self):
         self.items = {}
+        self.redirects = {}  # TikTok share link -> video URL
+
+    def resolve(self, url):
+        return self.redirects.get(url, url)
 
     def get(self, video_id):
         return deepcopy(self.items.get(video_id))

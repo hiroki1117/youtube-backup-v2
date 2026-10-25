@@ -134,6 +134,8 @@ jobs:
         run: |
           docker build -t youtube-backup-batch:ci batch/scripts/yt-dlp-script
           docker run --rm youtube-backup-batch:ci sh -c 'yt-dlp --version && aws --version && deno --version && ffmpeg -version && sh -n /work/main.sh'
+          # TikTok rejects requests from AWS unless yt-dlp can impersonate a browser (curl_cffi).
+          docker run --rm youtube-backup-batch:ci sh -c 'yt-dlp --list-impersonate-targets | grep -v unavailable | grep -q curl_cffi'
           docker build -t youtube-backup-comments:ci batch/scripts/youtube-comments
           docker run --rm youtube-backup-comments:ci sh -c 'yt-dlp --version && aws --version && deno --version && gzip --version && sh -n /work/main.sh'
 

@@ -264,3 +264,70 @@ def test_terminate_sends_one_unretried_request():
     with batch:
         repo.terminate("job-1", "Cancelled by the user")
         batch.assert_no_pending_responses()
+
+
+TIKTOK_ID = "7684271790369099040"
+TIKTOK_URL = f"https://www.tiktok.com/@example.user/video/{TIKTOK_ID}"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        TIKTOK_URL,
+        f"{TIKTOK_URL}?_r=1&_t=ZS-9AqqBO39F92",
+        f"https://m.tiktok.com/@example.user/video/{TIKTOK_ID}/",
+        f"https://tiktok.com/@example.user/video/{TIKTOK_ID}?is_from_webapp=1",
+    ],
+)
+def test_tiktok_video_urls_share_one_identity(url):
+    assert source_identity(url) == (TIKTOK_ID, "tiktok", TIKTOK_URL)
+
+
+@pytest.mark.parametrize(
+    ("url", "code"),
+    [
+        ("https://vt.tiktok.com/ZSgQrPP3P/", "tiktok_short_link_unresolved"),
+        ("https://www.tiktok.com/t/ZSgQrPP3P/", "tiktok_short_link_unresolved"),
+        (f"https://www.tiktok.com/@example.user/photo/{TIKTOK_ID}", "unsupported_tiktok_post"),
+        ("https://www.tiktok.com/@example.user", "invalid_tiktok_url"),
+        ("https://www.tiktok.com/?_r=1", "invalid_tiktok_url"),
+    ],
+)
+def test_tiktok_urls_without_a_video_are_rejected(url, code):
+    with pytest.raises(DomainError, match=code):
+        source_identity(url)
+
+
+def test_tiktok_share_link_resolves_only_to_tiktok(monkeypatch):
+    repo = make_repo(Mock())
+    real_client = httpx.Client
+    location = {"value": f"{TIKTOK_URL}?_r=1"}
+    seen = []
+
+    def respond(request):
+        seen.append(request.url)
+        return httpx.Response(301, headers={"Location": location["value"]})
+
+    monkeypatch.setattr(
+        "repositories.videos.httpx.Client",
+        lambda **kwargs: real_client(transport=httpx.MockTransport(respond), **kwargs),
+    )
+    assert repo.resolve("https://example.invalid/video") == "https://example.invalid/video"
+    assert repo.resolve("https://vt.tiktok.com/ZSgQrPP3P/") == f"{TIKTOK_URL}?_r=1"
+    assert len(seen) == 1  # Only share links are fetched, and the redirect is not followed.
+    location["value"] = "https://example.invalid/elsewhere"
+    with pytest.raises(DomainError, match="tiktok_link_unavailable"):
+        repo.resolve("https://vt.tiktok.com/ZSgQrPP3P/")
+
+
+def test_tiktok_metadata_needs_no_lookup(monkeypatch):
+    monkeypatch.setenv("BACKUP_BACKET", "example-video-bucket")
+    repo = make_repo(Mock())
+    repo.ssm = Mock()
+    video = repo.make_video(TIKTOK_URL, 1791763200)
+    assert video["video_id"] == TIKTOK_ID
+    assert video["platform"] == "tiktok"
+    assert video["video_url"] == TIKTOK_URL
+    assert video["title"] == "@example.user の TikTok"
+    assert video["s3fullpath"] == f"s3://example-video-bucket/tiktok/2026/10/12/{TIKTOK_ID}"
+    repo.ssm.get_parameter.assert_not_called()

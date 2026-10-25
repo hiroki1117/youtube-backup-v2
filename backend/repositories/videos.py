@@ -8,7 +8,7 @@ import httpx
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
-from usecases.models import DomainError, source_identity
+from usecases.models import TIKTOK_HOSTS, DomainError, is_tiktok_short_link, source_identity
 
 
 def conditional(error: ClientError) -> None:
@@ -64,6 +64,21 @@ class VideoRepository:
                 return
             start = {"ExclusiveStartKey": page["LastEvaluatedKey"]}
 
+    def resolve(self, url: str) -> str:
+        """The video URL behind a TikTok share link; any other URL as is."""
+        if not is_tiktok_short_link(url):
+            return url
+        try:
+            with httpx.Client(timeout=15) as client:
+                response = client.get(url)
+        except httpx.HTTPError:
+            raise DomainError(502, "tiktok_link_unavailable") from None
+        location = response.headers.get("location", "") if response.is_redirect else ""
+        if (urlparse(location).hostname or "").lower() not in TIKTOK_HOSTS:
+            raise DomainError(502, "tiktok_link_unavailable")
+        # An unknown share code redirects to the home page, rejected as invalid_tiktok_url.
+        return location
+
     def make_video(self, url: str, now: int) -> dict:
         video_id, platform, normalized = source_identity(url)
         title = video_id
@@ -81,6 +96,9 @@ class VideoRepository:
                     title = response.json()["items"][0]["snippet"]["title"]
             except httpx.HTTPError, ValueError, KeyError, IndexError:
                 raise DomainError(502, "metadata_unavailable") from None
+        elif platform == "tiktok":
+            # TikTok's oEmbed no longer returns the caption; name it by the poster until edited.
+            title = urlparse(normalized).path.split("/")[1] + " の TikTok"
         date = datetime.fromtimestamp(now, UTC).date()
         filename = "ABCXYZ" + video_id if video_id.startswith("-") else video_id
         return {

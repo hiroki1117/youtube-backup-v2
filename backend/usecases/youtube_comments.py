@@ -94,12 +94,18 @@ def comment_threads(items: list[dict], completed_attempt: str | None) -> list[Yo
     return threads
 
 
-class YoutubeCommentReader:
-    """Reads youtube_comments as pages of threads for GET /videos/{id}/comments."""
+class YoutubeCommentStore:
+    """A video's YouTube comments: pages of threads (GET /videos/{id}/comments) and deletion."""
 
-    def __init__(self, backups, comments):
+    def __init__(self, backups, comments, objects):
         self.backups = backups
         self.comments = comments
+        self.objects = objects
+
+    def delete(self, video_id: str) -> None:
+        # Originals first: if the table deletion then fails, a retry still finds what is left.
+        self.objects.delete_prefix(f"youtube/{video_id}/")
+        self.comments.delete(video_id)
 
     def page(self, video_id: str, offset: int, limit: int) -> YoutubeCommentPage:
         backup = self.backups.get(video_id)

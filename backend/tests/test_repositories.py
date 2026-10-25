@@ -81,6 +81,31 @@ def test_delete_lock_precedes_s3_and_is_preserved_on_failure(service):
     table.delete_item.assert_not_called()
 
 
+def test_delete_removes_tied_data_after_the_lock_and_before_the_video(service):
+    service.register("https://youtu.be/abcdefghijk")
+    video = service.video("abcdefghijk")
+    video["upload_status"] = "complete"
+    table = Mock()
+    repo = make_repo(table)
+    order = Mock()
+    order.attach_mock(table, "table")
+    order.attach_mock(repo.s3, "s3")
+    repo.delete(video, "test-deletion-token", before_remove=order.before_remove)
+    assert [call[0] for call in order.mock_calls] == [
+        "table.update_item",
+        "before_remove",
+        "s3.delete_object",
+        "table.delete_item",
+    ]
+    order.reset_mock()
+    order.before_remove.side_effect = RuntimeError("comments not deleted")
+    with pytest.raises(RuntimeError):
+        repo.delete(video, "test-deletion-token", before_remove=order.before_remove)
+    # The lock stays and nothing of the video is removed.
+    repo.s3.delete_object.assert_not_called()
+    table.delete_item.assert_not_called()
+
+
 def test_batch_and_ssm_contract_no_resubmission_retries(monkeypatch):
     for key, value in {
         "JOB_QUEUE_NAME": "example-queue",

@@ -6,13 +6,14 @@ from api.dependencies import get_comment_service, get_service
 from repositories.memory import (
     MemoryCommentBackups,
     MemoryCommentJobs,
+    MemoryCommentObjects,
     MemoryJobs,
     MemoryVideos,
     MemoryYoutubeComments,
 )
 from usecases.backup import BackupService
 from usecases.comments import CommentService
-from usecases.youtube_comments import YoutubeCommentReader
+from usecases.youtube_comments import YoutubeCommentStore
 
 
 @pytest.fixture
@@ -22,11 +23,17 @@ def service():
 
 @pytest.fixture
 def comment_service(service):
+    """Comment service wired into `service` like the Lambdas: completion and deletion hooks."""
     backups = MemoryCommentBackups()
-    readers = {"youtube": YoutubeCommentReader(backups, MemoryYoutubeComments())}
-    return CommentService(
-        service.videos, backups, MemoryCommentJobs(), readers, clock=lambda: 1791763200
+    stores = {
+        "youtube": YoutubeCommentStore(backups, MemoryYoutubeComments(), MemoryCommentObjects())
+    }
+    comments = CommentService(
+        service.videos, backups, MemoryCommentJobs(), stores, clock=lambda: 1791763200
     )
+    service.on_complete = comments.start_after_video_backup
+    service.on_delete = comments.delete_for_video
+    return comments
 
 
 @pytest.fixture

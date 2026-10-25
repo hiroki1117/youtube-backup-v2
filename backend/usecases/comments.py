@@ -1,12 +1,15 @@
+import logging
 import time
 from uuid import uuid4
 
 from usecases.backup import ACTIVE
 from usecases.models import CommentBackup, DomainError
 
+logger = logging.getLogger(__name__)
+
 # Platforms whose comments can be backed up. Comment formats differ per platform, so each one has
 # its own Batch image, S3 prefix, ingest Lambda and comment table. This service only tracks the
-# request (comment_backups); reading comments is delegated to each platform's reader.
+# request (comment_backups); reading and deleting comments is delegated to each platform's store.
 PLATFORMS = {"youtube"}
 # A claim whose job was never attached (the Lambda died mid-submission) stops blocking after this.
 SUBMISSION_TIMEOUT = 300
@@ -18,12 +21,12 @@ def comments_key(platform: str, video_id: str, attempt: str) -> str:
 
 
 class CommentService:
-    def __init__(self, videos, backups, jobs, readers=None, clock=time.time):
+    def __init__(self, videos, backups, jobs, stores=None, clock=time.time):
         self.videos = videos
         self.backups = backups
         self.jobs = jobs
-        # platform -> reader of that platform's comment table (each has its own response shape).
-        self.readers = readers or {}
+        # platform -> that platform's comment store (its own table, objects and response shape).
+        self.stores = stores or {}
         self.clock = clock
 
     def video(self, video_id: str) -> dict:
@@ -72,9 +75,41 @@ class CommentService:
 
     def items(self, video_id: str, offset: int, limit: int):
         platform = self.video(video_id)["platform"]
-        if platform not in self.readers:
+        if platform not in self.stores:
             raise DomainError(422, "comments_not_supported")
-        return self.readers[platform].page(video_id, offset, limit)
+        return self.stores[platform].page(video_id, offset, limit)
+
+    def start_after_video_backup(self, video_id: str) -> None:
+        """Starts the comment backup once a video backup completes (BackupService.on_complete).
+
+        Never raises: the video is already complete, and a failure here only skips the comments,
+        which can be started from the video page later.
+        """
+        try:
+            video = self.videos.get(video_id)
+            if video and video["platform"] in PLATFORMS:
+                self.start(video_id)
+        except Exception:
+            logger.exception("Comment backup was not started for video %s", video_id)
+
+    def delete_for_video(self, video: dict) -> None:
+        """Removes a video's comment backup while the video deletion holds its lock.
+
+        Raises on failure so the video deletion stops with its lock kept (reconciliation), rather
+        than leaving comments of a deleted video behind.
+        """
+        video_id = video["video_id"]
+        backup = self.backups.get(video_id)
+        if backup and backup.get("batch_job_id") and backup["state"] in ("submitting", "running"):
+            job = self.jobs.get(backup["batch_job_id"])
+            if job and job["status"] in ACTIVE:
+                self.jobs.terminate(backup["batch_job_id"], "Video deleted")
+        # Without the record, an ingest that is still on its way finds no attempt and skips.
+        if backup:
+            self.backups.delete(video_id)
+        store = self.stores.get(video["platform"])
+        if store:
+            store.delete(video_id)
 
     def _state(self, backup: dict) -> str:
         state = backup["state"]

@@ -217,8 +217,9 @@ class VideoRepository:
         except ClientError as error:
             conditional(error)
 
-    def delete(self, video: dict, token: str) -> None:
+    def delete(self, video: dict, token: str, before_remove=None) -> None:
         # Lock against concurrent backup submission before deleting either resource.
+        # before_remove(video) deletes data tied to the video (comments) while the lock is held.
         condition = "attribute_exists(video_id) AND attribute_not_exists(deletion_token) "
         condition += "AND s3fullpath=:path AND upload_status=:complete"
         try:
@@ -232,6 +233,8 @@ class VideoRepository:
                     ":complete": "complete",
                 },
             )
+            if before_remove:
+                before_remove(video)
             path = urlparse(video["s3fullpath"])
             self.s3.delete_object(Bucket=path.netloc, Key=path.path.lstrip("/"))
             self.table.delete_item(

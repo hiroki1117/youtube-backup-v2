@@ -48,7 +48,7 @@ export function DeleteConfirmDialog({
         <p id="delete-dialog-description" className="mt-4 text-sm text-muted-foreground">
           {isCancel
             ? `「${video.title}」のバックアップを中止し、一覧から削除します。同じ URL はあとで再登録できます。`
-            : `「${video.title}」を削除します。この操作は取り消せません。`}
+            : `「${video.title}」を削除します。バックアップしたコメントも削除されます。この操作は取り消せません。`}
         </p>
         <div className="mt-6 flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={onCancel} disabled={isDeleting}>

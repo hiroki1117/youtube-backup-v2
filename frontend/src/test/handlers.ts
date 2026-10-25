@@ -3,6 +3,7 @@ import {
   makeRawCommentBackup,
   makeRawVideo,
   makeRawYoutubeCommentPage,
+  makeRawYoutubePlaylist,
   type RawVideo,
 } from "./factories";
 
@@ -157,4 +158,6 @@ export const handlers = [
       { status: 202 },
     ),
   ),
+  // GET /youtube/playlist: 既定は 3 本の再生リスト（取得できない動画 1 本）。
+  http.get(`${TEST_API_BASE}/youtube/playlist`, () => HttpResponse.json(makeRawYoutubePlaylist())),
 ];

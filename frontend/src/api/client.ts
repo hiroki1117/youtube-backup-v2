@@ -2,6 +2,7 @@ import { z } from "zod";
 import { parseVideo, type UploadStatus, type Video } from "@/types/video";
 import { parseCommentBackup, type CommentBackup } from "@/types/commentBackup";
 import { parseYoutubeCommentPage, type YoutubeCommentPage } from "@/types/youtubeComments";
+import { parseYoutubePlaylist, type YoutubePlaylist } from "@/types/youtubePlaylist";
 import { config } from "./config";
 import { getIdToken } from "@/api/token";
 
@@ -65,6 +66,11 @@ export interface ApiClient {
     videoId: string,
     params: { offset: number; limit: number },
   ): Promise<ApiResult<YoutubeCommentPage>>;
+  /**
+   * YouTube の再生リストの動画一覧（`GET /youtube/playlist?url=`）。URL の解釈は backend が行う。
+   * 何も登録しない（登録は動画ごとに submitVideo）。
+   */
+  getYoutubePlaylist(url: string): Promise<ApiResult<YoutubePlaylist>>;
 }
 
 // 失敗バリアント（ok/empty を除く）。
@@ -106,6 +112,10 @@ const DETAIL_MESSAGES: Record<string, string> = {
   legacy_job_untracked: "バックアップの状態確認が必要です。",
   deletion_needs_reconciliation: "削除処理が未完了です。管理者に確認してください。",
   comments_not_supported: "この動画のプラットフォームはコメントのバックアップに対応していません。",
+  not_a_youtube_playlist: "YouTube の再生リストの URL として認識できません。",
+  unsupported_playlist: "ミックス・後で見る・高く評価した動画の再生リストは読み込めません。",
+  playlist_not_found: "再生リストが見つかりません。非公開の再生リストは読み込めません。",
+  playlist_unavailable: "再生リストを読み込めませんでした。時間をおいて再試行してください。",
 };
 
 // 409 のうち「バックアップ処理が絡んで今は実行できない」もの（UI は backupInProgress として扱う）。
@@ -141,7 +151,8 @@ function classifyFailure(status: number, body: unknown): ApiFailure {
     case 422:
       return { kind: "invalidInput", message: message ?? "入力内容が正しくありません。" };
     default:
-      return { kind: "transport", message: `HTTP ${status}` };
+      // 502 など、意味の分かるコード（例: playlist_unavailable）だけ利用者向けの文言にする。
+      return { kind: "transport", message: message ?? `HTTP ${status}` };
   }
 }
 
@@ -342,6 +353,18 @@ export class HttpApiClient implements ApiClient {
       return { kind: "transport", message: "unexpected response shape for GET comments" };
     }
     return { kind: "ok", data: page };
+  }
+
+  async getYoutubePlaylist(url: string): Promise<ApiResult<YoutubePlaylist>> {
+    const res = await this.request(`/youtube/playlist?url=${encodeURIComponent(url)}`);
+    if (!res.ok) {
+      return res.failure;
+    }
+    const playlist = parseYoutubePlaylist(res.body);
+    if (playlist === null) {
+      return { kind: "transport", message: "unexpected response shape for GET /youtube/playlist" };
+    }
+    return { kind: "ok", data: playlist };
   }
 }
 

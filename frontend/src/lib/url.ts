@@ -53,3 +53,25 @@ export function validateVideoUrl(input: string): VideoUrlValidation {
   }
   return { ok: true, url: parsed.href };
 }
+
+const YOUTUBE_PLAYLIST_HOSTS = new Set([
+  "youtube.com",
+  "www.youtube.com",
+  "m.youtube.com",
+  "music.youtube.com",
+]);
+
+/**
+ * 再生リストのページの URL（`youtube.com/playlist?list=…`）か。登録ダイアログの分岐だけに使い、
+ * 再生リスト ID の解釈・検証は backend（`GET /youtube/playlist`）が行う。
+ * 再生中の動画に再生リストが付いた URL（`watch?v=…&list=…`）は動画 1 本として扱う（ここでは false）。
+ * @param url `validateVideoUrl` を通った URL
+ */
+export function isYoutubePlaylistUrl(url: string): boolean {
+  const parsed = new URL(url);
+  return (
+    YOUTUBE_PLAYLIST_HOSTS.has(parsed.hostname.toLowerCase()) &&
+    parsed.pathname === "/playlist" &&
+    Boolean(parsed.searchParams.get("list"))
+  );
+}

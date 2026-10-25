@@ -28,3 +28,10 @@ export { useCommentBackup, COMMENT_BACKUP_POLL_MS } from "./useCommentBackup";
 export type { CommentBackupController, CommentBackupView } from "./useCommentBackup";
 export { useYoutubeComments, YOUTUBE_COMMENTS_PAGE_SIZE } from "./useYoutubeComments";
 export type { YoutubeCommentsController, YoutubeCommentsView } from "./useYoutubeComments";
+export { usePlaylistRegistration } from "./usePlaylistRegistration";
+export type {
+  PlaylistRegistrationController,
+  PlaylistRegistrationState,
+  PlaylistRegistrationResult,
+  PlaylistRegistrationFailure,
+} from "./usePlaylistRegistration";

@@ -14,6 +14,7 @@ import {
   makeRawVideo,
   makeRawYoutubeComment,
   makeRawYoutubeCommentPage,
+  makeRawYoutubePlaylist,
 } from "@/test/factories";
 
 const client = new HttpApiClient(TEST_API_BASE, () => Promise.resolve("test-token"));
@@ -471,5 +472,44 @@ describe("ApiClient.cancelBackup（DELETE /videos/{id}/backup）", () => {
       ),
     );
     expect((await client.cancelBackup("missing")).kind).toBe("notFound");
+  });
+});
+
+describe("ApiClient.getYoutubePlaylist（GET /youtube/playlist）", () => {
+  it("URL を query に符号化して送り、ok(YoutubePlaylist) に正規化する", async () => {
+    let received: string | null = null;
+    server.use(
+      http.get(`${TEST_API_BASE}/youtube/playlist`, ({ request }) => {
+        received = new URL(request.url).searchParams.get("url");
+        return HttpResponse.json(makeRawYoutubePlaylist());
+      }),
+    );
+    const url = "https://www.youtube.com/watch?v=abcdefghijk&list=PLtest&index=2";
+    const result = await client.getYoutubePlaylist(url);
+    expect(received).toBe(url);
+    expect(result.kind).toBe("ok");
+    if (result.kind === "ok") {
+      expect(result.data.videos.map((video) => video.videoId)).toEqual(["pv1", "pv2", "pv3"]);
+      expect(result.data.unavailableCount).toBe(1);
+    }
+  });
+
+  it.each([
+    [404, "playlist_not_found", "notFound", "再生リストが見つかりません。"],
+    [422, "unsupported_playlist", "invalidInput", "ミックス"],
+    [502, "playlist_unavailable", "transport", "再生リストを読み込めませんでした。"],
+  ])("%i %s は %s（利用者向けの文言）に正規化する", async (status, detail, kind, message) => {
+    server.use(http.get(`${TEST_API_BASE}/youtube/playlist`, () => errorResponse(status, detail)));
+    const result = await client.getYoutubePlaylist("https://www.youtube.com/playlist?list=PLx");
+    expect(result.kind).toBe(kind);
+    expect("message" in result && result.message).toContain(message);
+  });
+
+  it("形の違う応答は transport 失敗に正規化する", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/youtube/playlist`, () => HttpResponse.json({ videos: [] })),
+    );
+    const result = await client.getYoutubePlaylist("https://www.youtube.com/playlist?list=PLx");
+    expect(result.kind).toBe("transport");
   });
 });

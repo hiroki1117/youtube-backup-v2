@@ -38,3 +38,6 @@ build/
 .pytest_cache/
 .ruff_cache/
 *.egg-info/
+
+# mise local overrides
+mise.local.toml

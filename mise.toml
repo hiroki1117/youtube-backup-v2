@@ -1,0 +1,61 @@
+# 開発ツールのバージョンと共通タスク（https://mise.jdx.dev）。
+# Mac / Linux / Windows で同じ手順になるよう、タスクは OS 固有のシェル構文を使わない。
+
+[tools]
+# frontend/.node-version（CI が参照）と package.json の packageManager に合わせる。
+node = "24.22.0"
+pnpm = "10.34.5"
+# backend/pyproject.toml の requires-python（>=3.14,<3.15）に合わせる。
+python = "3.14"
+
+[env]
+# backend/.venv を自動で作って有効化する。タスク内では `python` がその venv を指す。
+_.python.venv = { path = "backend/.venv", create = true }
+
+[tasks."install:frontend"]
+description = "frontend の依存を入れる"
+dir = "frontend"
+run = "pnpm install --frozen-lockfile"
+
+[tasks."install:backend"]
+description = "backend の依存を入れる"
+dir = "backend"
+run = 'python -m pip install -c requirements.lock -e ".[dev]"'
+
+[tasks.install]
+description = "frontend と backend の依存を入れる"
+depends = ["install:frontend", "install:backend"]
+
+[tasks."check:frontend"]
+description = "frontend の型・lint・format・テスト"
+dir = "frontend"
+run = [
+  "pnpm typecheck",
+  "pnpm lint",
+  "pnpm format:check",
+  "pnpm test",
+]
+
+[tasks."check:backend"]
+description = "backend の Ruff と pytest"
+dir = "backend"
+run = [
+  "python -m ruff check .",
+  "python -m ruff format --check .",
+  "python -m pytest -q",
+]
+
+# batch の構文検査（sh -n）は sh が必要なため含めない。CI と `make -C batch check` で行う。
+[tasks.check]
+description = "frontend と backend の検証"
+depends = ["check:frontend", "check:backend"]
+
+[tasks.dev]
+description = "frontend の開発サーバー"
+dir = "frontend"
+run = "pnpm dev"
+
+[tasks.storybook]
+description = "Storybook（http://localhost:6006）"
+dir = "frontend"
+run = "pnpm storybook"

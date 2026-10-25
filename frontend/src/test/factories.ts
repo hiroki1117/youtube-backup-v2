@@ -65,3 +65,20 @@ export function makeRawVideos(count: number, overrides: Partial<RawVideo> = {}):
     });
   });
 }
+
+/** API の生レスポンス形状（CommentBackup, スネークケース）。 */
+export interface RawCommentBackup {
+  video_id: string;
+  platform: string;
+  state: "not_started" | "submitting" | "running" | "awaiting_ingest" | "complete" | "failed";
+  attempt_id?: string | null;
+  batch_job_id?: string | null;
+  requested_at?: number | null;
+  comment_count?: number | null;
+  completed_at?: number | null;
+}
+
+/** 有効な生 CommentBackup（API 応答）を生成する。既定は未取得。 */
+export function makeRawCommentBackup(overrides: Partial<RawCommentBackup> = {}): RawCommentBackup {
+  return { video_id: "v1", platform: "youtube", state: "not_started", ...overrides };
+}

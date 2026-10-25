@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -8,7 +8,7 @@ import { Toaster } from "@/components/Toaster";
 import { VideoPlaybackPage } from "@/app/VideoPlaybackPage";
 import { server } from "@/test/server";
 import { TEST_API_BASE, TEST_PRESIGNED_URL, errorResponse } from "@/test/handlers";
-import { makeRawVideo } from "@/test/factories";
+import { makeRawCommentBackup, makeRawVideo } from "@/test/factories";
 
 /**
  * 再生ページのユニットテスト（U6 / US6.2・FR7・OQ2・A3・C4）。
@@ -105,5 +105,106 @@ describe("VideoPlaybackPage（U6 / US6.2・FR7・A3・C4）", () => {
     const player = await screen.findByTestId("video-player");
     expect(player).toHaveAttribute("aria-label", expect.stringContaining("動画プレイヤー"));
     expect(screen.getByRole("region", { name: "動画再生" })).toBeInTheDocument();
+  });
+});
+
+describe("VideoPlaybackPage のコメントのバックアップ", () => {
+  it("YouTube の complete 動画はボタンでコメントの取得を開始し、取得中にする", async () => {
+    let posted = 0;
+    server.use(
+      http.post(`${TEST_API_BASE}/videos/:videoId/comments`, () => {
+        posted += 1;
+        return HttpResponse.json(makeRawCommentBackup({ state: "running" }), { status: 202 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "コメントをバックアップ" }));
+
+    expect(await screen.findByText("コメントのバックアップを開始しました")).toBeInTheDocument();
+    expect(screen.getByTestId("comment-backup-state")).toHaveTextContent("取得中");
+    expect(screen.getByRole("button", { name: "取得中..." })).toBeDisabled();
+    expect(posted).toBe(1);
+  });
+
+  it("取得済みの動画は「コメントを最新化」を出す", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/videos/:videoId/comments`, () =>
+        HttpResponse.json(
+          makeRawCommentBackup({ state: "complete", comment_count: 3, completed_at: 1792713600 }),
+        ),
+      ),
+    );
+    renderPage();
+
+    expect(await screen.findByRole("button", { name: "コメントを最新化" })).toBeEnabled();
+    expect(screen.getByTestId("comment-backup-last")).toHaveTextContent("3 件");
+  });
+
+  it("取得中で何もしなかった応答（200）は、その旨を通知する", async () => {
+    server.use(
+      http.post(`${TEST_API_BASE}/videos/:videoId/comments`, () =>
+        HttpResponse.json(makeRawCommentBackup({ state: "running" })),
+      ),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "コメントをバックアップ" }));
+
+    expect(await screen.findByText("コメントはすでに取得中です")).toBeInTheDocument();
+  });
+
+  it("開始の拒否は通知し、状態は変えない（error-path）", async () => {
+    server.use(
+      http.post(`${TEST_API_BASE}/videos/:videoId/comments`, () =>
+        errorResponse(409, "backup_not_complete"),
+      ),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "コメントをバックアップ" }));
+
+    expect(
+      await screen.findByText("バックアップが完了していないため実行できません。"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("comment-backup-state")).toHaveTextContent("未取得");
+  });
+
+  it("状態の照会に失敗したら、欄の中で再試行できる（error-path）", async () => {
+    server.use(http.get(`${TEST_API_BASE}/videos/:videoId/comments`, () => HttpResponse.error()));
+    renderPage();
+
+    const panel = await screen.findByTestId("comment-backup-panel");
+    expect(await within(panel).findByRole("alert")).toHaveTextContent("通信に失敗しました");
+    server.resetHandlers();
+    await userEvent.setup().click(within(panel).getByRole("button", { name: "再試行" }));
+    expect(await within(panel).findByTestId("comment-backup-state")).toHaveTextContent("未取得");
+  });
+
+  it("YouTube 以外の動画にはコメントの欄を出さない", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/videos/:videoId`, () =>
+        HttpResponse.json(makeRawVideo({ platform: "twitter" })),
+      ),
+    );
+    renderPage();
+
+    await screen.findByTestId("video-player");
+    expect(screen.queryByTestId("comment-backup-panel")).not.toBeInTheDocument();
+  });
+
+  it("処理中（init）の動画にはコメントの欄を出さない", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/videos/:videoId`, () =>
+        HttpResponse.json(makeRawVideo({ upload_status: "init" })),
+      ),
+    );
+    renderPage("i1");
+
+    await screen.findByText(/まだ再生・ダウンロードできません/);
+    expect(screen.queryByTestId("comment-backup-panel")).not.toBeInTheDocument();
   });
 });

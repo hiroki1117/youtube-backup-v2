@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { parseVideo, type UploadStatus, type Video } from "@/types/video";
+import { parseCommentBackup, type CommentBackup } from "@/types/commentBackup";
 import { config } from "./config";
 import { getIdToken } from "@/api/token";
 
@@ -27,6 +28,12 @@ export interface SubmitResult {
   batchJobId: string;
 }
 
+export interface CommentBackupStart {
+  backup: CommentBackup;
+  /** 新しく取得を開始したら true（202）。取得中で何もしなかったら false（200）。 */
+  started: boolean;
+}
+
 export interface ApiClient {
   listVideos(params: {
     uploadStatus: UploadStatus;
@@ -45,6 +52,10 @@ export interface ApiClient {
   cancelBackup(videoId: string): Promise<ApiResult<null>>;
   /** 再生/ダウンロード用の署名付き URL（`GET /videos/{id}/playback_url`）。 */
   getPresignedUrl(videoId: string): Promise<ApiResult<string>>;
+  /** コメントバックアップの状態（`GET /videos/{id}/comments`）。 */
+  getCommentBackup(videoId: string): Promise<ApiResult<CommentBackup>>;
+  /** コメントの取得を開始する（`POST /videos/{id}/comments`）。取得済みなら最新化する。 */
+  startCommentBackup(videoId: string): Promise<ApiResult<CommentBackupStart>>;
 }
 
 // 失敗バリアント（ok/empty を除く）。
@@ -85,6 +96,7 @@ const DETAIL_MESSAGES: Record<string, string> = {
   submission_needs_reconciliation: "バックアップの状態確認が必要です。",
   legacy_job_untracked: "バックアップの状態確認が必要です。",
   deletion_needs_reconciliation: "削除処理が未完了です。管理者に確認してください。",
+  comments_not_supported: "この動画のプラットフォームはコメントのバックアップに対応していません。",
 };
 
 // 409 のうち「バックアップ処理が絡んで今は実行できない」もの（UI は backupInProgress として扱う）。
@@ -96,7 +108,7 @@ const IN_PROGRESS_CODES = new Set([
   "submission_needs_reconciliation",
 ]);
 
-type RawFetch = { ok: true; body: unknown } | { ok: false; failure: ApiFailure };
+type RawFetch = { ok: true; status: number; body: unknown } | { ok: false; failure: ApiFailure };
 
 /** HTTP ステータスと `{ detail }` から ApiResult の失敗種別へ正規化する（C2 実装契約）。 */
 function classifyFailure(status: number, body: unknown): ApiFailure {
@@ -161,7 +173,7 @@ export class HttpApiClient implements ApiClient {
       if (!response.ok) {
         return { ok: false, failure: classifyFailure(response.status, body) };
       }
-      return { ok: true, body };
+      return { ok: true, status: response.status, body };
     } catch (e) {
       return {
         ok: false,
@@ -279,6 +291,32 @@ export class HttpApiClient implements ApiClient {
       return { kind: "transport", message: "unexpected response shape for GET playback_url" };
     }
     return { kind: "ok", data: parsed.data.url };
+  }
+
+  async getCommentBackup(videoId: string): Promise<ApiResult<CommentBackup>> {
+    const res = await this.request(`/videos/${encodeURIComponent(videoId)}/comments`);
+    if (!res.ok) {
+      return res.failure;
+    }
+    const backup = parseCommentBackup(res.body);
+    if (backup === null) {
+      return { kind: "transport", message: "unexpected response shape for GET comments" };
+    }
+    return { kind: "ok", data: backup };
+  }
+
+  async startCommentBackup(videoId: string): Promise<ApiResult<CommentBackupStart>> {
+    const res = await this.request(`/videos/${encodeURIComponent(videoId)}/comments`, {
+      method: "POST",
+    });
+    if (!res.ok) {
+      return res.failure;
+    }
+    const backup = parseCommentBackup(res.body);
+    if (backup === null) {
+      return { kind: "transport", message: "unexpected response shape for POST comments" };
+    }
+    return { kind: "ok", data: { backup, started: res.status === 202 } };
   }
 }
 

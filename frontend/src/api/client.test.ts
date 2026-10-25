@@ -9,7 +9,12 @@ import {
   makeRegistration,
   unauthorizedResponse,
 } from "@/test/handlers";
-import { makeRawCommentBackup, makeRawVideo } from "@/test/factories";
+import {
+  makeRawCommentBackup,
+  makeRawVideo,
+  makeRawYoutubeComment,
+  makeRawYoutubeCommentPage,
+} from "@/test/factories";
 
 const client = new HttpApiClient(TEST_API_BASE, () => Promise.resolve("test-token"));
 
@@ -301,6 +306,44 @@ describe("ApiClient のコメントバックアップ（GET/POST /videos/{id}/co
       ),
     );
     expect((await client.startCommentBackup("v1")).kind).toBe("transport");
+  });
+});
+
+describe("ApiClient.getYoutubeComments（GET /videos/{id}/comments/items）", () => {
+  it("offset と limit をクエリに付け、ページを ok に正規化する", async () => {
+    let capturedUrl = "";
+    server.use(
+      http.get(`${TEST_API_BASE}/videos/:id/comments/items`, ({ request }) => {
+        capturedUrl = request.url;
+        return HttpResponse.json(
+          makeRawYoutubeCommentPage([{ ...makeRawYoutubeComment(), replies: [] }], 40),
+        );
+      }),
+    );
+    const result = await client.getYoutubeComments("v1", { offset: 20, limit: 20 });
+    expect(new URL(capturedUrl).search).toBe("?offset=20&limit=20");
+    expect(result.kind === "ok" && result.data.nextOffset).toBe(40);
+    expect(result.kind === "ok" && result.data.threads[0].commentId).toBe("Ugx1");
+  });
+
+  it("本文の形が不正なら transport 失敗に正規化する（error-path）", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/videos/:id/comments/items`, () =>
+        HttpResponse.json({ threads: "x" }),
+      ),
+    );
+    const result = await client.getYoutubeComments("v1", { offset: 0, limit: 20 });
+    expect(result.kind).toBe("transport");
+  });
+
+  it("422 comments_not_supported は invalidInput に正規化する（error-path）", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/videos/:id/comments/items`, () =>
+        errorResponse(422, "comments_not_supported"),
+      ),
+    );
+    const result = await client.getYoutubeComments("v1", { offset: 0, limit: 20 });
+    expect(result.kind).toBe("invalidInput");
   });
 });
 

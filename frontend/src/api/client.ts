@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { parseVideo, type UploadStatus, type Video } from "@/types/video";
 import { parseCommentBackup, type CommentBackup } from "@/types/commentBackup";
+import { parseYoutubeCommentPage, type YoutubeCommentPage } from "@/types/youtubeComments";
 import { config } from "./config";
 import { getIdToken } from "@/api/token";
 
@@ -56,6 +57,14 @@ export interface ApiClient {
   getCommentBackup(videoId: string): Promise<ApiResult<CommentBackup>>;
   /** コメントの取得を開始する（`POST /videos/{id}/comments`）。取得済みなら最新化する。 */
   startCommentBackup(videoId: string): Promise<ApiResult<CommentBackupStart>>;
+  /**
+   * バックアップした YouTube コメントのページ（`GET /videos/{id}/comments/items`）。
+   * スレッド（親コメントと返信）単位で、固定コメント→新しい順。
+   */
+  getYoutubeComments(
+    videoId: string,
+    params: { offset: number; limit: number },
+  ): Promise<ApiResult<YoutubeCommentPage>>;
 }
 
 // 失敗バリアント（ok/empty を除く）。
@@ -317,6 +326,24 @@ export class HttpApiClient implements ApiClient {
       return { kind: "transport", message: "unexpected response shape for POST comments" };
     }
     return { kind: "ok", data: { backup, started: res.status === 202 } };
+  }
+
+  async getYoutubeComments(
+    videoId: string,
+    params: { offset: number; limit: number },
+  ): Promise<ApiResult<YoutubeCommentPage>> {
+    const query = `offset=${params.offset}&limit=${params.limit}`;
+    const res = await this.request(
+      `/videos/${encodeURIComponent(videoId)}/comments/items?${query}`,
+    );
+    if (!res.ok) {
+      return res.failure;
+    }
+    const page = parseYoutubeCommentPage(res.body);
+    if (page === null) {
+      return { kind: "transport", message: "unexpected response shape for GET comments/items" };
+    }
+    return { kind: "ok", data: page };
   }
 }
 

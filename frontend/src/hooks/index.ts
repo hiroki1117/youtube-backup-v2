@@ -26,3 +26,5 @@ export { useVideoTitleEdit } from "./useVideoTitleEdit";
 export type { VideoTitleEditController } from "./useVideoTitleEdit";
 export { useCommentBackup, COMMENT_BACKUP_POLL_MS } from "./useCommentBackup";
 export type { CommentBackupController, CommentBackupView } from "./useCommentBackup";
+export { useYoutubeComments, YOUTUBE_COMMENTS_PAGE_SIZE } from "./useYoutubeComments";
+export type { YoutubeCommentsController, YoutubeCommentsView } from "./useYoutubeComments";

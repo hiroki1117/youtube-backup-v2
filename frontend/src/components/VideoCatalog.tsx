@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { PlatformIcon } from "@/components/PlatformIcon";
 import { SourceLink } from "@/components/SourceLink";
 import { StatusView, type ViewState } from "@/components/StatusView";
 import type { UploadStatus, Video } from "@/types/video";
@@ -75,8 +76,8 @@ export function VideoCatalog({
                 className="flex flex-wrap items-center gap-2 p-3"
                 data-testid="video-row"
               >
-                <span className="text-sm text-muted-foreground" data-testid="video-platform">
-                  {video.platform}
+                <span className="flex items-center" data-testid="video-platform">
+                  <PlatformIcon platform={video.platform} />
                 </span>
                 <span className="min-w-0 flex-1 truncate font-medium">{video.title}</span>
                 <span className="text-sm text-muted-foreground">{video.backupDate}</span>

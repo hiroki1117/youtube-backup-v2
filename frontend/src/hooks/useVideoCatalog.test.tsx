@@ -89,8 +89,12 @@ describe("useVideoCatalog（U2 / US2.1・US2.2・US2.4・US2.5）", () => {
     const requested: string[] = [];
     server.use(
       http.get(`${TEST_API_BASE}/videos`, ({ request }) => {
-        const n = Number(new URL(request.url).searchParams.get("fetch_num"));
-        requested.push(String(n));
+        const params = new URL(request.url).searchParams;
+        const n = Number(params.get("fetch_num"));
+        // init の先読みは対象外（complete の取得件数だけを検証する）。
+        if (params.get("upload_status") === "complete") {
+          requested.push(String(n));
+        }
         return HttpResponse.json(makeRawVideos(120).slice(0, n));
       }),
     );
@@ -138,5 +142,25 @@ describe("useVideoCatalog（U2 / US2.1・US2.2・US2.4・US2.5）", () => {
     act(() => result.current.toggleSortOrder());
     await waitFor(() => expect(result.current.sortOrder).toBe("asc"));
     expect(result.current.items[0].title).toBe("動画1"); // asc: 最古 08-01
+  });
+
+  it("complete の取得後にもう一方の状態（init）を先読みし、切り替え時は即表示する", async () => {
+    const requested: (string | null)[] = [];
+    server.use(
+      http.get(`${TEST_API_BASE}/videos`, ({ request }) => {
+        const status = new URL(request.url).searchParams.get("upload_status");
+        requested.push(status);
+        return HttpResponse.json(status === "init" ? INIT_RAW_VIDEOS : makeRawVideos(3));
+      }),
+    );
+    const { result } = renderHook(() => useVideoCatalog(), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(requested).toContain("init"));
+    await waitFor(() => expect(result.current.isFetching).toBe(false));
+
+    act(() => result.current.setUploadStatus("init"));
+    // キャッシュ済みのため pending を経由せず、そのまま success で行が出る。
+    expect(result.current.status).toBe("success");
+    expect(result.current.total).toBe(INIT_RAW_VIDEOS.length);
   });
 });

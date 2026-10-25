@@ -44,6 +44,7 @@ wiring/        repository を組み立てて BackupService を返す
 | retry | `entrypoints.retry.handler` | 手動 | 失敗ジョブを最大 100 件再投入 |
 | comments | `entrypoints.comments.handler` | HTTP API | コメントバックアップの照会・開始、コメントの一覧 |
 | youtube_comments | `entrypoints.youtube_comments.handler` | S3 通知（コメント用バケット `youtube/`） | 取得した YouTube コメントを DynamoDB へ取り込む |
+| comments_backfill | `entrypoints.comments_backfill.handler` | 毎時（一時的） | コメントのバックアップがない完了済み動画を、1 回に `limit` 本ずつ開始する（下記） |
 
 Lambda を足すときは `entrypoints/` に 1 ファイル追加し、[build_lambda.py](build_lambda.py) の `HANDLERS` と [deploy-backend.yml](../.github/workflows/deploy-backend.yml) の `FUNCTIONS` に 1 行足す。関数本体は infra で作る。
 
@@ -98,3 +99,12 @@ POST /videos/{id}/comments/backup（comments Lambda）または動画の complet
 - 状態: `not_started` / `submitting` / `running` / `awaiting_ingest`（ジョブ成功・取り込み待ち）/ `complete` / `failed`。`running` は照会時に Batch の状態を見て判定する。投入途中で止まった `submitting` は 5 分で `failed` 扱いになる。
 - 動画のバックアップが完了すると、`s3_complete` が続けてコメントのバックアップを開始する（Scrapbox から登録した動画も含む）。開始に失敗してもログに残すだけで、動画の完了は失敗にしない（画面から後で開始できる）。
 - 動画を削除すると、削除ロックを取った後・動画を消す前に、実行中のコメント取得ジョブを止め、`comment_backups` の記録、コメント用バケットの原本、コメントのテーブルを消す。途中で失敗したらロックを残して止まる（動画の部分削除と同じく要照合）。バケットは versioning 有効なので、原本は削除マーカーが付くだけで過去のバージョンは残る。
+
+### 既存動画のコメントの一括取得（一時的）
+
+コメントのバックアップ導入前に完了していた動画は、`comments_backfill` が毎時少しずつ取得する。
+
+- 毎時の入力 `{"limit": N}`（infra が設定）の本数まで、`complete` の YouTube 動画のうち `comment_backups` に記録がないものを新しい順に `CommentService.start` で開始する。
+- 記録がない動画だけを選ぶので、失敗した動画をここで再試行することはなく、一巡すると終わる（失敗分は画面から再取得する）。投入が 503 で失敗したら、その回はそこで止める。
+- 開始する動画がなくなると、自分のスケジュール（`COMMENTS_BACKFILL_RULE_NAME`）を無効化する。手動で `{"limit": N}` を渡して invoke してもよい。
+- 一巡したら、[entrypoints/comments_backfill.py](entrypoints/comments_backfill.py)・[tests/test_comments_backfill.py](tests/test_comments_backfill.py)・`CommentService.backfill` と、`HANDLERS`・`FUNCTIONS` の行を消す。先に infra の関数を消すと配布が失敗するため、アプリ側を先に消す。

@@ -18,11 +18,27 @@ class CommentBackupRepository:
         self.session = session or boto3.Session()
 
     @cached_property
+    def dynamodb(self):
+        return self.session.resource("dynamodb")
+
+    @cached_property
     def table(self):
-        return self.session.resource("dynamodb").Table(os.environ["COMMENT_BACKUPS_TABLE_NAME"])
+        return self.dynamodb.Table(os.environ["COMMENT_BACKUPS_TABLE_NAME"])
 
     def get(self, video_id: str) -> dict | None:
         return self.table.get_item(Key={"video_id": video_id}, ConsistentRead=True).get("Item")
+
+    def tracked(self, video_ids: list[str]) -> set[str]:
+        """The given videos (at most 100) that already have a comment backup record."""
+        found, keys = set(), [{"video_id": video_id} for video_id in video_ids]
+        while keys:
+            name = self.table.name
+            result = self.dynamodb.batch_get_item(
+                RequestItems={name: {"Keys": keys, "ProjectionExpression": "video_id"}}
+            )
+            found.update(item["video_id"] for item in result["Responses"].get(name, []))
+            keys = result.get("UnprocessedKeys", {}).get(name, {}).get("Keys", [])
+        return found
 
     def claim(self, video_id: str, platform: str, attempt: str, now: int, expected) -> dict:
         # Optimistic lock on the attempt that was inspected: concurrent starts cannot both claim.

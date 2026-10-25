@@ -1,2 +1,2 @@
 yt-dlp[default,curl-cffi]==2026.10.21
-awscli==1.32.0
+awscli==1.46.2

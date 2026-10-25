@@ -113,6 +113,62 @@ describe("VideoPlaybackPage（U6 / US6.2・FR7・A3・C4）", () => {
   });
 });
 
+describe("VideoPlaybackPage の削除", () => {
+  it("complete 動画は確認のうえ削除し、一覧へ戻る", async () => {
+    let deleted = 0;
+    server.use(
+      http.delete(`${TEST_API_BASE}/videos/:videoId`, () => {
+        deleted += 1;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("video-player");
+
+    await user.click(screen.getByTestId("playback-delete-button"));
+    // 確認するまでは削除しない。
+    expect(screen.getByTestId("delete-confirm-dialog")).toBeInTheDocument();
+    expect(deleted).toBe(0);
+    await user.click(screen.getByTestId("delete-confirm-button"));
+
+    expect(await screen.findByText("一覧ページ")).toBeInTheDocument();
+    expect(deleted).toBe(1);
+  });
+
+  it("init 動画は「取り消し」でバックアップを取り消し、一覧へ戻る", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/videos/:videoId`, () =>
+        HttpResponse.json(makeRawVideo({ upload_status: "init" })),
+      ),
+    );
+    const user = userEvent.setup();
+    renderPage("i1");
+    await screen.findByText(/まだ再生・ダウンロードできません/);
+
+    const button = screen.getByTestId("playback-delete-button");
+    expect(button).toHaveTextContent("取り消し");
+    await user.click(button);
+    await user.click(screen.getByTestId("delete-confirm-button"));
+
+    expect(await screen.findByText("一覧ページ")).toBeInTheDocument();
+  });
+
+  it("削除に失敗したらページに留まり、エラーを通知する（error-path）", async () => {
+    server.use(http.delete(`${TEST_API_BASE}/videos/:videoId`, () => HttpResponse.error()));
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("video-player");
+
+    await user.click(screen.getByTestId("playback-delete-button"));
+    await user.click(screen.getByTestId("delete-confirm-button"));
+
+    expect(await screen.findByText(/通信に失敗しました/)).toBeInTheDocument();
+    expect(screen.queryByText("一覧ページ")).not.toBeInTheDocument();
+    expect(screen.getByTestId("video-player")).toBeInTheDocument();
+  });
+});
+
 describe("VideoPlaybackPage のコメントのバックアップ", () => {
   it("YouTube の complete 動画はボタンでコメントの取得を開始し、取得中にする", async () => {
     let posted = 0;

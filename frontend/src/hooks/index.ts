@@ -15,7 +15,7 @@ export type {
   UseVideoRegistrationOptions,
 } from "./useVideoRegistration";
 export { useVideoDeletion } from "./useVideoDeletion";
-export type { VideoDeletionController } from "./useVideoDeletion";
+export type { VideoDeletionController, VideoDeletionOptions } from "./useVideoDeletion";
 export { useVideoSearch } from "./useVideoSearch";
 export type { VideoSearchController, VideoSearchState } from "./useVideoSearch";
 export { useVideoPlayback } from "./useVideoPlayback";

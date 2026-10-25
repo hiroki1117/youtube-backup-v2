@@ -7,9 +7,11 @@ from repositories.comments import (
     YoutubeCommentRepository,
 )
 from repositories.jobs import JobRepository
+from repositories.playlists import PlaylistRepository
 from repositories.videos import VideoRepository
 from usecases.backup import BackupService
 from usecases.comments import CommentService
+from usecases.playlists import PlaylistService
 from usecases.youtube_comments import YoutubeCommentIngest, YoutubeCommentStore
 
 
@@ -36,6 +38,11 @@ def get_comment_service() -> CommentService:
         )
     }
     return CommentService(VideoRepository(), backups, CommentJobRepository(), stores)
+
+
+@cache
+def get_playlist_service() -> PlaylistService:
+    return PlaylistService(PlaylistRepository())
 
 
 @cache

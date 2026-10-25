@@ -164,3 +164,9 @@ def test_lambda_documentation_routes_are_disabled(handler):
     for path in ("/docs", "/redoc", "/openapi.json", "/docs/oauth2-redirect"):
         with patch("boto3.Session", side_effect=AssertionError("AWS at docs request")):
             assert handler(gateway_event(path), None)["statusCode"] == 404
+
+
+def test_playlists_are_served_by_the_video_lambda():
+    # The video Lambda already holds the YouTube API key; the gateway routes playlists to it.
+    assert {"/videos", "/youtube/playlist"} <= video_handler.app.openapi()["paths"].keys()
+    assert "/youtube/playlist" not in backup_handler.app.openapi()["paths"]

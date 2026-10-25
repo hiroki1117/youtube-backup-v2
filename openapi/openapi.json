@@ -1258,6 +1258,106 @@
           }
         }
       }
+    },
+    "/youtube/playlist": {
+      "get": {
+        "tags": [
+          "youtube"
+        ],
+        "summary": "Get Youtube Playlist",
+        "description": "The playlist in a YouTube URL (`list`), read from YouTube as is: its videos in order.\n\nNothing is stored or registered; register the videos with POST /videos.",
+        "operationId": "get_youtube_playlist_youtube_playlist_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048,
+              "title": "Url"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YoutubePlaylist"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1760,6 +1860,55 @@
           "like_count"
         ],
         "title": "YoutubeCommentThread"
+      },
+      "YoutubePlaylist": {
+        "properties": {
+          "playlist_id": {
+            "type": "string",
+            "title": "Playlist Id"
+          },
+          "videos": {
+            "items": {
+              "$ref": "#/components/schemas/YoutubePlaylistVideo"
+            },
+            "type": "array",
+            "title": "Videos"
+          },
+          "unavailable_count": {
+            "type": "integer",
+            "title": "Unavailable Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "playlist_id",
+          "videos",
+          "unavailable_count"
+        ],
+        "title": "YoutubePlaylist"
+      },
+      "YoutubePlaylistVideo": {
+        "properties": {
+          "video_id": {
+            "type": "string",
+            "title": "Video Id"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "video_id",
+          "url",
+          "title"
+        ],
+        "title": "YoutubePlaylistVideo"
       }
     },
     "securitySchemes": {

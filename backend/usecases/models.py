@@ -1,4 +1,5 @@
 import hashlib
+import re
 from typing import Literal
 from urllib.parse import parse_qs, urlparse
 
@@ -84,6 +85,19 @@ class Registration(BaseModel):
     already_registered: bool
 
 
+class YoutubePlaylistVideo(BaseModel):
+    video_id: str
+    url: str  # Normalized watch URL, accepted by POST /videos as is.
+    title: str
+
+
+class YoutubePlaylist(BaseModel):
+    playlist_id: str
+    videos: list[YoutubePlaylistVideo]  # In playlist order; a video listed twice appears once.
+    # Items that cannot be backed up (private or deleted videos), left out of `videos`.
+    unavailable_count: int
+
+
 class ErrorResponse(BaseModel):
     detail: str
 
@@ -112,8 +126,6 @@ def source_identity(url: str) -> tuple[str, str, str]:
             video_id = parsed.path.split("/")[2]
         else:
             video_id = parse_qs(parsed.query).get("v", [""])[0]
-        import re
-
         if not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
             raise DomainError(422, "invalid_youtube_id")
         return video_id, "youtube", f"https://www.youtube.com/watch?v={video_id}"
@@ -121,3 +133,23 @@ def source_identity(url: str) -> tuple[str, str, str]:
         # Twitter / X registration is not supported (no metadata source).
         raise DomainError(422, "twitter_registration_not_migrated")
     return hashlib.sha256(url.encode()).hexdigest()[:15], host, url
+
+
+YOUTUBE_HOSTS = {"youtu.be", "youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com"}
+# Mixes (RD...) are generated per viewer; Watch later (WL) and Liked videos (LL) need the
+# owner's sign-in, which an API key cannot provide.
+UNSUPPORTED_PLAYLISTS = ("RD", "WL", "LL")
+
+
+def playlist_identity(url: str) -> str:
+    """The playlist ID in a YouTube URL's `list` parameter, also when the URL plays a video."""
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme not in {"http", "https"} or parsed.username or parsed.password:
+        raise DomainError(422, "invalid_url")
+    playlist_id = parse_qs(parsed.query).get("list", [""])[0]
+    if host not in YOUTUBE_HOSTS or not re.fullmatch(r"[A-Za-z0-9_-]+", playlist_id):
+        raise DomainError(422, "not_a_youtube_playlist")
+    if playlist_id.startswith(UNSUPPORTED_PLAYLISTS):
+        raise DomainError(422, "unsupported_playlist")
+    return playlist_id

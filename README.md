@@ -11,6 +11,8 @@ YouTube などの動画 URL を登録すると yt-dlp で S3 へバックアッ�
 
 AWS リソース・IAM・Lambda の設定（handler・環境変数・role）は [hiroki1117/infra](https://github.com/hiroki1117/infra/tree/main/youtube-backup) が管理し、このリポジトリはコードとイメージだけを扱う。
 
+将来の方向性は [VISION.md](VISION.md) を参照。
+
 ## セットアップ
 
 Node 24 LTS（[frontend/.node-version](frontend/.node-version)）と pnpm、Python 3.14、Make が必要。Docker は batch image をローカルで build するときだけ使う。

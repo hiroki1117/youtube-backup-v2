@@ -110,12 +110,13 @@ def test_legacy_records_untouched_and_retry_only_failed_jobs(service):
     assert service.backup("legacy-video").state == "legacy_untracked"
     with pytest.raises(DomainError, match="legacy_job_untracked"):
         service.start("legacy-video")
-    with pytest.raises(DomainError):
-        service.delete("legacy-video")
     assert service.retry_failed() == {"started": 0, "skipped": 2}
     assert service.videos.items["legacy-video"] == legacy
     service.jobs.items[tracked["batch_job_id"]]["status"] = "FAILED"
     assert service.retry_failed() == {"started": 1, "skipped": 1}
+    # An untracked legacy record that never produced an object can be dismissed.
+    service.delete("legacy-video")
+    assert service.videos.get("legacy-video") is None
 
 
 def test_concurrent_completion_blocks_retry_claim(service):
@@ -182,6 +183,7 @@ def test_failed_job_with_uploaded_object_and_delayed_event_is_not_deleted(servic
         original_delete(item, token)
 
     service.videos.delete = Mock(side_effect=delete)
+    service.videos.has_object = Mock(return_value=True)
     service.jobs.items[video["batch_job_id"]]["status"] = "FAILED"
     with pytest.raises(DomainError, match="backup_object_needs_reconciliation"):
         service.delete("abcdefghijk")
@@ -194,3 +196,81 @@ def test_failed_job_with_uploaded_object_and_delayed_event_is_not_deleted(servic
     service.delete("abcdefghijk")
     assert not objects
     assert service.videos.get("abcdefghijk") is None
+
+
+def test_cancel_stops_active_job_and_scheduled_retry_cannot_restart_it(service):
+    service.register(URL)
+    video = service.video("abcdefghijk")
+    job_id = video["batch_job_id"]
+    service.jobs.terminate = Mock(wraps=service.jobs.terminate)
+    service.delete("abcdefghijk")
+    service.jobs.terminate.assert_called_once_with(job_id, "Cancelled by the user")
+    assert service.videos.get("abcdefghijk") is None
+    assert service.retry_failed() == {"started": 0, "skipped": 0}
+    assert service.jobs.submissions == 1
+    # The same URL can be registered again afterwards.
+    assert service.register(URL)[1] is True
+
+
+def test_cancel_failed_job_removes_record_without_terminating(service):
+    service.register(URL)
+    video = service.video("abcdefghijk")
+    service.jobs.items[video["batch_job_id"]]["status"] = "FAILED"
+    service.jobs.terminate = Mock()
+    service.delete("abcdefghijk")
+    service.jobs.terminate.assert_not_called()
+    assert service.videos.get("abcdefghijk") is None
+
+
+@pytest.mark.parametrize(
+    ("setup", "code"),
+    [
+        (lambda s, v: s.jobs.items[v["batch_job_id"]].update(status="SUCCEEDED"), "backup_object"),
+        (lambda s, v: s.jobs.items.pop(v["batch_job_id"]), "job_needs_reconciliation"),
+        (lambda s, v: s.jobs.items[v["batch_job_id"]].update(status="WEIRD"), "job_needs"),
+        (lambda s, v: s.videos.has_object.__setattr__("return_value", True), "backup_object"),
+    ],
+)
+def test_cancel_is_refused_when_the_outcome_is_not_certain(service, setup, code):
+    service.register(URL)
+    video = service.video("abcdefghijk")
+    service.videos.has_object = Mock(return_value=False)
+    setup(service, video)
+    service.jobs.terminate = Mock()
+    with pytest.raises(DomainError, match=code):
+        service.delete("abcdefghijk")
+    assert service.videos.get("abcdefghijk") == video
+
+
+@pytest.mark.parametrize(
+    ("state", "code"),
+    [
+        ("submitting", "concurrent_change"),
+        ("submission_unknown", "submission_needs_reconciliation"),
+    ],
+)
+def test_cancel_is_refused_while_a_submission_is_unresolved(service, state, code):
+    service.register(URL)
+    video = service.video("abcdefghijk")
+    service.videos.items["abcdefghijk"].pop("batch_job_id")
+    service.videos.items["abcdefghijk"]["backup_state"] = state
+    with pytest.raises(DomainError, match=code):
+        service.delete("abcdefghijk")
+    assert service.videos.get("abcdefghijk") is not None
+    assert video["backup_attempt_id"]
+
+
+def test_cancel_loses_to_a_concurrent_retry(service):
+    service.register(URL)
+    video = service.video("abcdefghijk")
+    service.jobs.items[video["batch_job_id"]]["status"] = "FAILED"
+    original = service.videos.has_object
+
+    def retry_claims_meanwhile(item):
+        service.start("abcdefghijk")
+        return original(item)
+
+    service.videos.has_object = retry_claims_meanwhile
+    with pytest.raises(DomainError, match="concurrent_change"):
+        service.delete("abcdefghijk")
+    assert service.videos.get("abcdefghijk") is not None

@@ -199,3 +199,43 @@ def test_youtube_metadata_and_sanitized_failure(monkeypatch):
     with pytest.raises(DomainError, match="metadata_unavailable") as error:
         repo.make_video("https://youtu.be/abcdefghijk", 1791763200)
     assert "dummy-key" not in str(error.value)
+
+
+def test_cancel_deletes_only_the_inspected_unfinished_attempt(service):
+    service.register("https://youtu.be/abcdefghijk")
+    video = service.video("abcdefghijk")
+    table = Mock()
+    repo = make_repo(table)
+    repo.cancel(video)
+    args = table.delete_item.call_args.kwargs
+    for part in ("upload_status=:init", "s3fullpath=:path", "attribute_not_exists(deletion_token)"):
+        assert part in args["ConditionExpression"]
+    assert args["ExpressionAttributeValues"][":path"] == video["s3fullpath"]
+    table.delete_item.side_effect = condition_failed()
+    with pytest.raises(DomainError, match="concurrent_change"):
+        repo.cancel(video)
+
+
+def test_has_object_looks_for_any_extension_under_the_key(service):
+    service.register("https://youtu.be/abcdefghijk")
+    video = service.video("abcdefghijk")
+    repo = make_repo(Mock())
+    repo.s3.list_objects_v2.return_value = {"KeyCount": 1}
+    assert repo.has_object(video) is True
+    kwargs = repo.s3.list_objects_v2.call_args.kwargs
+    assert kwargs["Prefix"] == video["s3fullpath"].split("/", 3)[3]
+    repo.s3.list_objects_v2.return_value = {"KeyCount": 0}
+    assert repo.has_object(video) is False
+
+
+def test_terminate_sends_one_unretried_request():
+    repo = JobRepository(
+        boto3.Session(
+            aws_access_key_id="test", aws_secret_access_key="test", region_name="us-east-1"
+        )
+    )
+    batch = Stubber(repo.batch)
+    batch.add_response("terminate_job", {}, {"jobId": "job-1", "reason": "Cancelled by the user"})
+    with batch:
+        repo.terminate("job-1", "Cancelled by the user")
+        batch.assert_no_pending_responses()

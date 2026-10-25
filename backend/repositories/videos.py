@@ -199,6 +199,24 @@ class VideoRepository:
             ExpiresIn=3600,
         )
 
+    def has_object(self, video: dict) -> bool:
+        # yt-dlp appends the real extension, so look for anything under the expected key.
+        path = urlparse(video["s3fullpath"])
+        found = self.s3.list_objects_v2(Bucket=path.netloc, Prefix=path.path.lstrip("/"), MaxKeys=1)
+        return found.get("KeyCount", 0) > 0
+
+    def cancel(self, video: dict) -> None:
+        # Only the attempt that was inspected may be removed; a retry claim changes s3fullpath.
+        try:
+            self.table.delete_item(
+                Key={"video_id": video["video_id"]},
+                ConditionExpression="attribute_exists(video_id) AND upload_status=:init "
+                "AND s3fullpath=:path AND attribute_not_exists(deletion_token)",
+                ExpressionAttributeValues={":init": "init", ":path": video["s3fullpath"]},
+            )
+        except ClientError as error:
+            conditional(error)
+
     def delete(self, video: dict, token: str) -> None:
         # Lock against concurrent backup submission before deleting either resource.
         condition = "attribute_exists(video_id) AND attribute_not_exists(deletion_token) "

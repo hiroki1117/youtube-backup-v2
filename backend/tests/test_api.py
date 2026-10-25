@@ -33,8 +33,12 @@ def test_register_read_update_and_duplicate(client, service):
     assert client.get("/videos/abcdefghijk/backup").json()["state"] == "submitted"
     assert client.post("/videos/abcdefghijk/backup").status_code == 200
     assert service.jobs.submissions == 1
-    assert client.delete("/videos/abcdefghijk").status_code == 409
     assert client.get("/videos/abcdefghijk/playback_url").status_code == 409
+    # Deleting an unfinished backup cancels it: the job is stopped and the record removed.
+    job_id = service.video("abcdefghijk")["batch_job_id"]
+    assert client.delete("/videos/abcdefghijk").status_code == 204
+    assert service.jobs.items[job_id]["status"] == "FAILED"
+    assert client.get("/videos/abcdefghijk").status_code == 404
 
 
 def test_completed_playback_and_delete(client, service):

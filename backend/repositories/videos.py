@@ -1,5 +1,6 @@
 import os
 from datetime import UTC, datetime
+from functools import cached_property
 from urllib.parse import urlparse
 
 import boto3
@@ -20,10 +21,21 @@ class VideoRepository:
     """Owns the existing DynamoDB video item, S3 file, and source metadata lookup."""
 
     def __init__(self, session=None):
-        session = session or boto3.Session()
-        self.table = session.resource("dynamodb").Table(os.environ["DYNAMO_TABLE_NAME"])
-        self.s3 = session.client("s3")
-        self.ssm = session.client("ssm")
+        self.session = session or boto3.Session()
+
+    # Clients are created on first use so a request only pays for the AWS services it touches
+    # (e.g. listing videos needs DynamoDB only).
+    @cached_property
+    def table(self):
+        return self.session.resource("dynamodb").Table(os.environ["DYNAMO_TABLE_NAME"])
+
+    @cached_property
+    def s3(self):
+        return self.session.client("s3")
+
+    @cached_property
+    def ssm(self):
+        return self.session.client("ssm")
 
     def get(self, video_id: str) -> dict | None:
         return self.table.get_item(Key={"video_id": video_id}, ConsistentRead=True).get("Item")

@@ -335,3 +335,31 @@ describe("ApiClient.updateVideoTitle（PATCH /videos/{id}）", () => {
     expect((await client.updateVideoTitle("v1", "x")).kind).toBe("invalidInput");
   });
 });
+
+describe("ApiClient.cancelBackup（DELETE /videos/{id}/backup）", () => {
+  it("204 を ok(null) に正規化する", async () => {
+    server.use(
+      http.delete(
+        `${TEST_API_BASE}/videos/:id/backup`,
+        () => new HttpResponse(null, { status: 204 }),
+      ),
+    );
+    expect(await client.cancelBackup("v1")).toEqual({ kind: "ok", data: null });
+  });
+
+  it("409 は rejected、404 は notFound に正規化する（error-path）", async () => {
+    server.use(
+      http.delete(`${TEST_API_BASE}/videos/:id/backup`, () =>
+        errorResponse(409, "backup_object_needs_reconciliation"),
+      ),
+    );
+    const rejected = await client.cancelBackup("v1");
+    expect(rejected.kind).toBe("rejected");
+    server.use(
+      http.delete(`${TEST_API_BASE}/videos/:id/backup`, () =>
+        errorResponse(404, "video_not_found"),
+      ),
+    );
+    expect((await client.cancelBackup("missing")).kind).toBe("notFound");
+  });
+});

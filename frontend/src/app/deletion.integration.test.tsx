@@ -96,7 +96,7 @@ describe("動画削除 結合（行→確認→削除 / US5.1・FR5.1・C4・C6�
           makeRawVideo({ video_id: "i1", title: "処理中動画", upload_status: "init" }),
         ]);
       }),
-      http.delete(`${TEST_API_BASE}/videos/:videoId`, () =>
+      http.delete(`${TEST_API_BASE}/videos/:videoId/backup`, () =>
         errorResponse(409, "backup_object_needs_reconciliation"),
       ),
     );
@@ -125,7 +125,7 @@ describe("動画削除 結合（行→確認→削除 / US5.1・FR5.1・C4・C6�
     ];
     server.use(
       http.get(`${TEST_API_BASE}/videos`, () => HttpResponse.json(videos)),
-      http.delete(`${TEST_API_BASE}/videos/:videoId`, ({ params }) => {
+      http.delete(`${TEST_API_BASE}/videos/:videoId/backup`, ({ params }) => {
         videos = videos.filter((v) => v.video_id !== String(params.videoId));
         return new HttpResponse(null, { status: 204 });
       }),

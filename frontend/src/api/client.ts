@@ -36,8 +36,13 @@ export interface ApiClient {
   submitVideo(url: string): Promise<ApiResult<SubmitResult>>;
   /** タイトルを更新する（`PATCH /videos/{id}`）。成功は更新後の Video。 */
   updateVideoTitle(videoId: string, title: string): Promise<ApiResult<Video>>;
-  /** 成功は 204（本文なし）。 */
+  /** 完了済み動画の削除（`DELETE /videos/{id}`）。成功は 204（本文なし）。 */
   deleteVideo(videoId: string): Promise<ApiResult<null>>;
+  /**
+   * 未完了バックアップの取り消し（`DELETE /videos/{id}/backup`）。実行中のジョブを止めて未完了の
+   * 動画記録を消す。成功は 204（本文なし）。
+   */
+  cancelBackup(videoId: string): Promise<ApiResult<null>>;
   /** 再生/ダウンロード用の署名付き URL（`GET /videos/{id}/playback_url`）。 */
   getPresignedUrl(videoId: string): Promise<ApiResult<string>>;
 }
@@ -72,6 +77,7 @@ const DETAIL_MESSAGES: Record<string, string> = {
   invalid_youtube_id: "YouTube の動画 URL として認識できません。",
   twitter_registration_not_migrated: "Twitter の動画登録にはまだ対応していません。",
   backup_not_complete: "バックアップが完了していないため実行できません。",
+  backup_already_complete: "バックアップは完了しています。取り消しではなく削除してください。",
   backup_object_needs_reconciliation:
     "動画の保存が完了しつつあるか、確認が必要なため今は削除・取り消しできません。しばらくしてから再試行してください。",
   concurrent_change: "他の処理と競合しました。時間をおいて再試行してください。",
@@ -245,6 +251,16 @@ export class HttpApiClient implements ApiClient {
 
   async deleteVideo(videoId: string): Promise<ApiResult<null>> {
     const res = await this.request(`/videos/${encodeURIComponent(videoId)}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      return res.failure;
+    }
+    return { kind: "ok", data: null };
+  }
+
+  async cancelBackup(videoId: string): Promise<ApiResult<null>> {
+    const res = await this.request(`/videos/${encodeURIComponent(videoId)}/backup`, {
       method: "DELETE",
     });
     if (!res.ok) {

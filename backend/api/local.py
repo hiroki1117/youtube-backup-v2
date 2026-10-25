@@ -5,13 +5,14 @@ from api.dependencies import get_comment_service, get_service
 from repositories.memory import (
     MemoryCommentBackups,
     MemoryCommentJobs,
+    MemoryCommentObjects,
     MemoryJobs,
     MemoryVideos,
     MemoryYoutubeComments,
 )
 from usecases.backup import BackupService
 from usecases.comments import CommentService
-from usecases.youtube_comments import YoutubeCommentReader
+from usecases.youtube_comments import YoutubeCommentStore
 
 
 def create_app():
@@ -20,8 +21,12 @@ def create_app():
     app = build_app()
     service = BackupService(MemoryVideos(), MemoryJobs())
     backups = MemoryCommentBackups()
-    readers = {"youtube": YoutubeCommentReader(backups, MemoryYoutubeComments())}
-    comments = CommentService(service.videos, backups, MemoryCommentJobs(), readers)
+    stores = {
+        "youtube": YoutubeCommentStore(backups, MemoryYoutubeComments(), MemoryCommentObjects())
+    }
+    comments = CommentService(service.videos, backups, MemoryCommentJobs(), stores)
+    service.on_complete = comments.start_after_video_backup
+    service.on_delete = comments.delete_for_video
     app.dependency_overrides[get_service] = lambda: service
     app.dependency_overrides[get_comment_service] = lambda: comments
     return app

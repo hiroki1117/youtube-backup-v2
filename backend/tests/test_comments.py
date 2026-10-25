@@ -1,5 +1,5 @@
 import gzip
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 from botocore.exceptions import ClientError
@@ -10,7 +10,6 @@ from repositories.comments import (
     CommentObjectRepository,
     YoutubeCommentRepository,
 )
-from repositories.memory import MemoryCommentObjects
 from usecases.comments import SUBMISSION_TIMEOUT
 from usecases.models import DomainError, source_identity
 from usecases.youtube_comments import YoutubeCommentIngest, comment_item, comment_threads
@@ -57,10 +56,10 @@ def s3_event(key, bucket="comments-bucket", name="ObjectCreated:Put"):
 
 @pytest.fixture
 def ingest(comment_service):
-    # Shares the comment store with the service's YouTube reader, as both use one table.
-    comments = comment_service.readers["youtube"].comments
+    # Shares the table and bucket with the service's YouTube store, as in AWS.
+    store = comment_service.stores["youtube"]
     return YoutubeCommentIngest(
-        comment_service.backups, MemoryCommentObjects(), comments, clock=lambda: NOW
+        comment_service.backups, store.objects, store.comments, clock=lambda: NOW
     )
 
 
@@ -388,3 +387,126 @@ def test_comment_repository_lists_every_query_page():
     ]
     assert [i["comment_id"] for i in repo.list(VIDEO_ID)] == ["a", "b"]
     assert repo.table.query.call_args.kwargs["ExclusiveStartKey"] == {"k": 1}
+
+
+def video_completed(service, video_id):
+    """S3 notification of the video job's upload, which completes the video backup."""
+    video = service.video(video_id)
+    bucket, key = (video["s3fullpath"] + ".mp4")[5:].split("/", 1)
+    event = {
+        "Records": [
+            {
+                "eventName": "ObjectCreated:Put",
+                "eventTime": "2026-10-12T00:01:00Z",
+                "s3": {"bucket": {"name": bucket}, "object": {"key": key}},
+            }
+        ]
+    }
+    return service.complete_records(event)
+
+
+def test_completing_a_youtube_video_backup_starts_its_comment_backup(service, comment_service):
+    service.register(URL)
+    assert video_completed(service, VIDEO_ID)["updated"] == 1
+    assert comment_service.status(VIDEO_ID).state == "running"
+    assert [s["platform"] for s in comment_service.jobs.submissions] == ["youtube"]
+    # A repeated notification neither completes the video again nor starts another fetch.
+    assert video_completed(service, VIDEO_ID)["updated"] == 0
+    assert len(comment_service.jobs.submissions) == 1
+
+
+def test_completing_an_unsupported_video_starts_no_comment_backup(service, comment_service):
+    service.register("https://example.invalid/video.mp4")
+    other = source_identity("https://example.invalid/video.mp4")[0]
+    assert video_completed(service, other)["updated"] == 1
+    assert comment_service.jobs.submissions == []
+
+
+def test_a_failed_comment_start_does_not_fail_the_video_completion(
+    service, comment_service, caplog
+):
+    service.register(URL)
+    comment_service.jobs.submit = Mock(side_effect=RuntimeError("Batch unavailable"))
+    assert video_completed(service, VIDEO_ID)["updated"] == 1
+    assert service.video(VIDEO_ID)["upload_status"] == "complete"
+    assert f"Comment backup was not started for video {VIDEO_ID}" in caplog.text
+
+
+def test_deleting_a_video_removes_its_comments_records_and_originals(
+    service, comment_service, ingest
+):
+    backed_up(service)
+    started, _ = comment_service.start(VIDEO_ID)
+    key = f"youtube/{VIDEO_ID}/{started.attempt_id}.json.gz"
+    stored(ingest, key, info(comments=COMMENTS))
+    ingest.objects.items[("comments-bucket", "youtube/other-video/x.json.gz")] = {}
+    service.delete(VIDEO_ID)
+    assert service.videos.get(VIDEO_ID) is None
+    assert comment_service.backups.get(VIDEO_ID) is None
+    assert ingest.comments.items == {}
+    # Only this video's originals are removed.
+    assert list(ingest.objects.items) == [("comments-bucket", "youtube/other-video/x.json.gz")]
+    # The same video registered again starts with no comment backup.
+    backed_up(service)
+    assert comment_service.status(VIDEO_ID).state == "not_started"
+
+
+def test_deleting_a_video_stops_its_running_comment_job(service, comment_service):
+    backed_up(service)
+    started, _ = comment_service.start(VIDEO_ID)
+    service.delete(VIDEO_ID)
+    job = comment_service.jobs.get(started.batch_job_id)
+    assert (job["status"], job["statusReason"]) == ("FAILED", "Video deleted")
+
+
+def test_a_failed_comment_deletion_keeps_the_video_locked(service, comment_service):
+    backed_up(service)
+    comment_service.stores["youtube"].delete = Mock(side_effect=RuntimeError("DynamoDB down"))
+    with pytest.raises(RuntimeError):
+        service.delete(VIDEO_ID)
+    with pytest.raises(DomainError) as error:
+        service.video(VIDEO_ID)
+    assert error.value.code == "deletion_needs_reconciliation"
+
+
+def test_comment_object_repository_deletes_every_page_under_the_prefix(monkeypatch):
+    monkeypatch.setenv("COMMENTS_BUCKET", "comments-bucket")
+    repo = object.__new__(CommentObjectRepository)
+    repo.s3 = Mock()
+    repo.s3.get_paginator.return_value.paginate.return_value = [
+        {"Contents": [{"Key": "youtube/v/a.json.gz"}]},
+        {},
+    ]
+    repo.s3.delete_objects.return_value = {}
+    repo.delete_prefix("youtube/v/")
+    assert repo.s3.get_paginator.return_value.paginate.call_args.kwargs == {
+        "Bucket": "comments-bucket",
+        "Prefix": "youtube/v/",
+    }
+    assert repo.s3.delete_objects.call_args.kwargs == {
+        "Bucket": "comments-bucket",
+        "Delete": {"Objects": [{"Key": "youtube/v/a.json.gz"}], "Quiet": True},
+    }
+    repo.s3.delete_objects.return_value = {"Errors": [{"Key": "youtube/v/a.json.gz"}]}
+    with pytest.raises(RuntimeError):
+        repo.delete_prefix("youtube/v/")
+
+
+def test_comment_repository_deletes_every_comment_of_the_video():
+    repo = object.__new__(YoutubeCommentRepository)
+    repo.table = MagicMock()
+    repo.table.query.return_value = {"Items": [{"video_id": VIDEO_ID, "comment_id": "a"}]}
+    writer = repo.table.batch_writer.return_value.__enter__.return_value
+    repo.delete(VIDEO_ID)
+    assert repo.table.query.call_args.kwargs["ProjectionExpression"] == "video_id, comment_id"
+    writer.delete_item.assert_called_once_with(Key={"video_id": VIDEO_ID, "comment_id": "a"})
+
+
+def test_comment_record_and_job_removal_calls():
+    backups = backups_with(Mock())
+    backups.delete(VIDEO_ID)
+    backups.table.delete_item.assert_called_once_with(Key={"video_id": VIDEO_ID})
+    jobs = object.__new__(CommentJobRepository)
+    jobs.batch = Mock()
+    jobs.terminate("job-1", "Video deleted")
+    jobs.batch.terminate_job.assert_called_once_with(jobId="job-1", reason="Video deleted")

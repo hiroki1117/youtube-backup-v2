@@ -95,7 +95,10 @@ class MemoryVideos:
             raise DomainError(409, "concurrent_change")
         del self.items[video["video_id"]]
 
-    def delete(self, video, token):
+    def delete(self, video, token, before_remove=None):
+        self.items[video["video_id"]]["deletion_token"] = token
+        if before_remove:
+            before_remove(video)  # A failure keeps the lock, as in VideoRepository.
         del self.items[video["video_id"]]
 
 
@@ -139,6 +142,9 @@ class MemoryCommentBackups:
             raise DomainError(409, "concurrent_change")
         self.items[video_id].update(batch_job_id=job_id, state="running")
 
+    def delete(self, video_id):
+        self.items.pop(video_id, None)
+
     def complete(self, video_id, attempt, count, now):
         current = self.items.get(video_id)
         if not current or current["attempt_id"] != attempt:
@@ -163,6 +169,9 @@ class MemoryCommentJobs:
     def get(self, job_id):
         return deepcopy(self.items.get(job_id))
 
+    def terminate(self, job_id, reason):
+        self.items[job_id].update(status="FAILED", statusReason=reason)
+
 
 class MemoryCommentObjects:
     def __init__(self):
@@ -171,6 +180,10 @@ class MemoryCommentObjects:
     def read_json(self, bucket, key):
         return deepcopy(self.items[(bucket, key)])
 
+    def delete_prefix(self, prefix):
+        for bucket, key in [k for k in self.items if k[1].startswith(prefix)]:
+            del self.items[(bucket, key)]
+
 
 class MemoryYoutubeComments:
     def __init__(self):
@@ -178,6 +191,10 @@ class MemoryYoutubeComments:
 
     def list(self, video_id):
         return [deepcopy(v) for (vid, _), v in self.items.items() if vid == video_id]
+
+    def delete(self, video_id):
+        for key in [k for k in self.items if k[0] == video_id]:
+            del self.items[key]
 
     def put(self, items):
         for item in items:

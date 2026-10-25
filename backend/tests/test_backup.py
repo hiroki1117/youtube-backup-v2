@@ -178,9 +178,9 @@ def test_failed_job_with_uploaded_object_and_delayed_event_is_not_deleted(servic
     objects = {actual_path}
     original_delete = service.videos.delete
 
-    def delete(item, token):
+    def delete(item, token, **kwargs):
         objects.discard(item["s3fullpath"])
-        original_delete(item, token)
+        original_delete(item, token, **kwargs)
 
     service.videos.delete = Mock(side_effect=delete)
     service.videos.has_object = Mock(return_value=True)

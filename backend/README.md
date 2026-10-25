@@ -39,7 +39,7 @@ wiring/        repository を組み立てて BackupService を返す
 |---|---|---|---|
 | video | `entrypoints.video.handler` | HTTP API | 動画の登録・一覧・取得・更新・削除・再生 URL |
 | backup | `entrypoints.backup.handler` | HTTP API | バックアップの照会・再投入・取り消し |
-| s3_complete | `entrypoints.s3_complete.handler` | S3 通知 | 動画を `complete` にする |
+| s3_complete | `entrypoints.s3_complete.handler` | S3 通知 | 動画を `complete` にし、対応 platform ならコメントのバックアップを開始する |
 | scrapbox_scan | `entrypoints.scrapbox_scan.handler` | 毎時 | Scrapbox の新しい動画 URL を登録 |
 | retry | `entrypoints.retry.handler` | 手動 | 失敗ジョブを最大 100 件再投入 |
 | comments | `entrypoints.comments.handler` | HTTP API | コメントバックアップの照会・開始、コメントの一覧 |
@@ -56,7 +56,7 @@ Lambda を足すときは `entrypoints/` に 1 ファイル追加し、[build_la
 | `GET /videos` | 一覧（`upload_status`、`fetch_num` 最大 1000） |
 | `POST /videos` | 登録（body: `url`）。新規は 202 でバックアップ開始、登録済みは 200 |
 | `GET/PATCH /videos/{id}` | 取得・タイトル更新 |
-| `DELETE /videos/{id}` | 削除。`complete` のみ（S3 ファイルと記録を消す）。未完了は 409 |
+| `DELETE /videos/{id}` | 削除。`complete` のみ（S3 ファイルと記録、コメントのバックアップを消す）。未完了は 409 |
 | `GET /videos/{id}/playback_url` | 署名付き URL（1 時間） |
 | `GET /videos/{id}/backup` | バックアップ状態の照会 |
 | `POST /videos/{id}/backup` | 失敗ジョブの再投入。処理中・完了は不可 |
@@ -83,7 +83,8 @@ Lambda を足すときは `entrypoints/` に 1 ファイル追加し、[build_la
 動画のバックアップとは別系統で、既存のジョブ・バケット・テーブルは使わない。
 
 ```
-POST /videos/{id}/comments/backup → comments Lambda: comment_backups を submitting にして、platform のジョブ定義で Batch 投入
+POST /videos/{id}/comments/backup（comments Lambda）または動画の complete（s3_complete Lambda）
+  → CommentService.start: comment_backups を submitting にして、platform のジョブ定義で Batch 投入
   → Batch（batch/scripts/youtube-comments）: yt-dlp でコメントだけ取得し、コメント JSON を gzip で
     コメント用バケットの youtube/<video_id>/<attempt_id>.json.gz へ置く
   → S3 通知 → youtube_comments Lambda: youtube_comments テーブルへ upsert し、comment_backups を complete にする
@@ -95,4 +96,5 @@ POST /videos/{id}/comments/backup → comments Lambda: comment_backups を submi
 - 取り込みは upsert のみ。再取得で消えていたコメントも残り、`last_seen_attempt` で最後に取得できた回が分かる。
 - 一覧は動画 1 本分のコメントをまとめて読み、固定コメント→新しい順に親コメントを並べ、返信を古い順で親の下に付けてからページを切り出す。最後に完了した取得（`completed_attempt`）に含まれなかったコメントは `removed`（YouTube では削除済み）になる。
 - 状態: `not_started` / `submitting` / `running` / `awaiting_ingest`（ジョブ成功・取り込み待ち）/ `complete` / `failed`。`running` は照会時に Batch の状態を見て判定する。投入途中で止まった `submitting` は 5 分で `failed` 扱いになる。
-- 動画の削除とは連動しない（削除してもコメントは残る）。
+- 動画のバックアップが完了すると、`s3_complete` が続けてコメントのバックアップを開始する（Scrapbox から登録した動画も含む）。開始に失敗してもログに残すだけで、動画の完了は失敗にしない（画面から後で開始できる）。
+- 動画を削除すると、削除ロックを取った後・動画を消す前に、実行中のコメント取得ジョブを止め、`comment_backups` の記録、コメント用バケットの原本、コメントのテーブルを消す。途中で失敗したらロックを残して止まる（動画の部分削除と同じく要照合）。バケットは versioning 有効なので、原本は削除マーカーが付くだけで過去のバージョンは残る。

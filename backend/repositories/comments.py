@@ -49,6 +49,9 @@ class CommentBackupRepository:
         except ClientError as error:
             conditional(error)
 
+    def delete(self, video_id: str) -> None:
+        self.table.delete_item(Key={"video_id": video_id})
+
     def attach_job(self, video_id: str, attempt: str, job_id: str) -> None:
         try:
             self.table.update_item(
@@ -126,9 +129,12 @@ class CommentJobRepository:
         jobs = self.batch.describe_jobs(jobs=[job_id])["jobs"]
         return jobs[0] if jobs else None
 
+    def terminate(self, job_id: str, reason: str) -> None:
+        self.batch.terminate_job(jobId=job_id, reason=reason)
+
 
 class CommentObjectRepository:
-    """Reads the gzip JSON that a comment job stored in the comments bucket."""
+    """Reads the gzip JSON that a comment job stored in the comments bucket, and removes it."""
 
     def __init__(self, session=None):
         self.session = session or boto3.Session()
@@ -141,6 +147,18 @@ class CommentObjectRepository:
         body = self.s3.get_object(Bucket=bucket, Key=key)["Body"].read()
         return json.loads(gzip.decompress(body))
 
+    def delete_prefix(self, prefix: str) -> None:
+        # The bucket is versioned: this adds delete markers and keeps older versions, like the
+        # video bucket's deletion.
+        bucket = os.environ["COMMENTS_BUCKET"]
+        for page in self.s3.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix=prefix):
+            keys = [{"Key": item["Key"]} for item in page.get("Contents", [])]
+            if not keys:
+                continue
+            result = self.s3.delete_objects(Bucket=bucket, Delete={"Objects": keys, "Quiet": True})
+            if result.get("Errors"):
+                raise RuntimeError(f"failed to delete {len(result['Errors'])} comment objects")
+
 
 class YoutubeCommentRepository:
     """Owns youtube_comments: one item per comment (video_id, comment_id)."""
@@ -152,15 +170,25 @@ class YoutubeCommentRepository:
     def table(self):
         return self.session.resource("dynamodb").Table(os.environ["YOUTUBE_COMMENTS_TABLE_NAME"])
 
-    def list(self, video_id: str) -> list[dict]:
+    def list(self, video_id: str, **query) -> list[dict]:
         # Every comment of the video (bounded by the job's comment limit), across Query pages.
         items, start = [], {}
         while True:
-            page = self.table.query(KeyConditionExpression=Key("video_id").eq(video_id), **start)
+            page = self.table.query(
+                KeyConditionExpression=Key("video_id").eq(video_id), **query, **start
+            )
             items.extend(page["Items"])
             if "LastEvaluatedKey" not in page:
                 return items
             start = {"ExclusiveStartKey": page["LastEvaluatedKey"]}
+
+    def delete(self, video_id: str) -> None:
+        keys = self.list(video_id, ProjectionExpression="video_id, comment_id")
+        with self.table.batch_writer() as writer:
+            for key in keys:
+                writer.delete_item(
+                    Key={"video_id": key["video_id"], "comment_id": key["comment_id"]}
+                )
 
     def put(self, items: list[dict]) -> None:
         # batch_writer sends 25 per request and resends unprocessed items; puts are idempotent.

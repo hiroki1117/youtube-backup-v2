@@ -11,6 +11,14 @@ YouTube などの動画 URL を登録すると yt-dlp で S3 へバックアッ�
 
 AWS リソース・IAM・Lambda の設定（handler・環境変数・role）は [hiroki1117/infra](https://github.com/hiroki1117/infra/tree/main/youtube-backup) が管理し、このリポジトリはコードとイメージだけを扱う。
 
+## 公開ドキュメント
+
+| リンク | 確認できること |
+|---|---|
+| [ドキュメント入口](https://hiroki1117.github.io/youtube-backup-v2/) | Storybook と OpenAPI への案内 |
+| [Storybook](https://hiroki1117.github.io/youtube-backup-v2/storybook/) | 合成データによる画面・状態の例 |
+| [OpenAPI](https://hiroki1117.github.io/youtube-backup-v2/openapi/) | API のエンドポイントと入出力仕様 |
+
 ## セットアップ
 
 Node・pnpm・Python のバージョンは [mise](https://mise.jdx.dev) で固定している（[mise.toml](mise.toml)）。Mac・Linux・Windows で同じ手順になる。必要なのは Git 2.32 以上（pre-commit の lint-staged が要求）と mise。Docker は batch image をローカルで build するときだけ使う。
@@ -37,7 +45,7 @@ mise run storybook # Storybook（http://localhost:6006）
 
 部分ごとにも実行できる（`pnpm --dir frontend test`、`make -C backend check`、`make -C batch build` など）。Storybook は `pnpm --dir frontend storybook`。
 
-### 開発ドキュメント（Pages 公開準備）
+### ドキュメントの生成・公開
 
 ```bash
 pnpm --dir frontend build-storybook
@@ -47,7 +55,7 @@ python -m http.server 8000 --directory build/docs
 
 `http://localhost:8000/` に Storybook と読取専用 OpenAPI リファレンスの入口を生成する。OpenAPI の原本は [openapi/openapi.json](openapi/openapi.json)。backend を変更したら `make -C backend export` で更新する。Pages のリポジトリサブパスにも対応し、Storybook の MSW worker は自身と同じディレクトリから取得する。
 
-[Documentation workflow](.github/workflows/docs.yml) は PR では build と Pages 用 artifact の保存だけを行う。対象パスの main 更新では、build 成功後に同じ単一 artifact を Pages へ自動公開する。初回は管理者が Pages の Source を GitHub Actions に設定し、公開範囲・履歴と生成物、`github-pages` Environment が main からの公開を許可することを確認する。初回設定後は対象の main 更新ごとに自動公開が続く（Environment に必須承認などがある場合はその条件にも従う）。想定入口は `https://hiroki1117.github.io/youtube-backup-v2/`（未公開）。現時点では設定変更・merge・初回公開は別途承認が必要。
+[Documentation workflow](.github/workflows/docs.yml) は PR で build と artifact の保存を行い、対象パスの main 更新では build 成功後に同じ artifact を Pages へ自動公開する。公開元は GitHub Actions、生成物は `build/docs/`。
 
 手動の `workflow_dispatch` は既定の `publish=false` なら build のみ。main で `publish=true` を指定すると、再 build に成功した artifact を再公開する。main 以外のブランチや PR からは公開しない。
 

@@ -43,6 +43,8 @@ describe("DeleteConfirmDialog（U5 / US5.1・FR5.1）", () => {
       />,
     );
     expect(screen.getByText(/とても大事な動画/)).toBeInTheDocument();
+    // 完了済み動画の削除は、バックアップしたコメントも消す（backend が連動して削除する）。
+    expect(screen.getByText(/バックアップしたコメントも削除されます/)).toBeInTheDocument();
   });
 
   it("確定ボタンで onConfirm が呼ばれる", async () => {

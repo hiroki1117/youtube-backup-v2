@@ -66,7 +66,7 @@ frontend の入口は画面が [src/app/](frontend/src/app/)、API 呼び出し�
 
 ## 依存ライブラリの継続更新
 
-[Dependabot](.github/dependabot.yml) が毎週月曜 09:00（Asia/Tokyo）に frontend・Redoc ドキュメント（pnpm）、backend（pip）、batch（yt-dlp・awscli と Docker ベースイメージ）、GitHub Actions を確認する。minor/patch は ecosystem ごとにまとめ、major は個別 PR にする。未完了の version update PR は各 ecosystem 最大 3 件。自動 merge は行わず、CI と差分を確認してから merge する。
+[Dependabot](.github/dependabot.yml) が毎週月曜 09:00（Asia/Tokyo）に frontend・Redoc ドキュメント（pnpm）、backend（pip）、batch（yt-dlp・awscli と Docker ベースイメージ）、GitHub Actions を確認する。minor/patch は更新設定ごとにまとめ、major は個別 PR にする。未完了の version update PR は各更新設定で最大 3 件。自動 merge は行わず、CI と差分を確認してから merge する。
 
 backend の固定依存は `backend/requirements.txt`（旧 `requirements.lock`）で、CI の制約と Lambda ZIP のインストールに同じファイルを使う。`pyproject.toml` と合わせてレビューする。frontend は `package.json` と `pnpm-lock.yaml` を同じ PR で更新する。PR の CI は secrets 不要で実行され、main への merge 後は変更された領域の既存 production 配布 workflow が動く（CI の完了を待つ構成ではない）。batch 更新 PR は secrets を使わず Docker image の build とツール起動を CI で確認する。
 

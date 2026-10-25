@@ -123,6 +123,9 @@ jobs:
     name: Batch image build (no push)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: .
     permissions:
       contents: read
     steps:

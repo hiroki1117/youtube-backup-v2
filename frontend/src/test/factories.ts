@@ -130,3 +130,28 @@ export function makeRawYoutubeCommentPage(
     next_offset: nextOffset,
   };
 }
+
+export interface RawYoutubePlaylistVideo {
+  video_id: string;
+  url: string;
+  title: string;
+}
+
+/** GET /youtube/playlist の生レスポンス。既定は 3 本・取得できない動画 1 本。 */
+export function makeRawYoutubePlaylist(
+  videos: RawYoutubePlaylistVideo[] = [
+    makeRawYoutubePlaylistVideo("pv1", "再生リストの動画1"),
+    makeRawYoutubePlaylistVideo("pv2", "再生リストの動画2"),
+    makeRawYoutubePlaylistVideo("pv3", "再生リストの動画3"),
+  ],
+  unavailableCount = 1,
+) {
+  return { playlist_id: "PLtest", videos, unavailable_count: unavailableCount };
+}
+
+export function makeRawYoutubePlaylistVideo(
+  videoId: string,
+  title: string,
+): RawYoutubePlaylistVideo {
+  return { video_id: videoId, url: `https://www.youtube.com/watch?v=${videoId}`, title };
+}

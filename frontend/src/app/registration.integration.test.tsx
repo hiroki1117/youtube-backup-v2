@@ -108,3 +108,44 @@ describe("動画登録 結合（ヘッダ→ダイアログ→登録 / US4.1・F
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });
+
+describe("再生リストからの登録 結合", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getSessionMock.mockResolvedValue("authenticated");
+  });
+
+  it("確認して登録すると全動画を送り、一覧が再取得される", async () => {
+    const user = userEvent.setup();
+    let getCount = 0;
+    const posted: string[] = [];
+    server.use(
+      http.get(`${TEST_API_BASE}/videos`, () => {
+        getCount += 1;
+        return HttpResponse.json([makeRawVideo({ title: "既存動画" })]);
+      }),
+      http.post(`${TEST_API_BASE}/videos`, async ({ request }) => {
+        posted.push(((await request.json()) as { url: string }).url);
+        return HttpResponse.json(makeRegistration(), { status: 202 });
+      }),
+    );
+    renderApp();
+    await screen.findByText("既存動画");
+    const initialGetCount = getCount;
+
+    await user.click(screen.getByRole("button", { name: "動画を登録" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.type(
+      within(dialog).getByLabelText("動画 URL"),
+      "https://www.youtube.com/playlist?list=PLtest",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "登録" }));
+    await user.click(await within(dialog).findByRole("button", { name: "3 本を登録" }));
+
+    expect(await within(dialog).findByText("バックアップを開始: 3 本")).toBeInTheDocument();
+    expect(posted).toHaveLength(3);
+    await waitFor(() => expect(getCount).toBeGreaterThan(initialGetCount));
+    await user.click(within(dialog).getByRole("button", { name: "閉じる" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+});

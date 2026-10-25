@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { ClipboardPaste } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,6 +45,13 @@ export function RegisterDialog({ open, onClose }: RegisterDialogProps) {
 
 function RegisterDialogContent({ onClose }: { onClose: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const clipboardRequest = useRef(0);
+  // 閉じる・再表示をまたいだ読み取りは、成功・失敗ともに無視する。
+  useLayoutEffect(() => {
+    return () => {
+      clipboardRequest.current += 1;
+    };
+  }, []);
   const [url, setUrl] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
   // 登録受理（ok）でダイアログを閉じる。エラー時は開いたまま再入力させる。
@@ -81,18 +88,27 @@ function RegisterDialogContent({ onClose }: { onClose: () => void }) {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    clipboardRequest.current += 1;
     submitUrl(url);
   };
 
+  const handleClose = () => {
+    clipboardRequest.current += 1;
+    onClose();
+  };
+
   const handlePasteAndRegister = async () => {
+    const request = ++clipboardRequest.current;
     let text: string;
     try {
       // 非対応ブラウザ・権限拒否はどちらも手入力へ回す。
       text = await navigator.clipboard.readText();
     } catch {
+      if (request !== clipboardRequest.current) return;
       showError(CLIPBOARD_UNAVAILABLE);
       return;
     }
+    if (request !== clipboardRequest.current) return;
     setUrl(text.trim());
     submitUrl(text);
   };
@@ -121,7 +137,7 @@ function RegisterDialogContent({ onClose }: { onClose: () => void }) {
             onRegister={playlist.register}
             onStop={playlist.stop}
             onBack={playlist.reset}
-            onClose={onClose}
+            onClose={handleClose}
           />
         ) : (
           <form onSubmit={handleSubmit} className="mt-4 space-y-4" aria-label="動画登録フォーム">
@@ -156,7 +172,7 @@ function RegisterDialogContent({ onClose }: { onClose: () => void }) {
                 クリップボードから登録
               </Button>
               <div className="flex gap-2">
-                <Button type="button" variant="ghost" onClick={onClose} disabled={isBusy}>
+                <Button type="button" variant="ghost" onClick={handleClose} disabled={isBusy}>
                   キャンセル
                 </Button>
                 <Button type="submit" disabled={isBusy} aria-busy={isBusy}>

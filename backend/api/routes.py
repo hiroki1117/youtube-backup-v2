@@ -14,6 +14,7 @@ from usecases.models import (
     Registration,
     UpdateVideo,
     Video,
+    YoutubeCommentPage,
 )
 
 errors = {status: {"model": ErrorResponse} for status in (401, 404, 409, 502, 503)}
@@ -98,3 +99,14 @@ def start_comments(video_id: VideoId, response: Response, comments: Comments):
     result, started = comments.start(video_id)
     response.status_code = 202 if started else 200
     return result
+
+
+@comment_router.get("/videos/{video_id}/comments/items", response_model=YoutubeCommentPage)
+def list_comments(
+    video_id: VideoId,
+    comments: Comments,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+):
+    """Backed-up comments as threads (pinned first, then newest). The shape is per platform."""
+    return comments.items(video_id, offset, limit)

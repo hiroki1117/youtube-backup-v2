@@ -6,7 +6,7 @@ from usecases.models import CommentBackup, DomainError
 
 # Platforms whose comments can be backed up. Comment formats differ per platform, so each one has
 # its own Batch image, S3 prefix, ingest Lambda and comment table. This service only tracks the
-# request (comment_backups) and never reads comment content.
+# request (comment_backups); reading comments is delegated to each platform's reader.
 PLATFORMS = {"youtube"}
 # A claim whose job was never attached (the Lambda died mid-submission) stops blocking after this.
 SUBMISSION_TIMEOUT = 300
@@ -18,10 +18,12 @@ def comments_key(platform: str, video_id: str, attempt: str) -> str:
 
 
 class CommentService:
-    def __init__(self, videos, backups, jobs, clock=time.time):
+    def __init__(self, videos, backups, jobs, readers=None, clock=time.time):
         self.videos = videos
         self.backups = backups
         self.jobs = jobs
+        # platform -> reader of that platform's comment table (each has its own response shape).
+        self.readers = readers or {}
         self.clock = clock
 
     def video(self, video_id: str) -> dict:
@@ -67,6 +69,12 @@ class CommentService:
             # The claim stays "submitting" and stops blocking after SUBMISSION_TIMEOUT.
             raise DomainError(503, "submission_failed") from None
         return self._view({**claimed, "batch_job_id": job_id}, "running"), True
+
+    def items(self, video_id: str, offset: int, limit: int):
+        platform = self.video(video_id)["platform"]
+        if platform not in self.readers:
+            raise DomainError(422, "comments_not_supported")
+        return self.readers[platform].page(video_id, offset, limit)
 
     def _state(self, backup: dict) -> str:
         state = backup["state"]

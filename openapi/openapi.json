@@ -1134,6 +1134,130 @@
           }
         }
       }
+    },
+    "/videos/{video_id}/comments/items": {
+      "get": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "List Comments",
+        "description": "Backed-up comments as threads (pinned first, then newest). The shape is per platform.",
+        "operationId": "list_comments_videos__video_id__comments_items_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_-]+$",
+              "title": "Video Id"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/YoutubeCommentPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1432,6 +1556,210 @@
           "request_timestamp"
         ],
         "title": "Video"
+      },
+      "YoutubeComment": {
+        "properties": {
+          "comment_id": {
+            "type": "string",
+            "title": "Comment Id"
+          },
+          "parent": {
+            "type": "string",
+            "title": "Parent"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "like_count": {
+            "type": "integer",
+            "title": "Like Count"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "author_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Id"
+          },
+          "author_is_uploader": {
+            "type": "boolean",
+            "title": "Author Is Uploader",
+            "default": false
+          },
+          "is_pinned": {
+            "type": "boolean",
+            "title": "Is Pinned",
+            "default": false
+          },
+          "posted_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posted At"
+          },
+          "removed": {
+            "type": "boolean",
+            "title": "Removed",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "comment_id",
+          "parent",
+          "text",
+          "like_count"
+        ],
+        "title": "YoutubeComment"
+      },
+      "YoutubeCommentPage": {
+        "properties": {
+          "platform": {
+            "type": "string",
+            "const": "youtube",
+            "title": "Platform",
+            "default": "youtube"
+          },
+          "total_threads": {
+            "type": "integer",
+            "title": "Total Threads"
+          },
+          "total_comments": {
+            "type": "integer",
+            "title": "Total Comments"
+          },
+          "threads": {
+            "items": {
+              "$ref": "#/components/schemas/YoutubeCommentThread"
+            },
+            "type": "array",
+            "title": "Threads"
+          },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_threads",
+          "total_comments",
+          "threads",
+          "next_offset"
+        ],
+        "title": "YoutubeCommentPage"
+      },
+      "YoutubeCommentThread": {
+        "properties": {
+          "comment_id": {
+            "type": "string",
+            "title": "Comment Id"
+          },
+          "parent": {
+            "type": "string",
+            "title": "Parent"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "like_count": {
+            "type": "integer",
+            "title": "Like Count"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "author_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Id"
+          },
+          "author_is_uploader": {
+            "type": "boolean",
+            "title": "Author Is Uploader",
+            "default": false
+          },
+          "is_pinned": {
+            "type": "boolean",
+            "title": "Is Pinned",
+            "default": false
+          },
+          "posted_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posted At"
+          },
+          "removed": {
+            "type": "boolean",
+            "title": "Removed",
+            "default": false
+          },
+          "replies": {
+            "items": {
+              "$ref": "#/components/schemas/YoutubeComment"
+            },
+            "type": "array",
+            "title": "Replies",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "comment_id",
+          "parent",
+          "text",
+          "like_count"
+        ],
+        "title": "YoutubeCommentThread"
       }
     },
     "securitySchemes": {

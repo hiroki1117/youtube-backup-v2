@@ -3,9 +3,16 @@ from fastapi.testclient import TestClient
 
 from api.app import create_app
 from api.dependencies import get_comment_service, get_service
-from repositories.memory import MemoryCommentBackups, MemoryCommentJobs, MemoryJobs, MemoryVideos
+from repositories.memory import (
+    MemoryCommentBackups,
+    MemoryCommentJobs,
+    MemoryJobs,
+    MemoryVideos,
+    MemoryYoutubeComments,
+)
 from usecases.backup import BackupService
 from usecases.comments import CommentService
+from usecases.youtube_comments import YoutubeCommentReader
 
 
 @pytest.fixture
@@ -15,8 +22,10 @@ def service():
 
 @pytest.fixture
 def comment_service(service):
+    backups = MemoryCommentBackups()
+    readers = {"youtube": YoutubeCommentReader(backups, MemoryYoutubeComments())}
     return CommentService(
-        service.videos, MemoryCommentBackups(), MemoryCommentJobs(), clock=lambda: 1791763200
+        service.videos, backups, MemoryCommentJobs(), readers, clock=lambda: 1791763200
     )
 
 

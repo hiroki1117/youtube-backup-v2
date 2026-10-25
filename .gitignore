@@ -4,7 +4,7 @@ node_modules/
 # Build output
 dist/
 dist-ssr/
-# Storybook static build (CI artifact only — never committed, never deployed)
+# Storybook static build (included only in the approved documentation deployment)
 storybook-static/
 
 # Local env files (secrets / config are injected at build time — never commit)

@@ -39,6 +39,19 @@ class Backup(BaseModel):
     batch_job_id: str | None = None
 
 
+class CommentBackup(BaseModel):
+    video_id: str
+    platform: str
+    # not_started | submitting | running | awaiting_ingest | complete | failed
+    state: str
+    attempt_id: str | None = None
+    batch_job_id: str | None = None
+    requested_at: int | None = None
+    # Result of the last completed attempt; kept while a newer attempt runs.
+    comment_count: int | None = None
+    completed_at: int | None = None
+
+
 class Registration(BaseModel):
     video: Video
     backup: Backup

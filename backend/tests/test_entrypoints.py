@@ -17,7 +17,7 @@ def test_every_lambda_handler_is_importable_and_callable(path):
     assert callable(load(path))
 
 
-@pytest.mark.parametrize("name", ["s3_complete", "scrapbox_scan", "retry"])
+@pytest.mark.parametrize("name", ["s3_complete", "scrapbox_scan", "retry", "youtube_comments"])
 def test_event_lambdas_do_not_load_the_web_stack(name):
     # Event Lambdas must stay free of the HTTP framework: a cold start imports only their own path.
     code = (
@@ -34,6 +34,7 @@ def test_event_lambdas_do_not_load_the_web_stack(name):
     [
         ("video", "/videos", "/videos/{video_id}/backup"),
         ("backup", "/videos/{video_id}/backup", "/videos"),
+        ("comments", "/videos/{video_id}/comments", "/videos/{video_id}/backup"),
     ],
 )
 def test_api_lambdas_mount_only_their_own_resource(name, present, absent):

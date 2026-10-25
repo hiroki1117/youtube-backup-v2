@@ -116,3 +116,64 @@ class MemoryJobs:
 
     def get(self, job_id):
         return deepcopy(self.items.get(job_id))
+
+
+class MemoryCommentBackups:
+    def __init__(self):
+        self.items = {}
+
+    def get(self, video_id):
+        return deepcopy(self.items.get(video_id))
+
+    def claim(self, video_id, platform, attempt, now, expected):
+        current = self.items.get(video_id)
+        if (current.get("attempt_id") if current else None) != expected:
+            raise DomainError(409, "concurrent_change")
+        item = self.items.setdefault(video_id, {"video_id": video_id})
+        item.update(platform=platform, attempt_id=attempt, state="submitting", requested_at=now)
+        item.pop("batch_job_id", None)
+        return self.get(video_id)
+
+    def attach_job(self, video_id, attempt, job_id):
+        if self.items[video_id]["attempt_id"] != attempt:
+            raise DomainError(409, "concurrent_change")
+        self.items[video_id].update(batch_job_id=job_id, state="running")
+
+    def complete(self, video_id, attempt, count, now):
+        current = self.items.get(video_id)
+        if not current or current["attempt_id"] != attempt:
+            return False
+        current.update(state="complete", comment_count=count, completed_at=now)
+        return True
+
+
+class MemoryCommentJobs:
+    def __init__(self):
+        self.items = {}
+        self.submissions = []
+
+    def submit(self, platform, url, attempt, key):
+        job_id = f"local-comment-job-{len(self.submissions) + 1}"
+        self.submissions.append({"platform": platform, "url": url, "key": key})
+        self.items[job_id] = {"jobId": job_id, "status": "SUBMITTED"}
+        return job_id
+
+    def get(self, job_id):
+        return deepcopy(self.items.get(job_id))
+
+
+class MemoryCommentObjects:
+    def __init__(self):
+        self.items = {}
+
+    def read_json(self, bucket, key):
+        return deepcopy(self.items[(bucket, key)])
+
+
+class MemoryYoutubeComments:
+    def __init__(self):
+        self.items = {}
+
+    def put(self, items):
+        for item in items:
+            self.items[(item["video_id"], item["comment_id"])] = deepcopy(item)

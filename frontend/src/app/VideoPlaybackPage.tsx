@@ -183,7 +183,7 @@ export function VideoPlaybackPage() {
               <video
                 controls
                 src={url}
-                className="w-full rounded-md bg-black"
+                className="max-h-[80vh] w-full rounded-md bg-black"
                 aria-label={`動画プレイヤー: ${state.video.title}`}
                 data-testid="video-player"
               >

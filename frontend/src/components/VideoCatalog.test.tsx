@@ -54,6 +54,15 @@ describe("VideoCatalog（U2 / US2.1・C6 / FR8）", () => {
     expect(screen.getByText("完了")).toBeInTheDocument(); // complete の表示ラベル
   });
 
+  it("tiktok 行は TikTok のアイコンを描画する", () => {
+    renderCatalog({
+      data: [
+        makeVideo({ videoId: "7684271790369099040", title: "TikTok 動画", platform: "tiktok" }),
+      ],
+    });
+    expect(screen.getByRole("img", { name: "TikTok" })).toBeInTheDocument();
+  });
+
   it("init 行は状態ラベル「処理中」を描画する", () => {
     renderCatalog({
       data: [makeVideo({ videoId: "i1", title: "処理中動画", uploadStatus: "init" })],

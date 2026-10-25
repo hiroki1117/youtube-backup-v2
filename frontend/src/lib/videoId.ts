@@ -8,6 +8,7 @@
 /** URL とみなすホスト集合（www. は正規化して比較する）。 */
 const YOUTUBE_HOSTS = new Set(["youtube.com", "m.youtube.com", "music.youtube.com"]);
 const YOUTUBE_PATH_ID_PREFIXES = new Set(["shorts", "embed", "live", "v"]);
+const TIKTOK_HOSTS = new Set(["tiktok.com", "m.tiktok.com"]);
 
 /** パスの先頭空要素を除いたセグメント配列を返す。 */
 function pathSegments(pathname: string): string[] {
@@ -21,6 +22,7 @@ function pathSegments(pathname: string): string[] {
  * - `https://www.youtube.com/watch?v=ID`（クエリ付き含む）: `v` パラメータを ID とする。
  * - `https://youtu.be/ID`（クエリ付き含む）: パス先頭セグメントを ID とする。
  * - `https://www.youtube.com/shorts|embed|live/ID`: パス 2 番目のセグメントを ID とする。
+ * - `https://www.tiktok.com/@user/video/ID`: パス 3 番目のセグメントを ID とする（短縮リンクは特定不能）。
  * - 空文字・空白のみ: `null`。
  * - URL だが ID を特定できない場合: `null`。
  *
@@ -61,6 +63,11 @@ export function extractVideoId(input: string): string | null {
       return segments[1];
     }
     return null;
+  }
+
+  if (TIKTOK_HOSTS.has(host)) {
+    const segments = pathSegments(url.pathname);
+    return segments.length >= 3 && segments[1] === "video" ? segments[2] : null;
   }
 
   // その他ホストの URL: `v` パラメータがあれば拾い、なければ ID 特定不能。

@@ -114,11 +114,34 @@ class DomainError(Exception):
         super().__init__(code)
 
 
+TIKTOK_HOSTS = {"tiktok.com", "www.tiktok.com", "m.tiktok.com"}
+TIKTOK_SHORT_HOSTS = {"vm.tiktok.com", "vt.tiktok.com"}
+
+
+def is_tiktok_short_link(url: str) -> bool:
+    """A TikTok share link (vt./vm.tiktok.com/…, tiktok.com/t/…), which hides the video ID."""
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    return host in TIKTOK_SHORT_HOSTS or (host in TIKTOK_HOSTS and parsed.path.startswith("/t/"))
+
+
 def source_identity(url: str) -> tuple[str, str, str]:
     parsed = urlparse(url)
     host = (parsed.hostname or "").lower()
     if parsed.scheme not in {"http", "https"} or parsed.username or parsed.password:
         raise DomainError(422, "invalid_url")
+    if is_tiktok_short_link(url):
+        # Registration resolves share links first (VideoRepository.resolve).
+        raise DomainError(422, "tiktok_short_link_unresolved")
+    if host in TIKTOK_HOSTS:
+        match = re.fullmatch(r"/@([\w.-]+)/(video|photo)/(\d+)/?", parsed.path)
+        if not match:
+            raise DomainError(422, "invalid_tiktok_url")
+        user, kind, video_id = match.groups()
+        if kind == "photo":
+            # Photo (slideshow) posts are not videos; yt-dlp cannot back them up reliably.
+            raise DomainError(422, "unsupported_tiktok_post")
+        return video_id, "tiktok", f"https://www.tiktok.com/@{user}/video/{video_id}"
     if host == "youtu.be" or host in {"youtube.com", "www.youtube.com", "m.youtube.com"}:
         if host == "youtu.be":
             video_id = parsed.path.strip("/")

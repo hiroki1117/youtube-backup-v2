@@ -67,7 +67,15 @@ Lambda を足すときは `entrypoints/` に 1 ファイル追加し、[build_la
 | `GET /videos/{id}/comments` | バックアップしたコメントをスレッド単位で返す（`offset`・`limit` 最大 100）。形式は platform ごと（現状 YouTube のみ、それ以外は 422） |
 | `GET /youtube/playlist` | YouTube の再生リスト（query: `url`）を YouTube から読み、動画を並び順で返す。保存・登録はしない（下記） |
 
-対応 URL は YouTube（watch・shorts・live・youtu.be）とその他の URL（URL のハッシュを ID にする）。Twitter / X は未対応で 422。
+対応 URL は YouTube（watch・shorts・live・youtu.be）、TikTok（下記）とその他の URL（URL のハッシュを ID にする）。Twitter / X は未対応で 422。
+
+### TikTok
+
+- `tiktok.com/@<user>/video/<数字ID>`（`www.`・`m.`、クエリ付きも可）を受け付け、数字 ID を `video_id`、`platform` を `tiktok` にする。共有用の短縮リンク（`vt.`・`vm.tiktok.com/…`、`tiktok.com/t/…`）は登録時に 1 回だけリクエストして転送先を読み（転送はたどらない）、同じ動画として扱う。転送先が TikTok 以外、または取得に失敗したら 502 `tiktok_link_unavailable`。
+- フォト投稿（`/photo/`）は 422 `unsupported_tiktok_post`、動画を指さない URL（プロフィール、無効な短縮リンクの転送先のトップページなど）は 422 `invalid_tiktok_url`。
+- TikTok の oEmbed は本文（キャプション）を返さないため、タイトルは `@<user> の TikTok` で登録する（画面から変更できる）。
+- ダウンロードは YouTube と同じ yt-dlp のジョブを使う。TikTok はブラウザを装わないリクエストを AWS から弾くため、イメージには `curl_cffi`（`yt-dlp[curl-cffi]`）が必要（CI で有無を確認する）。
+- コメントのバックアップ、Scrapbox 巡回での自動登録は未対応。
 
 ### YouTube の再生リスト
 

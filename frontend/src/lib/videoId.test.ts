@@ -37,6 +37,16 @@ describe("extractVideoId（U3 / US3.1・FR3.1）", () => {
     expect(extractVideoId("   ")).toBeNull();
   });
 
+  it("tiktok.com/@user/video/ID 形式から数字の video_id を抽出する", () => {
+    expect(
+      extractVideoId("https://www.tiktok.com/@example.user/video/7684271790369099040?_r=1"),
+    ).toBe("7684271790369099040");
+  });
+
+  it("TikTok の短縮リンクは video_id を特定できず null を返す", () => {
+    expect(extractVideoId("https://vt.tiktok.com/ZSgQrPP3P/")).toBeNull();
+  });
+
   it("video_id を特定できない YouTube URL は null を返す", () => {
     expect(extractVideoId("https://www.youtube.com/feed/subscriptions")).toBeNull();
   });

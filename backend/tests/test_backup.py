@@ -299,3 +299,16 @@ def test_refused_cancel_does_not_stop_the_job(service):
         service.cancel("abcdefghijk")
     service.jobs.terminate.assert_not_called()
     assert service.jobs.items[video["batch_job_id"]]["status"] == "SUBMITTED"
+
+
+def test_tiktok_share_link_registers_the_video_once(service):
+    video_url = "https://www.tiktok.com/@example.user/video/7684271790369099040"
+    service.videos.redirects["https://vt.tiktok.com/ZSgQrPP3P/"] = video_url + "?_r=1"
+    registration, started = service.register("https://vt.tiktok.com/ZSgQrPP3P/")
+    assert started
+    assert registration.video.video_id == "7684271790369099040"
+    assert registration.video.platform == "tiktok"
+    assert registration.video.video_url == video_url
+    registration, started = service.register(video_url)
+    assert not started and registration.already_registered
+    assert service.jobs.submissions == 1

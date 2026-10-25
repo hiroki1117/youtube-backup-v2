@@ -43,6 +43,7 @@ class BackupService:
         return Backup(video_id=video_id, state=state, batch_job_id=video.get("batch_job_id"))
 
     def register(self, url: str) -> tuple[Registration, bool]:
+        url = self.videos.resolve(url)
         video_id, _, _ = source_identity(url)
         existing = self.videos.get(video_id)
         if existing:

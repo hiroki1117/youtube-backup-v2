@@ -11,7 +11,7 @@ import { withMemoryRouter } from "@/test/storybook/decorators";
 const completeVideos = makeVideos([
   { title: "完了動画1", platform: "youtube", backupDate: "2026-08-03" },
   { title: "完了動画2", platform: "twitter", backupDate: "2026-08-02" },
-  { title: "完了動画3", platform: "youtube", backupDate: "2026-08-01" },
+  { title: "完了動画3", platform: "tiktok", backupDate: "2026-08-01" },
 ]);
 
 const mixedVideos = makeVideos([

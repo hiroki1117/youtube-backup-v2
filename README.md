@@ -11,6 +11,14 @@
 
 AWS リソース・IAM・Lambda 設定は [infra](https://github.com/hiroki1117/infra/tree/main/youtube-backup) が管理し、このリポジトリはコードとイメージだけを扱う。
 
+## 公開ドキュメント
+
+| リンク | 確認できること |
+|---|---|
+| [ドキュメント入口](https://hiroki1117.github.io/youtube-backup-v2/) | Storybook と OpenAPI への案内 |
+| [Storybook](https://hiroki1117.github.io/youtube-backup-v2/storybook/) | 合成データによる画面・状態の例 |
+| [OpenAPI](https://hiroki1117.github.io/youtube-backup-v2/openapi/) | API のエンドポイントと入出力仕様 |
+
 ## セットアップ
 
 必要なもの: [mise](https://mise.jdx.dev)（Node・pnpm・Python を [mise.toml](mise.toml) で固定）、Git 2.32 以上。Docker は batch image をローカルで build するときだけ。
@@ -42,7 +50,7 @@ pnpm --dir frontend build-storybook
 node docs/site/build.mjs   # build/docs に Storybook と OpenAPI リファレンスを生成
 ```
 
-- [docs.yml](.github/workflows/docs.yml): PR は build のみ。対象パスの main 更新で Pages へ公開（未公開。初回は Pages の Source を GitHub Actions にする設定と承認が必要）。
+- [docs.yml](.github/workflows/docs.yml): PR は build のみ。対象パスの main 更新で Pages へ自動公開（公開元は GitHub Actions、生成物は `build/docs/`）。
 - 手動実行は `publish=true`（main のみ）で再公開。
 - 生成物は静的 HTML のみ。実 `VITE_*`・secrets は使わず、Storybook は合成認証と MSW を使う。
 - OpenAPI の原本は [openapi/openapi.json](openapi/openapi.json)。backend 変更後は `make -C backend export` で更新。

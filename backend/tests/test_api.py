@@ -11,7 +11,6 @@ from api.dependencies import get_service
 from api.factory import build_app
 from api.routes import backup_router, video_router
 from build_lambda import HANDLERS
-from build_lambda import HANDLERS
 from entrypoints.backup import handler as backup_handler
 from entrypoints.video import handler as video_handler
 

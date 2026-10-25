@@ -13,21 +13,26 @@ AWS リソース・IAM・Lambda の設定（handler・環境変数・role）は 
 
 ## セットアップ
 
-Node 24 LTS（[frontend/.node-version](frontend/.node-version)）と pnpm、Python 3.14、Make が必要。Docker は batch image をローカルで build するときだけ使う。
+Node・pnpm・Python のバージョンは [mise](https://mise.jdx.dev) で固定している（[mise.toml](mise.toml)）。Mac・Linux・Windows で同じ手順になる。必要なのは Git 2.32 以上（pre-commit の lint-staged が要求）と mise。Docker は batch image をローカルで build するときだけ使う。
 
 ```bash
-make install                           # frontend + backend の依存
-cp frontend/.env.example frontend/.env # API・Cognito の公開設定値
-pnpm --dir frontend dev
+mise install                           # Node / pnpm / Python を mise.toml どおりに入れる
+mise run install                       # frontend + backend の依存（backend/.venv を自動作成）
+cp frontend/.env.example frontend/.env # API・Cognito の公開設定値（Windows は copy でも可）
+mise run dev                           # frontend の開発サーバー
 ```
 
-`VITE_*` はブラウザへ公開されるため秘密値を入れない。backend のローカル起動は [backend/README.md](backend/README.md) を参照。
+初回は `mise trust` で `mise.toml` を信頼する。`VITE_*` はブラウザへ公開されるため秘密値を入れない。backend のローカル起動は [backend/README.md](backend/README.md) を参照。
+
+mise の入れ方: Mac は `brew install mise`、Windows は `winget install jdx.mise`。そのあと、シェルで `pnpm` や `python` を直接使うには PATH に通す必要がある（`mise activate`）。Windows の PowerShell 5.1 では `activate` がユーザー名に日本語を含むと文字化けするため、`%LOCALAPPDATA%\mise\shims` をユーザー PATH に追加する方式（`mise reshim` を併用）を勧める。`mise run <タスク>` だけなら PATH の設定は不要。`make` を使う従来の手順（Python 3.14 と pnpm を自分で用意する）も引き続き使えるが、Makefile は `.venv/bin/python` を前提とするため Windows では使えない。
 
 ## 検証と build
 
 ```bash
-make check # frontend の型・lint・format・テスト、backend の Ruff・pytest、batch の構文
-make build # frontend と Storybook
+mise run check # frontend の型・lint・format・テスト、backend の Ruff・pytest
+make check     # 上に加えて batch の構文検査（sh が必要）
+make build     # frontend と Storybook
+mise run storybook # Storybook（http://localhost:6006）
 ```
 
 部分ごとにも実行できる（`pnpm --dir frontend test`、`make -C backend check`、`make -C batch build` など）。Storybook は `pnpm --dir frontend storybook`。

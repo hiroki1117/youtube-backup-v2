@@ -1,0 +1,2 @@
+# 改行は OS に関わらず LF に固定する（Windows の autocrlf で prettier/ruff の検査が落ちるのを防ぐ）。
+* text=auto eol=lf

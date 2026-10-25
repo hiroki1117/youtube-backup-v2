@@ -9,9 +9,10 @@ from fastapi.testclient import TestClient
 from api.app import app, create_app
 from api.dependencies import get_service
 from api.factory import build_app
-from api.routes import backup_router, video_router
+from api.routes import backup_router, comment_router, video_router
 from build_lambda import HANDLERS
 from entrypoints.backup import handler as backup_handler
+from entrypoints.comments import handler as comments_handler
 from entrypoints.video import handler as video_handler
 
 URL = "https://www.youtube.com/watch?v=abcdefghijk"
@@ -139,7 +140,13 @@ def test_openapi_generated_from_same_routers():
 
 
 @pytest.mark.parametrize(
-    "routers", [(video_router, backup_router), (video_router,), (backup_router,)]
+    "routers",
+    [
+        (video_router, backup_router, comment_router),
+        (video_router,),
+        (backup_router,),
+        (comment_router,),
+    ],
 )
 def test_runtime_apps_have_no_unauthenticated_documentation_routes(routers, monkeypatch):
     monkeypatch.delenv("BACKEND_LOCAL_TOKEN", raising=False)
@@ -152,7 +159,7 @@ def test_runtime_apps_have_no_unauthenticated_documentation_routes(routers, monk
         assert runtime.openapi()["paths"]
 
 
-@pytest.mark.parametrize("handler", [video_handler, backup_handler])
+@pytest.mark.parametrize("handler", [video_handler, backup_handler, comments_handler])
 def test_lambda_documentation_routes_are_disabled(handler):
     for path in ("/docs", "/redoc", "/openapi.json", "/docs/oauth2-redirect"):
         with patch("boto3.Session", side_effect=AssertionError("AWS at docs request")):

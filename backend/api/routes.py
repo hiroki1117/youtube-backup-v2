@@ -2,10 +2,12 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Path, Query, Response
 
-from api.dependencies import get_service
+from api.dependencies import get_comment_service, get_service
 from usecases.backup import BackupService
+from usecases.comments import CommentService
 from usecases.models import (
     Backup,
+    CommentBackup,
     ErrorResponse,
     PlaybackUrl,
     RegisterVideo,
@@ -17,7 +19,9 @@ from usecases.models import (
 errors = {status: {"model": ErrorResponse} for status in (401, 404, 409, 502, 503)}
 video_router = APIRouter(tags=["videos"], responses=errors)
 backup_router = APIRouter(tags=["backup"], responses=errors)
+comment_router = APIRouter(tags=["comments"], responses=errors | {422: {"model": ErrorResponse}})
 Service = Annotated[BackupService, Depends(get_service)]
+Comments = Annotated[CommentService, Depends(get_comment_service)]
 VideoId = Annotated[str, Path(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")]
 
 
@@ -77,3 +81,20 @@ def start_backup(video_id: VideoId, response: Response, service: Service):
 def cancel_backup(video_id: VideoId, service: Service):
     """Cancel an unfinished backup: stops its job and removes the unfinished video record."""
     service.cancel(video_id)
+
+
+@comment_router.get("/videos/{video_id}/comments", response_model=CommentBackup)
+def get_comments(video_id: VideoId, comments: Comments):
+    return comments.status(video_id)
+
+
+@comment_router.post(
+    "/videos/{video_id}/comments",
+    response_model=CommentBackup,
+    responses={202: {"model": CommentBackup}},
+)
+def start_comments(video_id: VideoId, response: Response, comments: Comments):
+    """Fetch the video's comments (again); a fetch already in progress is not resubmitted."""
+    result, started = comments.start(video_id)
+    response.status_code = 202 if started else 200
+    return result

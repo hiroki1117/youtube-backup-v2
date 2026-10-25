@@ -28,7 +28,7 @@ updates:
         update-types: [minor, patch]
 
   - package-ecosystem: pip
-    directory: '/batch/scripts/yt-dlp-script'
+    directories: ['/batch/scripts/yt-dlp-script', '/batch/scripts/youtube-comments']
     schedule:
       interval: weekly
       day: monday
@@ -41,7 +41,7 @@ updates:
         update-types: [minor, patch]
 
   - package-ecosystem: docker
-    directory: '/batch/scripts/yt-dlp-script'
+    directories: ['/batch/scripts/yt-dlp-script', '/batch/scripts/youtube-comments']
     schedule:
       interval: weekly
       day: monday

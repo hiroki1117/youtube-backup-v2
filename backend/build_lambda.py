@@ -15,6 +15,8 @@ HANDLERS = {
     "s3_complete": "entrypoints.s3_complete.handler",
     "scrapbox_scan": "entrypoints.scrapbox_scan.handler",
     "retry": "entrypoints.retry.handler",
+    "comments": "entrypoints.comments.handler",
+    "youtube_comments": "entrypoints.youtube_comments.handler",
 }
 
 

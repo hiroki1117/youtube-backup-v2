@@ -25,6 +25,22 @@ describe("parseVideo（VideoModel / contract C3）", () => {
     expect(parseVideo(partial)).toBeNull();
   });
 
+  it.each([undefined, null])(
+    "旧レコードの不明な request_timestamp (%s) は null にする",
+    (value) => {
+      const raw: Record<string, unknown> = { ...makeRawVideo(), request_timestamp: value };
+      if (value === undefined) delete raw.request_timestamp;
+      const result = parseVideo(raw);
+      expect(result).not.toBeNull();
+      expect(result?.requestTimestamp).toBeNull();
+      expect(raw.request_timestamp).toBe(value);
+    },
+  );
+
+  it("数値の request_timestamp は許容しない", () => {
+    expect(parseVideo({ ...makeRawVideo(), request_timestamp: 1690000000 })).toBeNull();
+  });
+
   it("型が不正な値（video_id が数値）は null を返す", () => {
     const raw: Record<string, unknown> = { ...makeRawVideo(), video_id: 123 };
     expect(parseVideo(raw)).toBeNull();

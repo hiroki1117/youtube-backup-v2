@@ -46,6 +46,7 @@ def test_dynamo_guards_no_upsert_or_stale_completion(service):
     assert "upload_status=:init" in args["ConditionExpression"]
     assert "backup_attempt_id = :expected" in args["ConditionExpression"]
     assert args["ExpressionAttributeValues"][":expected"] == video["backup_attempt_id"]
+    assert args["ExpressionAttributeValues"][":now"] == "1"
     table.update_item.side_effect = condition_failed()
     assert repo.complete(video, video["s3fullpath"] + ".mp4") is False
     assert "s3fullpath=:expected" in table.update_item.call_args.kwargs["ConditionExpression"]
@@ -220,6 +221,7 @@ def test_youtube_metadata_and_sanitized_failure(monkeypatch):
     video = repo.make_video("https://youtu.be/abcdefghijk", 1791763200)
     assert video["video_id"] == "abcdefghijk"
     assert video["title"] == "Example video"
+    assert video["request_timestamp"] == "1791763200"
     transport = httpx.MockTransport(lambda request: httpx.Response(503))
     with pytest.raises(DomainError, match="metadata_unavailable") as error:
         repo.make_video("https://youtu.be/abcdefghijk", 1791763200)

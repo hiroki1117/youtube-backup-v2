@@ -15,7 +15,8 @@ class Video(BaseModel):
     backupdate: str
     s3fullpath: str
     upload_status: Literal["init", "complete"]
-    request_timestamp: str
+    # Older records predate this attribute. Unknown request times must stay unknown.
+    request_timestamp: str | None = None
 
 
 class RegisterVideo(BaseModel):

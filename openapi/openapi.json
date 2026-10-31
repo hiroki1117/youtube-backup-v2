@@ -1639,7 +1639,14 @@
             "title": "Upload Status"
           },
           "request_timestamp": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Request Timestamp"
           }
         },
@@ -1652,8 +1659,7 @@
           "title",
           "backupdate",
           "s3fullpath",
-          "upload_status",
-          "request_timestamp"
+          "upload_status"
         ],
         "title": "Video"
       },

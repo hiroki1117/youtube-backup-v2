@@ -20,6 +20,29 @@ import {
 const client = new HttpApiClient(TEST_API_BASE, () => Promise.resolve("test-token"));
 
 describe("ApiClient.listVideos（GET /videos）", () => {
+  it("時刻が欠落・null の旧動画と新動画を同じ一覧で読める", async () => {
+    const legacy: Record<string, unknown> = { ...makeRawVideo({ video_id: "legacy" }) };
+    delete legacy.request_timestamp;
+    server.use(
+      http.get(`${TEST_API_BASE}/videos`, () =>
+        HttpResponse.json([
+          legacy,
+          { ...makeRawVideo({ video_id: "unknown" }), request_timestamp: null },
+          makeRawVideo(),
+        ]),
+      ),
+    );
+    const result = await client.listVideos({ uploadStatus: "complete" });
+    expect(result.kind).toBe("ok");
+    if (result.kind === "ok") {
+      expect(result.data.map((video) => video.requestTimestamp)).toEqual([
+        null,
+        null,
+        "1690000000",
+      ]);
+    }
+  });
+
   it("配列レスポンスを ok(Video[]) に正規化する", async () => {
     server.use(
       http.get(`${TEST_API_BASE}/videos`, () =>

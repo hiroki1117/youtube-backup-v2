@@ -51,3 +51,20 @@ export const Submitting: Story = {
     await submitUrl(canvasElement, "https://www.youtube.com/watch?v=dQw4w9WgXcQ");
   },
 };
+
+/** 再生リストの URL → 中身を読み込んで確認（既定ハンドラの 3 本の再生リスト）。 */
+export const PlaylistPreview: Story = {
+  play: async ({ canvasElement }) => {
+    await submitUrl(canvasElement, "https://www.youtube.com/playlist?list=PLtest");
+  },
+};
+
+/** GET /youtube/playlist を保留し、読み込み中を固定する。 */
+export const PlaylistLoading: Story = {
+  parameters: {
+    msw: { handlers: [pendingHandler("get", "/youtube/playlist")] },
+  },
+  play: async ({ canvasElement }) => {
+    await submitUrl(canvasElement, "https://www.youtube.com/playlist?list=PLtest");
+  },
+};

@@ -28,8 +28,9 @@ export interface UseVideoRegistrationOptions {
 /**
  * ok 以外の ApiResult を人間可読なエラーメッセージへ変換する。
  * 分岐は discriminated union の kind で行う（表示テキストでは分岐しない）。
+ * 再生リストの一括登録（usePlaylistRegistration）でも動画ごとの失敗理由に使う。
  */
-function toErrorMessage(result: Exclude<ApiResult<SubmitResult>, { kind: "ok" }>): string {
+export function toErrorMessage(result: Exclude<ApiResult<SubmitResult>, { kind: "ok" }>): string {
   switch (result.kind) {
     case "invalidInput":
     case "rejected":

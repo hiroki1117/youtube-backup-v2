@@ -23,3 +23,7 @@ export { Input } from "./ui/input";
 export { Label } from "./ui/label";
 export { VideoTitleEditor } from "./VideoTitleEditor";
 export type { VideoTitleEditorProps } from "./VideoTitleEditor";
+export { CommentBackupPanel } from "./CommentBackupPanel";
+export type { CommentBackupPanelProps } from "./CommentBackupPanel";
+export { YoutubeCommentList } from "./YoutubeCommentList";
+export type { YoutubeCommentListProps } from "./YoutubeCommentList";

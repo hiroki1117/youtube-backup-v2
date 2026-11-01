@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -72,15 +73,30 @@ init(${JSON.stringify(spec).replaceAll("<", "\\u003c")}, {
 }, document.getElementById("redoc"));
 `,
 );
+// Built by docs.yml, which needs Postgres; a local build without it omits the ERD.
+const erd = path.join(root, "build/erd");
+const hasErd = existsSync(erd);
+if (hasErd) {
+  await cp(erd, path.join(output, "erd"), { recursive: true });
+  await cp(
+    new URL("./node_modules/@liam-hq/cli/LICENSE", import.meta.url),
+    path.join(output, "erd/LICENSE.txt"),
+  );
+}
 await writeFile(path.join(output, ".nojekyll"), "");
 await writeFile(
   path.join(output, "index.html"),
   page(
     "YouTube Backup — 開発ドキュメント",
     `
-<h1>YouTube Backup</h1><p>開発用の画面カタログと API リファレンス。</p>
+<h1>YouTube Backup</h1><p>開発用の画面カタログ、API リファレンス、ER 図。</p>
 <section><h2><a href="./storybook/">Storybook</a></h2><p>合成データによる画面・状態のカタログ。本番 AWS や実ユーザーのデータを使いません。</p></section>
-<section><h2><a href="./openapi/">OpenAPI</a></h2><p>backend から生成した読取専用リファレンス。API の実行機能はありません。</p></section>`,
+<section><h2><a href="./openapi/">OpenAPI</a></h2><p>backend から生成した読取専用リファレンス。API の実行機能はありません。</p></section>${
+      hasErd
+        ? `
+<section><h2><a href="./erd/">ER 図</a></h2><p>db/migrations から生成した検索用 DB のスキーマ。データは含みません。</p></section>`
+        : ""
+    }`,
   ),
 );
 await writeFile(

@@ -1,0 +1,32 @@
+name: Deploy database (Neon migrations)
+
+# db/migrations の未適用ファイルを Neon へ適用する。Neon の branch・compute・database は infra が所有する。
+on:
+  push:
+    branches: [main]
+    paths:
+      - "db/**"
+      - ".github/actions/setup-dbmate/**"
+      - ".github/workflows/deploy-db.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-db-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    name: Apply migrations
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-dbmate
+      - name: Apply
+        env:
+          DATABASE_URL: ${{ secrets.NEON_MIGRATION_DATABASE_URL }}
+        run: dbmate --no-dump-schema migrate

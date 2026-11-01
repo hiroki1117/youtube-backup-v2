@@ -39,16 +39,19 @@ export function DeleteConfirmDialog({
         aria-modal="true"
         aria-labelledby="delete-dialog-title"
         aria-describedby="delete-dialog-description"
-        className="w-full max-w-md rounded-lg border bg-background p-6 shadow-lg"
+        className="max-h-full w-full max-w-md overflow-y-auto rounded-lg border bg-background p-6 shadow-lg"
         data-testid="delete-confirm-dialog"
       >
         <h2 id="delete-dialog-title" className="text-lg font-semibold">
           {isCancel ? "バックアップを取り消し" : "動画を削除"}
         </h2>
-        <p id="delete-dialog-description" className="mt-4 text-sm text-muted-foreground">
+        <p
+          id="delete-dialog-description"
+          className="mt-4 break-words text-sm text-muted-foreground"
+        >
           {isCancel
             ? `「${video.title}」のバックアップを中止し、一覧から削除します。同じ URL はあとで再登録できます。`
-            : `「${video.title}」を削除します。この操作は取り消せません。`}
+            : `「${video.title}」を削除します。バックアップしたコメントも削除されます。この操作は取り消せません。`}
         </p>
         <div className="mt-6 flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={onCancel} disabled={isDeleting}>

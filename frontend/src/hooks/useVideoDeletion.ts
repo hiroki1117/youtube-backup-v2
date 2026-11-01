@@ -51,7 +51,14 @@ function toErrorMessage(result: Exclude<ApiResult<null>, { kind: "ok" }>): strin
   }
 }
 
-export function useVideoDeletion(): VideoDeletionController {
+export interface VideoDeletionOptions {
+  /** 削除（取り消し）が成功したあとに呼ぶ。再生ページから一覧へ戻る等に使う。 */
+  onDeleted?: (video: Video) => void;
+}
+
+export function useVideoDeletion({
+  onDeleted,
+}: VideoDeletionOptions = {}): VideoDeletionController {
   const queryClient = useQueryClient();
   const [pendingVideo, setPendingVideo] = useState<Video | null>(null);
   // isPending がまだ true へ反映される前の同期的な連打も抑止するための実行中フラグ。
@@ -74,6 +81,7 @@ export function useVideoDeletion(): VideoDeletionController {
         );
         // 削除された行を一覧へ反映する（US5.1）。prefix ["videos"] を全件無効化して再取得させる。
         void queryClient.invalidateQueries({ queryKey: ["videos"] });
+        onDeleted?.(video);
         return;
       }
       // 業務拒否（backupInProgress 等）・未存在・transport は一覧を変更しない（一覧不変 / R-02）。

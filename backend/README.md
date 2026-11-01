@@ -1,6 +1,6 @@
 # Backend
 
-FastAPI の API と、S3 通知・定期実行で動くイベント処理。全 Lambda で 1 つの ZIP を共有し、handler だけを変える。Python 3.14 / x86_64、依存は [pyproject.toml](pyproject.toml) と [requirements.txt](requirements.txt)。
+FastAPI の API と、S3 通知・定期実行のイベント処理。全 Lambda で 1 つの ZIP を共有し、handler だけを変える。Python 3.14 / x86_64、依存は [pyproject.toml](pyproject.toml) と [requirements.txt](requirements.txt)。
 
 ## 開発
 
@@ -9,11 +9,11 @@ FastAPI の API と、S3 通知・定期実行で動くイベント処理。全 
 ```bash
 make install # .venv を作って依存を入れる
 make check   # Ruff と pytest
-make export  # ../openapi/openapi.json を router から再生成（CI で差分がないことを検査）
-make package # build/backend.zip を生成し、全 handler の import を ZIP 単体で検査
+make export  # ../openapi/openapi.json を再生成（CI で差分なしを検査）
+make package # build/backend.zip を生成し、全 handler の import を検査
 ```
 
-ローカル HTTP サーバーはメモリ上の repository を使い、AWS には接続しない（データは再起動で消え、再生 URL はダミー）。
+ローカルサーバーはメモリ上の repository を使い、AWS には接続しない（再起動でデータは消え、再生 URL はダミー）。
 
 ```bash
 export BACKEND_LOCAL_TOKEN="$(.venv/bin/python -c 'import secrets; print(secrets.token_urlsafe(32))')"
@@ -21,44 +21,119 @@ make dev
 curl -H "Authorization: Bearer $BACKEND_LOCAL_TOKEN" http://127.0.0.1:8000/videos
 ```
 
-AWS 上で必要な環境変数は [.env.example](.env.example) にある（値は infra が Lambda に設定する）。
+AWS 上の環境変数は [.env.example](.env.example)（値は infra が設定）。
 
 ## 構成
 
 ```
-entrypoints/   Lambda ごとに 1 ファイル。`handler` を公開し、必要なものだけを組み立てる
-api/           HTTP 層（routes・認証・app factory）。API の Lambda と OpenAPI 生成だけが使う
+entrypoints/   Lambda ごとに 1 ファイル。handler を公開
+api/           HTTP 層（routes・認証）。API Lambda と OpenAPI 生成だけが使う
 usecases/      業務ロジック（BackupService）とモデル
-repositories/  DynamoDB・S3（videos）、Batch・SSM（jobs）、Scrapbox、ローカル用 memory 実装
-wiring/        repository を組み立てて BackupService を返す（HTTP 非依存）
+repositories/  DynamoDB・S3、Batch・SSM、Scrapbox、ローカル用 memory 実装
+wiring/        repository を組み立てて BackupService を返す
 ```
 
-依存は `entrypoints` → `api`（API のみ）/ `wiring` → `usecases` → `repositories` の一方向。イベント系の handler は FastAPI を読み込まない。
+依存は `entrypoints` → `api` / `wiring` → `usecases` → `repositories` の一方向。イベント系 handler は FastAPI を読み込まない。
 
 | Lambda | handler | 起動 | 処理 |
 |---|---|---|---|
-| video | `entrypoints.video.handler` | HTTP API | 動画の登録・一覧・取得・タイトル更新・削除・再生 URL |
-| backup | `entrypoints.backup.handler` | HTTP API | バックアップ状態の照会・失敗時の再投入・未完了バックアップの取り消し |
-| s3_complete | `entrypoints.s3_complete.handler` | S3 通知 | アップロードされた動画を `complete` にする |
-| scrapbox_scan | `entrypoints.scrapbox_scan.handler` | 毎時 | Scrapbox の新しい動画 URL を登録する |
-| retry | `entrypoints.retry.handler` | 手動 | 失敗したジョブを最大 100 件まで再投入する |
+| video | `entrypoints.video.handler` | HTTP API | 動画の登録・一覧・取得・更新・削除・再生 URL、YouTube の再生リストの取得 |
+| backup | `entrypoints.backup.handler` | HTTP API | バックアップの照会・再投入・取り消し |
+| s3_complete | `entrypoints.s3_complete.handler` | S3 通知 | 動画を `complete` にし、対応 platform ならコメントのバックアップを開始する |
+| scrapbox_scan | `entrypoints.scrapbox_scan.handler` | 毎時 | Scrapbox の新しい動画 URL を登録 |
+| retry | `entrypoints.retry.handler` | 手動 | 失敗ジョブを最大 100 件再投入 |
+| comments | `entrypoints.comments.handler` | HTTP API | コメントバックアップの照会・開始、コメントの一覧 |
+| youtube_comments | `entrypoints.youtube_comments.handler` | S3 通知（コメント用バケット `youtube/`） | 取得した YouTube コメントを DynamoDB へ取り込む |
+| comments_backfill | `entrypoints.comments_backfill.handler` | 毎時（一時的） | コメントのバックアップがない完了済み動画を、1 回に `LIMIT` 本ずつ開始する（下記） |
+| search | `entrypoints.search.handler` | HTTP API | 動画の検索（下記） |
+| search_sync | `entrypoints.search_sync.handler` | 毎時 | 動画を Neon の検索用テーブルへ同期する（下記） |
 
-Lambda を足すときは `entrypoints/` に 1 ファイル追加し、[build_lambda.py](build_lambda.py) の `HANDLERS` と [deploy-backend.yml](../.github/workflows/deploy-backend.yml) の `FUNCTIONS` に 1 行足す。関数そのものは infra で作る。
+Lambda を足すときは `entrypoints/` に 1 ファイル追加し、[build_lambda.py](build_lambda.py) の `HANDLERS` と [deploy-backend.yml](../.github/workflows/deploy-backend.yml) の `FUNCTIONS` に 1 行足す。関数本体は infra で作る。
 
 ## API
 
 定義は [openapi/openapi.json](../openapi/openapi.json)。認証は API Gateway の Cognito JWT authorizer が行い、アプリは検証済みの `sub` を必須とする。
 
-- `GET /videos`（`upload_status`・`fetch_num` 最大 1000）、`POST /videos`（body: `url`）。登録は新規なら 202 でバックアップを開始し、登録済みなら 200。
-- `GET/PATCH/DELETE /videos/{video_id}`、`GET /videos/{video_id}/playback_url`（署名付き URL、1 時間）。
-- `GET/POST /videos/{video_id}/backup`: 現在のバックアップの照会と、失敗したジョブの再投入。処理中・完了は再投入しない。
+| エンドポイント | 内容 |
+|---|---|
+| `GET /videos` | 一覧（`upload_status`、`fetch_num` 最大 1000） |
+| `POST /videos` | 登録（body: `url`）。新規は 202 でバックアップ開始、登録済みは 200 |
+| `GET/PATCH /videos/{id}` | 取得・タイトル更新 |
+| `DELETE /videos/{id}` | 削除。`complete` のみ（S3 ファイルと記録、コメントのバックアップを消す）。未完了は 409 |
+| `GET /videos/{id}/playback_url` | 署名付き URL（1 時間） |
+| `GET /videos/{id}/backup` | バックアップ状態の照会 |
+| `POST /videos/{id}/backup` | 失敗ジョブの再投入。処理中・完了は不可 |
+| `DELETE /videos/{id}/backup` | 未完了バックアップの取り消し。`complete` は 409 |
+| `GET /videos/{id}/comments/backup` | コメントバックアップの状態の照会 |
+| `POST /videos/{id}/comments/backup` | コメントの取得開始（再取得も同じ）。開始は 202、取得中は 200。動画が未完了なら 409、YouTube 以外は 422 |
+| `GET /videos/{id}/comments` | バックアップしたコメントをスレッド単位で返す（`offset`・`limit` 最大 100）。形式は platform ごと（現状 YouTube のみ、それ以外は 422） |
+| `GET /youtube/playlist` | YouTube の再生リスト（query: `url`）を YouTube から読み、動画を並び順で返す。保存・登録はしない（下記） |
+| `GET /search/videos` | 検索（query: `q`・`backup_from`・`backup_to`、`limit` 最大 100）。条件をすべて満たす動画を新しい順に返す。条件なしと日付の範囲が逆の場合は 422（下記） |
 
-対応 URL は YouTube（watch・shorts・live・youtu.be）とその他の URL（URL のハッシュを ID にする）。Twitter / X は未対応で 422 を返す。
+対応 URL は YouTube（watch・shorts・live・youtu.be）、TikTok（下記）とその他の URL（URL のハッシュを ID にする）。Twitter / X は未対応で 422。
+
+### TikTok
+
+- `tiktok.com/@<user>/video/<数字ID>`（`www.`・`m.`、クエリ付きも可）を受け付け、数字 ID を `video_id`、`platform` を `tiktok` にする。共有用の短縮リンク（`vt.`・`vm.tiktok.com/…`、`tiktok.com/t/…`）は登録時に 1 回だけリクエストして転送先を読み（転送はたどらない）、同じ動画として扱う。転送先が TikTok 以外、または取得に失敗したら 502 `tiktok_link_unavailable`。
+- フォト投稿（`/photo/`）は 422 `unsupported_tiktok_post`、動画を指さない URL（プロフィール、無効な短縮リンクの転送先のトップページなど）は 422 `invalid_tiktok_url`。
+- TikTok の oEmbed は本文（キャプション）を返さないため、タイトルは `@<user> の TikTok` で登録する（画面から変更できる）。
+- ダウンロードは YouTube と同じ yt-dlp のジョブを使う。TikTok はブラウザを装わないリクエストを AWS から弾くため、イメージには `curl_cffi`（`yt-dlp[curl-cffi]`）が必要（CI で有無を確認する）。
+- コメントのバックアップ、Scrapbox 巡回での自動登録は未対応。
+
+### YouTube の再生リスト
+
+`GET /youtube/playlist?url=...` は YouTube Data API の `playlistItems.list` で再生リストをその場で読み、各動画の `video_id`・`url`（`POST /videos` にそのまま渡せる watch URL）・`title` を返す。再生リストは保存しない（URL で指定して読むだけなので query にしている。保存する再生リストを作るなら `/youtube/playlists` を使う）。登録は呼び出し側が `POST /videos` で 1 本ずつ行う。
+
+- 再生リスト ID は URL の `list` から取る。`playlist?list=`、動画を再生中の `watch?v=…&list=`、`youtu.be/…?list=`、`m.`・`music.youtube.com` を受け付ける。`list` がなければ 422 `not_a_youtube_playlist`。
+- ミックス（`RD…`）、後で見る（`WL`）、高く評価した動画（`LL`）は 422 `unsupported_playlist`。ミックスは視聴者ごとに作られ、残りの 2 つは本人のログインが必要で、API キーでは読めない。
+- 存在しない再生リストと非公開の再生リストは 404 `playlist_not_found`。それ以外の API の失敗（quota 超過を含む）は 502 `playlist_unavailable`。
+- 非公開・削除済みの動画は `videos` に含めず、件数だけを `unavailable_count` で返す。同じ動画が 2 回入っていても 1 回だけ返す。
+- 本数の上限はない。quota は 50 本ごとに 1 unit（1 日 10,000 unit。動画登録のタイトル取得と同じ API キー `SSM_YOUTUBE_API_KEY_PARAMETER` を共有）。
 
 ## データの扱い
 
-- 既存の DynamoDB 属性・GSI と Batch の環境変数をそのまま使い、ジョブ追跡用の属性（job ID・attempt・state・削除 lock）を必要なレコードにだけ追加する。
-- 再投入ごとに S3 キーへ attempt ID を含め、遅れて届いた古い完了通知で新しい試行が完了扱いにならないようにする。
-- 動画の削除（`DELETE /videos/{id}`）は `complete` の動画だけで、S3 のファイルと記録を消す。未完了（`init`）の動画は 409 を返し、代わりにバックアップの取り消し（`DELETE /videos/{id}/backup`）を使う。
-- バックアップの取り消しは、実行中の Batch ジョブを止めてから未完了の記録を消す（止めないと定期再試行がジョブを再開する）。`complete` の動画には使えず 409。次の場合は何も変えずに 409 を返す: ジョブが SUCCEEDED（ファイルが届く途中）、ジョブが見つからない・状態が未知、投入中または投入結果が不明、S3 に該当キー配下のオブジェクトがある（Batch が FAILED でも拡張子付きのファイルが後から届くため）。S3 の確認はジョブを止める前に行い、拒否したときにジョブだけが止まった状態を残さない。job ID を持たない古い `init` レコードは、オブジェクトがなければ取り消せる。
-- 送信結果が不明な投入や途中で失敗した削除は、自動で再試行せず状態を残す（`*_needs_reconciliation`）。job ID を持たない古い `init` レコード（`legacy_untracked`）も自動では再投入しない。
+- 既存の DynamoDB 属性・GSI と Batch の環境変数を使い、ジョブ追跡用属性（job ID・attempt・state・削除 lock）を必要なレコードにだけ追加する。
+- 再投入ごとに S3 キーへ attempt ID を含め、古い完了通知で新しい試行が完了扱いにならないようにする。
+- 取り消しは S3 を確認してから Batch ジョブを止め、未完了の記録を消す（ジョブを止めないと定期再試行が再開する）。次の場合は何も変えず 409:
+  - ジョブが SUCCEEDED、見つからない、状態が未知
+  - 投入中、または投入結果が不明
+  - S3 に該当キー配下のオブジェクトがある（FAILED でも拡張子付きファイルが後から届くため）
+- job ID を持たない古い `init` レコードは、オブジェクトがなければ取り消せる。
+- 送信結果が不明な投入や途中で失敗した削除は、自動再試行せず状態を残す（`*_needs_reconciliation`）。job ID のない古い `init`（`legacy_untracked`）も自動では再投入しない。
+
+## コメントのバックアップ
+
+動画のバックアップとは別系統で、既存のジョブ・バケット・テーブルは使わない。
+
+```
+POST /videos/{id}/comments/backup（comments Lambda）または動画の complete（s3_complete Lambda）
+  → CommentService.start: comment_backups を submitting にして、platform のジョブ定義で Batch 投入
+  → Batch（batch/scripts/youtube-comments）: yt-dlp でコメントだけ取得し、コメント JSON を gzip で
+    コメント用バケットの youtube/<video_id>/<attempt_id>.json.gz へ置く
+  → S3 通知 → youtube_comments Lambda: youtube_comments テーブルへ upsert し、comment_backups を complete にする
+```
+
+- コメントの形式はプラットフォームごとに違うため、共通化するのは要求の追跡（`comment_backups`）だけ。取得ジョブ・S3 の prefix・取り込み Lambda・コメントのテーブルはプラットフォームごとに持つ。対応 platform は [usecases/comments.py](usecases/comments.py) の `PLATFORMS`。
+- S3 のコメント JSON（yt-dlp の `id`・`comment_count`・`comments` だけ。字幕・フォーマット一覧は含まない）が原本で、取得ごとに attempt 別のキーで残る。DynamoDB には検索に使う項目だけを入れる。
+- 取り込みは現在の attempt のオブジェクトだけを反映する。置き換わった attempt の結果は無視するので、失敗・不明な取得は新しい attempt でやり直せる（ジョブが重複しても害がない）。
+- 取り込みは upsert のみ。再取得で消えていたコメントも残り、`last_seen_attempt` で最後に取得できた回が分かる。
+- 一覧は動画 1 本分のコメントをまとめて読み、固定コメント→新しい順に親コメントを並べ、返信を古い順で親の下に付けてからページを切り出す。最後に完了した取得（`completed_attempt`）に含まれなかったコメントは `removed`（YouTube では削除済み）になる。
+- 状態: `not_started` / `submitting` / `running` / `awaiting_ingest`（ジョブ成功・取り込み待ち）/ `complete` / `failed`。`running` は照会時に Batch の状態を見て判定する。投入途中で止まった `submitting` は 5 分で `failed` 扱いになる。
+- 動画のバックアップが完了すると、`s3_complete` が続けてコメントのバックアップを開始する（Scrapbox から登録した動画も含む）。開始に失敗してもログに残すだけで、動画の完了は失敗にしない（画面から後で開始できる）。
+- 動画を削除すると、削除ロックを取った後・動画を消す前に、実行中のコメント取得ジョブを止め、`comment_backups` の記録、コメント用バケットの原本、コメントのテーブルを消す。途中で失敗したらロックを残して止まる（動画の部分削除と同じく要照合）。バケットは versioning 有効なので、原本は削除マーカーが付くだけで過去のバージョンは残る。
+
+### 既存動画のコメントの一括取得（一時的）
+
+コメントのバックアップ導入前に完了していた動画は、`comments_backfill` が毎時少しずつ取得する。
+
+- 1 回に [entrypoints/comments_backfill.py](entrypoints/comments_backfill.py) の `LIMIT`（10）本まで、`complete` の YouTube 動画のうち `comment_backups` に記録がないものを新しい順に `CommentService.start` で開始する。
+- 記録がない動画だけを選ぶので、失敗した動画をここで再試行することはなく、一巡すると終わる（失敗分は画面から再取得する）。投入が 503 で失敗したら、その回はそこで止める。
+- 本数の調整は `LIMIT` を変えて配布する（スケジュールは本数を渡さない）。手動で invoke するときは `{"limit": N}` で上書きできる。
+- 開始する動画がなくなると、自分のスケジュール（`COMMENTS_BACKFILL_RULE_NAME`）を無効化する。
+- 一巡したら、[entrypoints/comments_backfill.py](entrypoints/comments_backfill.py)・[tests/test_comments_backfill.py](tests/test_comments_backfill.py)・`CommentService.backfill` と、`HANDLERS`・`FUNCTIONS` の行を消す。先に infra の関数を消すと配布が失敗するため、アプリ側を先に消す。
+
+## 検索
+
+動画の原本は DynamoDB で、検索には [Neon](../db/README.md) の `videos` テーブルを使う。`search_sync` が毎時 DynamoDB を全件読み、1 トランザクションで Neon の内容を置き換えるので、登録・更新・削除は次の同期まで検索結果に反映されない。削除済みの動画が結果に残っている間は、詳細を開くと 404 になる。
+
+`q` は空白で区切った語がすべてタイトルか動画 ID の一部であるものを探す `ILIKE` の部分一致で、語の順序は問わない。`backup_from`・`backup_to` はバックアップ日の範囲（両端を含む）で、`q` なしでも使える。結果は `items` で返し、`limit` を超えて該当するときは `has_more` が true になる（続きの取得はない）。形態素解析はしないので、表記が違う語（全角と半角、ひらがなとカタカナ）は一致しない。接続情報は Lambda ごとに別の SSM パラメータ（`SSM_SEARCH_DATABASE_URL_PARAMETER`）から読み、API は読み取り専用の role で接続する。タイトルなどの属性が欠けた古い動画は同期しない（`skipped` の件数を返す）。

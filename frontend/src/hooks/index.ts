@@ -15,7 +15,7 @@ export type {
   UseVideoRegistrationOptions,
 } from "./useVideoRegistration";
 export { useVideoDeletion } from "./useVideoDeletion";
-export type { VideoDeletionController } from "./useVideoDeletion";
+export type { VideoDeletionController, VideoDeletionOptions } from "./useVideoDeletion";
 export { useVideoSearch } from "./useVideoSearch";
 export type { VideoSearchController, VideoSearchState } from "./useVideoSearch";
 export { useVideoPlayback } from "./useVideoPlayback";
@@ -24,3 +24,14 @@ export { useVideoDownload } from "./useVideoDownload";
 export type { VideoDownloadController } from "./useVideoDownload";
 export { useVideoTitleEdit } from "./useVideoTitleEdit";
 export type { VideoTitleEditController } from "./useVideoTitleEdit";
+export { useCommentBackup, COMMENT_BACKUP_POLL_MS } from "./useCommentBackup";
+export type { CommentBackupController, CommentBackupView } from "./useCommentBackup";
+export { useYoutubeComments, YOUTUBE_COMMENTS_PAGE_SIZE } from "./useYoutubeComments";
+export type { YoutubeCommentsController, YoutubeCommentsView } from "./useYoutubeComments";
+export { usePlaylistRegistration } from "./usePlaylistRegistration";
+export type {
+  PlaylistRegistrationController,
+  PlaylistRegistrationState,
+  PlaylistRegistrationResult,
+  PlaylistRegistrationFailure,
+} from "./usePlaylistRegistration";

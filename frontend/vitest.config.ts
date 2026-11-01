@@ -17,6 +17,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "jsdom",
+    // Node 26 の Web Storage が jsdom の localStorage を隠さないようにする。
+    // テストでは Node のファイル保存用 Storage ではなく、jsdom のブラウザ実装を使う。
+    execArgv: ["--no-experimental-webstorage"],
     setupFiles: ["./src/test/setup.ts"],
     css: false,
     // テスト時の VITE_* は placeholder（真の機密ではない構成値）。

@@ -31,6 +31,15 @@ export const Deleting: Story = {
   args: { isDeleting: true },
 };
 
+/** 空白のない長いタイトル。スマホ幅でも確認文が横にはみ出さず折り返すことを確かめる。 */
+export const LongTitle: Story = {
+  args: {
+    video: makeVideo({
+      title: "Supercalifragilisticexpialidocious_without_any_spaces_at_all_0123456789",
+    }),
+  },
+};
+
 /** `video: null` のとき何も描画しない（ダイアログ非表示）。 */
 export const Hidden: Story = {
   args: { video: null },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseHttpsUrl, validateVideoUrl } from "./url";
+import { parseHttpsUrl, isYoutubePlaylistUrl, validateVideoUrl } from "./url";
 
 describe("validateVideoUrl（US4.1 / NFR4 クライアント URL 検証）", () => {
   it("有効な https URL を ok + 正規化 URL で返す（happy path）", () => {
@@ -65,5 +65,29 @@ describe("parseHttpsUrl（https 検証の共通ヘルパ）", () => {
     expect(parseHttpsUrl("")).toBeNull();
     expect(parseHttpsUrl("   ")).toBeNull();
     expect(parseHttpsUrl("not a url")).toBeNull();
+  });
+});
+
+describe("isYoutubePlaylistUrl（登録ダイアログの分岐）", () => {
+  it.each([
+    "https://www.youtube.com/playlist?list=PLabc",
+    "https://youtube.com/playlist?list=PLabc",
+    "https://m.youtube.com/playlist?list=PLabc",
+    "https://music.youtube.com/playlist?list=OLAK5uy_abc",
+    // 読めない種類でも、再生リストのページなら backend に理由を返させる。
+    "https://www.youtube.com/playlist?list=WL",
+  ])("%s は再生リスト", (url) => {
+    expect(isYoutubePlaylistUrl(url)).toBe(true);
+  });
+
+  it.each([
+    "https://www.youtube.com/watch?v=abcdefghijk",
+    // 再生中の動画に再生リストが付いた URL は、動画 1 本として登録する。
+    "https://www.youtube.com/watch?v=abcdefghijk&list=PLabc&index=2",
+    "https://youtu.be/abcdefghijk?list=PLabc",
+    "https://www.youtube.com/playlist",
+    "https://example.com/playlist?list=PLabc",
+  ])("%s は再生リストではない", (url) => {
+    expect(isYoutubePlaylistUrl(url)).toBe(false);
   });
 });

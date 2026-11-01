@@ -28,7 +28,7 @@ export function Toaster() {
   return (
     <div
       aria-live="polite"
-      className="fixed bottom-4 right-4 z-50 flex w-full max-w-sm flex-col gap-2"
+      className="fixed inset-x-4 bottom-4 z-50 flex flex-col gap-2 sm:left-auto sm:w-full sm:max-w-sm"
     >
       {items.map((item) => (
         <div
@@ -39,12 +39,13 @@ export function Toaster() {
             STYLE_BY_KIND[item.kind],
           )}
         >
-          <span>{item.message}</span>
+          <span className="min-w-0 break-words">{item.message}</span>
           <button
             type="button"
             onClick={() => dismiss(item.id)}
             aria-label="通知を閉じる"
-            className="shrink-0 opacity-80 hover:opacity-100"
+            // 指で押せる大きさにしつつ、負のマージンでトーストの高さは変えない。
+            className="-my-3 -mr-3 size-11 shrink-0 opacity-80 hover:opacity-100"
           >
             ×
           </button>

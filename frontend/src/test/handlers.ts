@@ -1,5 +1,11 @@
 import { http, HttpResponse } from "msw";
-import { makeRawVideo, type RawVideo } from "./factories";
+import {
+  makeRawCommentBackup,
+  makeRawVideo,
+  makeRawYoutubeCommentPage,
+  makeRawYoutubePlaylist,
+  type RawVideo,
+} from "./factories";
 
 // vitest.config.ts の test.env と一致させる（テスト用 placeholder）。
 export const TEST_API_BASE = "https://api.test.invalid";
@@ -126,6 +132,9 @@ export const handlers = [
   ),
   // GET /videos/{video_id}: 既定は complete 動画の取得成功。未存在・transport・init は各テストで上書き。
   http.get(`${TEST_API_BASE}/videos/:videoId`, () => HttpResponse.json(makeRawVideo())),
+  http.get(`${TEST_API_BASE}/search/videos`, () =>
+    HttpResponse.json({ items: [], has_more: false }),
+  ),
   // DELETE /videos/{video_id}: 既定は削除成功（204 本文なし）。
   http.delete(`${TEST_API_BASE}/videos/:videoId`, () => new HttpResponse(null, { status: 204 })),
   // DELETE /videos/{video_id}/backup: 既定はバックアップ取り消し成功（204 本文なし）。
@@ -137,4 +146,21 @@ export const handlers = [
   http.get(`${TEST_API_BASE}/videos/:videoId/playback_url`, () =>
     HttpResponse.json(makePlaybackUrl()),
   ),
+  // GET /videos/{video_id}/comments/backup: 既定は未取得。
+  http.get(`${TEST_API_BASE}/videos/:videoId/comments/backup`, () =>
+    HttpResponse.json(makeRawCommentBackup()),
+  ),
+  // GET /videos/{video_id}/comments: 既定はコメントなし。
+  http.get(`${TEST_API_BASE}/videos/:videoId/comments`, () =>
+    HttpResponse.json(makeRawYoutubeCommentPage()),
+  ),
+  // POST /videos/{video_id}/comments/backup: 既定は取得開始（202）。取得中（200）・失敗は各テストで上書き。
+  http.post(`${TEST_API_BASE}/videos/:videoId/comments/backup`, () =>
+    HttpResponse.json(
+      makeRawCommentBackup({ state: "running", attempt_id: "a1", batch_job_id: "job-c1" }),
+      { status: 202 },
+    ),
+  ),
+  // GET /youtube/playlist: 既定は 3 本の再生リスト（取得できない動画 1 本）。
+  http.get(`${TEST_API_BASE}/youtube/playlist`, () => HttpResponse.json(makeRawYoutubePlaylist())),
 ];

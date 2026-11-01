@@ -8,7 +8,7 @@ import httpx
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
-from usecases.models import DomainError, source_identity
+from usecases.models import TIKTOK_HOSTS, DomainError, is_tiktok_short_link, source_identity
 
 
 def conditional(error: ClientError) -> None:
@@ -48,6 +48,47 @@ class VideoRepository:
             ScanIndexForward=False,
         )["Items"]
 
+    def iterate(self, status: str):
+        # Every video in the status, newest first, across Query pages (id and platform only).
+        start = {}
+        while True:
+            page = self.table.query(
+                IndexName="upload_status-backupdate-index",
+                KeyConditionExpression=Key("upload_status").eq(status),
+                ProjectionExpression="video_id, platform",
+                ScanIndexForward=False,
+                **start,
+            )
+            yield from page["Items"]
+            if "LastEvaluatedKey" not in page:
+                return
+            start = {"ExclusiveStartKey": page["LastEvaluatedKey"]}
+
+    def all(self):
+        # Every video item, across Scan pages.
+        start = {}
+        while True:
+            page = self.table.scan(**start)
+            yield from page["Items"]
+            if "LastEvaluatedKey" not in page:
+                return
+            start = {"ExclusiveStartKey": page["LastEvaluatedKey"]}
+
+    def resolve(self, url: str) -> str:
+        """The video URL behind a TikTok share link; any other URL as is."""
+        if not is_tiktok_short_link(url):
+            return url
+        try:
+            with httpx.Client(timeout=15) as client:
+                response = client.get(url)
+        except httpx.HTTPError:
+            raise DomainError(502, "tiktok_link_unavailable") from None
+        location = response.headers.get("location", "") if response.is_redirect else ""
+        if (urlparse(location).hostname or "").lower() not in TIKTOK_HOSTS:
+            raise DomainError(502, "tiktok_link_unavailable")
+        # An unknown share code redirects to the home page, rejected as invalid_tiktok_url.
+        return location
+
     def make_video(self, url: str, now: int) -> dict:
         video_id, platform, normalized = source_identity(url)
         title = video_id
@@ -65,6 +106,9 @@ class VideoRepository:
                     title = response.json()["items"][0]["snippet"]["title"]
             except httpx.HTTPError, ValueError, KeyError, IndexError:
                 raise DomainError(502, "metadata_unavailable") from None
+        elif platform == "tiktok":
+            # TikTok's oEmbed no longer returns the caption; name it by the poster until edited.
+            title = urlparse(normalized).path.split("/")[1] + " の TikTok"
         date = datetime.fromtimestamp(now, UTC).date()
         filename = "ABCXYZ" + video_id if video_id.startswith("-") else video_id
         return {
@@ -217,8 +261,9 @@ class VideoRepository:
         except ClientError as error:
             conditional(error)
 
-    def delete(self, video: dict, token: str) -> None:
+    def delete(self, video: dict, token: str, before_remove=None) -> None:
         # Lock against concurrent backup submission before deleting either resource.
+        # before_remove(video) deletes data tied to the video (comments) while the lock is held.
         condition = "attribute_exists(video_id) AND attribute_not_exists(deletion_token) "
         condition += "AND s3fullpath=:path AND upload_status=:complete"
         try:
@@ -232,6 +277,8 @@ class VideoRepository:
                     ":complete": "complete",
                 },
             )
+            if before_remove:
+                before_remove(video)
             path = urlparse(video["s3fullpath"])
             self.s3.delete_object(Bucket=path.netloc, Key=path.path.lstrip("/"))
             self.table.delete_item(

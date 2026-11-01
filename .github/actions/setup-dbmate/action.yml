@@ -1,0 +1,14 @@
+name: Set up dbmate
+description: Install the pinned dbmate CLI after verifying its checksum.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        DBMATE_VERSION: v2.37.0
+        DBMATE_SHA256: f855e99a0f0a81322014bf686b1cb820d2b4d8074e4eadafd64b851b80ecb15a
+      run: |
+        curl -sSfL -o dbmate "https://github.com/amacneil/dbmate/releases/download/${DBMATE_VERSION}/dbmate-linux-amd64"
+        echo "${DBMATE_SHA256}  dbmate" | sha256sum --check
+        sudo install dbmate /usr/local/bin/dbmate
+        rm dbmate

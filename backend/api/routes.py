@@ -1,23 +1,43 @@
+from datetime import date
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Path, Query, Response
 
-from api.dependencies import get_service
+from api.dependencies import (
+    get_comment_service,
+    get_playlist_service,
+    get_search_service,
+    get_service,
+)
 from usecases.backup import BackupService
+from usecases.comments import CommentService
 from usecases.models import (
     Backup,
+    CommentBackup,
     ErrorResponse,
     PlaybackUrl,
     RegisterVideo,
     Registration,
     UpdateVideo,
     Video,
+    VideoSearchResults,
+    YoutubeCommentPage,
+    YoutubePlaylist,
 )
+from usecases.playlists import PlaylistService
+from usecases.search import SearchService
 
 errors = {status: {"model": ErrorResponse} for status in (401, 404, 409, 502, 503)}
 video_router = APIRouter(tags=["videos"], responses=errors)
 backup_router = APIRouter(tags=["backup"], responses=errors)
+comment_router = APIRouter(tags=["comments"], responses=errors | {422: {"model": ErrorResponse}})
+youtube_router = APIRouter(tags=["youtube"], responses=errors | {422: {"model": ErrorResponse}})
+search_errors = {status: {"model": ErrorResponse} for status in (401, 422, 503)}
+search_router = APIRouter(tags=["search"], responses=search_errors)
 Service = Annotated[BackupService, Depends(get_service)]
+Comments = Annotated[CommentService, Depends(get_comment_service)]
+Playlists = Annotated[PlaylistService, Depends(get_playlist_service)]
+Search = Annotated[SearchService, Depends(get_search_service)]
 VideoId = Annotated[str, Path(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")]
 
 
@@ -77,3 +97,64 @@ def start_backup(video_id: VideoId, response: Response, service: Service):
 def cancel_backup(video_id: VideoId, service: Service):
     """Cancel an unfinished backup: stops its job and removes the unfinished video record."""
     service.cancel(video_id)
+
+
+@comment_router.get("/videos/{video_id}/comments/backup", response_model=CommentBackup)
+def get_comment_backup(video_id: VideoId, comments: Comments):
+    return comments.status(video_id)
+
+
+@comment_router.post(
+    "/videos/{video_id}/comments/backup",
+    response_model=CommentBackup,
+    responses={202: {"model": CommentBackup}},
+)
+def start_comment_backup(video_id: VideoId, response: Response, comments: Comments):
+    """Fetch the video's comments (again); a fetch already in progress is not resubmitted."""
+    result, started = comments.start(video_id)
+    response.status_code = 202 if started else 200
+    return result
+
+
+@comment_router.get("/videos/{video_id}/comments", response_model=YoutubeCommentPage)
+def list_comments(
+    video_id: VideoId,
+    comments: Comments,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+):
+    """Backed-up comments as threads (pinned first, then newest). The shape is per platform."""
+    return comments.items(video_id, offset, limit)
+
+
+@youtube_router.get("/youtube/playlist", response_model=YoutubePlaylist)
+def get_youtube_playlist(
+    url: Annotated[str, Query(min_length=1, max_length=2048)], playlists: Playlists
+):
+    """The playlist in a YouTube URL (`list`), read from YouTube as is: its videos in order.
+
+    Nothing is stored or registered; register the videos with POST /videos."""
+    return playlists.get(url)
+
+
+@search_router.get("/search/videos", response_model=VideoSearchResults)
+def search_videos(
+    search: Search,
+    q: Annotated[str, Query(max_length=200, pattern=r"^[^\x00]*$")] = "",
+    backup_from: date | None = None,
+    backup_to: date | None = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 30,
+):
+    """Videos matching every condition, newest first. At least one condition is required.
+
+    Each whitespace-separated term of `q` must be part of the title or the video ID.
+    `backup_from` and `backup_to` bound the backup date, both inclusive.
+    `has_more` tells that more videos match than `limit` returned.
+
+    Reads an hourly copy of the videos, so a recent change appears after the next sync."""
+    return search.find(
+        q,
+        backup_from.isoformat() if backup_from else None,
+        backup_to.isoformat() if backup_to else None,
+        limit,
+    )

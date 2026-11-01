@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
@@ -52,7 +52,7 @@ describe("動画登録 結合（ヘッダ→ダイアログ→登録 / US4.1・F
     getSessionMock.mockResolvedValue("authenticated");
   });
 
-  it("ヘッダの登録から有効 URL を送信すると success 通知が出て一覧が再取得される（US4.1/FR4.1/FR4.2）", async () => {
+  it("右下の登録ボタンから有効 URL を送信すると success 通知が出て一覧が再取得される（US4.1/FR4.1/FR4.2）", async () => {
     const user = userEvent.setup();
     let getCount = 0;
     server.use(
@@ -66,12 +66,12 @@ describe("動画登録 結合（ヘッダ→ダイアログ→登録 / US4.1・F
     await screen.findByText("既存動画");
     const initialGetCount = getCount;
 
-    // ヘッダの登録アクション → ダイアログ表示（C5 openRegister）。
+    // 右下の登録ボタン → ダイアログ表示（C5 openRegister）。
     await user.click(screen.getByRole("button", { name: "動画を登録" }));
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    const dialog = await screen.findByRole("dialog");
 
-    await user.type(screen.getByLabelText("動画 URL"), "https://youtu.be/newvid");
-    await user.click(screen.getByRole("button", { name: "登録" }));
+    await user.type(within(dialog).getByLabelText("動画 URL"), "https://youtu.be/newvid");
+    await user.click(within(dialog).getByRole("button", { name: "登録" }));
 
     // success 通知（C4）。
     expect(await screen.findByText(/バックアップを開始しました/)).toBeInTheDocument();
@@ -97,14 +97,55 @@ describe("動画登録 結合（ヘッダ→ダイアログ→登録 / US4.1・F
     await screen.findByText("既存動画");
 
     await user.click(screen.getByRole("button", { name: "動画を登録" }));
-    await screen.findByRole("dialog");
+    const dialog = await screen.findByRole("dialog");
 
-    await user.type(screen.getByLabelText("動画 URL"), "notaurl");
-    await user.click(screen.getByRole("button", { name: "登録" }));
+    await user.type(within(dialog).getByLabelText("動画 URL"), "notaurl");
+    await user.click(within(dialog).getByRole("button", { name: "登録" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("形式");
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("形式");
     expect(posted).toBe(false);
     // 検証失敗ではダイアログは開いたまま（再入力可能）。
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+});
+
+describe("再生リストからの登録 結合", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getSessionMock.mockResolvedValue("authenticated");
+  });
+
+  it("確認して登録すると全動画を送り、一覧が再取得される", async () => {
+    const user = userEvent.setup();
+    let getCount = 0;
+    const posted: string[] = [];
+    server.use(
+      http.get(`${TEST_API_BASE}/videos`, () => {
+        getCount += 1;
+        return HttpResponse.json([makeRawVideo({ title: "既存動画" })]);
+      }),
+      http.post(`${TEST_API_BASE}/videos`, async ({ request }) => {
+        posted.push(((await request.json()) as { url: string }).url);
+        return HttpResponse.json(makeRegistration(), { status: 202 });
+      }),
+    );
+    renderApp();
+    await screen.findByText("既存動画");
+    const initialGetCount = getCount;
+
+    await user.click(screen.getByRole("button", { name: "動画を登録" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.type(
+      within(dialog).getByLabelText("動画 URL"),
+      "https://www.youtube.com/playlist?list=PLtest",
+    );
+    await user.click(within(dialog).getByRole("button", { name: "登録" }));
+    await user.click(await within(dialog).findByRole("button", { name: "3 本を登録" }));
+
+    expect(await within(dialog).findByText("バックアップを開始: 3 本")).toBeInTheDocument();
+    expect(posted).toHaveLength(3);
+    await waitFor(() => expect(getCount).toBeGreaterThan(initialGetCount));
+    await user.click(within(dialog).getByRole("button", { name: "閉じる" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 });

@@ -63,7 +63,7 @@ export function VideoTitleEditor({ title, isSaving, onSave, onCancel }: VideoTit
         maxLength={TITLE_MAX_LENGTH}
         disabled={isSaving}
         aria-label="タイトル"
-        className="min-w-0 basis-full sm:flex-1 sm:basis-auto"
+        className="min-w-0 basis-full sm:flex-1"
         data-testid="title-input"
       />
       <Button type="submit" size="sm" disabled={!canSave} data-testid="title-save-button">

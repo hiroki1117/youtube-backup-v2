@@ -186,7 +186,8 @@ export function VideoPlaybackPage() {
                 // iPhone でページ内のまま再生する（無いと再生開始で全画面に切り替わる）。
                 playsInline
                 src={url}
-                className="max-h-[80dvh] w-full rounded-md bg-black"
+                // dvh だとアドレスバーの開閉で動画の高さが変わり、スクロール中にページがずれる。
+                className="max-h-[80svh] w-full rounded-md bg-black"
                 aria-label={`動画プレイヤー: ${state.video.title}`}
                 data-testid="video-player"
               >

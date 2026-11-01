@@ -45,7 +45,10 @@ export function DeleteConfirmDialog({
         <h2 id="delete-dialog-title" className="text-lg font-semibold">
           {isCancel ? "バックアップを取り消し" : "動画を削除"}
         </h2>
-        <p id="delete-dialog-description" className="mt-4 text-sm text-muted-foreground">
+        <p
+          id="delete-dialog-description"
+          className="mt-4 break-words text-sm text-muted-foreground"
+        >
           {isCancel
             ? `「${video.title}」のバックアップを中止し、一覧から削除します。同じ URL はあとで再登録できます。`
             : `「${video.title}」を削除します。バックアップしたコメントも削除されます。この操作は取り消せません。`}

@@ -43,6 +43,10 @@ export function DateRangeFilter({ from, to, onChange, today = new Date() }: Date
   if (from !== applied.from || to !== applied.to) {
     setApplied({ from, to });
     setDraft({ from, to });
+    // 履歴から開いた範囲がチップにないときは、どの期間か分かるよう入力欄を開く。
+    if (preset === null) {
+      setCustomOpen(true);
+    }
   }
 
   const choosePreset = (id: DatePreset) => {

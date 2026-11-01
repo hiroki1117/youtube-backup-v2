@@ -53,6 +53,7 @@ export interface ApiClient {
     query: string;
     backupFrom?: string;
     backupTo?: string;
+    limit?: number;
   }): Promise<ApiResult<VideoSearchResult>>;
   submitVideo(url: string): Promise<ApiResult<SubmitResult>>;
   /** タイトルを更新する（`PATCH /videos/{id}`）。成功は更新後の Video。 */
@@ -264,6 +265,7 @@ export class HttpApiClient implements ApiClient {
     query: string;
     backupFrom?: string;
     backupTo?: string;
+    limit?: number;
   }): Promise<ApiResult<VideoSearchResult>> {
     const query = new URLSearchParams();
     if (params.query !== "") {
@@ -274,6 +276,9 @@ export class HttpApiClient implements ApiClient {
     }
     if (params.backupTo) {
       query.set("backup_to", params.backupTo);
+    }
+    if (params.limit !== undefined) {
+      query.set("limit", String(params.limit));
     }
     const res = await this.request(`/search/videos?${query.toString()}`);
     if (!res.ok) {

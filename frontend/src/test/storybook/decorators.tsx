@@ -13,7 +13,7 @@ import { createStubAuthApi, type StubAuthApiOptions } from "./auth";
  * Storybook 用の最小 Provider デコレータ（R-01 最小 Provider 戦略 / R-03 配置 / US-1 / US-3）。
  * 各 Story は自分の実依存に対応するデコレータだけを付与する:
  * - `Toaster`: Provider 不要 / `ThemeToggle`: withTheme / `RegisterDialog`: withQueryClient /
- * - `SearchDialog`: withQueryClient + withMemoryRouter / ページ: withAppRoutes（Query + Theme + Auth + Router）。
+ * - `HeaderSearch`: withMemoryRouter / ページ: withAppRoutes（Query + Theme + Auth + Router）。
  * `src/test/**` はレイヤグラフ外のため、ここから `@/app/routes` や `@/hooks/*` を import してよい。
  */
 

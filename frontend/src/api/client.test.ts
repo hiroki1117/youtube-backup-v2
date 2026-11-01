@@ -108,13 +108,18 @@ describe("ApiClient.searchVideos（GET /search/videos）", () => {
       }),
     );
 
-    const result = await client.searchVideos({ query: "猫 & 犬", backupFrom: "2026-08-01" });
+    const result = await client.searchVideos({
+      query: "猫 & 犬",
+      backupFrom: "2026-08-01",
+      limit: 100,
+    });
 
     expect(result).toMatchObject({ kind: "ok", data: { hasMore: true } });
     const params = new URL(requested).searchParams;
     expect(params.get("q")).toBe("猫 & 犬");
     expect(params.get("backup_from")).toBe("2026-08-01");
     expect(params.has("backup_to")).toBe(false);
+    expect(params.get("limit")).toBe("100");
   });
 
   it("0 件は empty", async () => {

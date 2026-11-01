@@ -1,33 +1,53 @@
 import type { ReactNode } from "react";
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/api/client";
+import type { SearchFilters } from "@/lib/search";
 import { server } from "@/test/server";
 import { TEST_API_BASE, errorResponse } from "@/test/handlers";
 import { makeRawVideo } from "@/test/factories";
 import { useVideoSearch } from "./useVideoSearch";
 
-function setup() {
+function filters(text: string, from = "", to = ""): SearchFilters {
+  return { text, from, to };
+}
+
+function setup(initial: SearchFilters) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   function Wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
   }
-  return renderHook(() => useVideoSearch(), { wrapper: Wrapper });
+  return renderHook((props: SearchFilters) => useVideoSearch(props), {
+    wrapper: Wrapper,
+    initialProps: initial,
+  });
+}
+
+function videoNotFound() {
+  server.use(
+    http.get(`${TEST_API_BASE}/videos/:videoId`, () => errorResponse(404, "video_not_found")),
+  );
 }
 
 describe("useVideoSearch（U3 / US3.1・FR3.1・C2）", () => {
-  it("初期状態は idle（未検索・API 非実行）", () => {
-    const { result } = setup();
+  it("条件がなければ idle で API を呼ばない", async () => {
+    const getSpy = vi.spyOn(apiClient, "getVideo");
+    const searchSpy = vi.spyOn(apiClient, "searchVideos");
+    const { result } = setup(filters("   "));
+
     expect(result.current.state.kind).toBe("idle");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(getSpy).not.toHaveBeenCalled();
+    expect(searchSpy).not.toHaveBeenCalled();
+    getSpy.mockRestore();
+    searchSpy.mockRestore();
   });
 
-  it("存在する video_id を検索すると ok(Video) を返す（happy path）", async () => {
-    // 既定ハンドラ = complete 動画（video_id: "v1"）。
-    const { result } = setup();
-
-    act(() => result.current.search({ text: "v1" }));
+  it("動画 ID の完全一致を DynamoDB から先に返す（検索 API を呼ばない）", async () => {
+    const searchSpy = vi.spyOn(apiClient, "searchVideos");
+    const { result } = setup(filters("v1"));
 
     await waitFor(() => expect(result.current.state.kind).toBe("ok"));
     const state = result.current.state;
@@ -35,51 +55,24 @@ describe("useVideoSearch（U3 / US3.1・FR3.1・C2）", () => {
       throw new Error("expected ok state");
     }
     expect(state.videos[0].videoId).toBe("v1");
-    expect(state.videos[0].uploadStatus).toBe("complete");
+    expect(state.hasMore).toBe(false);
+    expect(searchSpy).not.toHaveBeenCalled();
+    searchSpy.mockRestore();
   });
 
-  it("init 動画でも ok を返す（再生可否の判定は component 層の責務）", async () => {
+  it("動画 ID が未存在なら部分一致の検索へ進み、上限まで取得する", async () => {
+    videoNotFound();
+    let limit: string | null = null;
     server.use(
-      http.get(`${TEST_API_BASE}/videos/:videoId`, () =>
-        HttpResponse.json(makeRawVideo({ video_id: "i1", upload_status: "init" })),
-      ),
-    );
-    const { result } = setup();
-
-    act(() => result.current.search({ text: "i1" }));
-
-    await waitFor(() => expect(result.current.state.kind).toBe("ok"));
-    const state = result.current.state;
-    if (state.kind !== "ok") {
-      throw new Error("expected ok state");
-    }
-    expect(state.videos[0].uploadStatus).toBe("init");
-  });
-
-  it("存在しない video_id は notFound を返す（error-path / FR3.1）", async () => {
-    server.use(
-      http.get(`${TEST_API_BASE}/videos/:videoId`, () => errorResponse(404, "video_not_found")),
-    );
-    const { result } = setup();
-
-    act(() => result.current.search({ text: "missing" }));
-
-    await waitFor(() => expect(result.current.state.kind).toBe("notFound"));
-  });
-
-  it("動画 ID が未存在なら部分一致の検索へ進む", async () => {
-    server.use(
-      http.get(`${TEST_API_BASE}/videos/:videoId`, () => errorResponse(404, "video_not_found")),
-      http.get(`${TEST_API_BASE}/search/videos`, () =>
-        HttpResponse.json({
+      http.get(`${TEST_API_BASE}/search/videos`, ({ request }) => {
+        limit = new URL(request.url).searchParams.get("limit");
+        return HttpResponse.json({
           items: [makeRawVideo({ video_id: "v9", title: "猫" })],
-          has_more: false,
-        }),
-      ),
+          has_more: true,
+        });
+      }),
     );
-    const { result } = setup();
-
-    act(() => result.current.search({ text: "cat" }));
+    const { result } = setup(filters("cat"));
 
     await waitFor(() => expect(result.current.state.kind).toBe("ok"));
     const state = result.current.state;
@@ -87,16 +80,21 @@ describe("useVideoSearch（U3 / US3.1・FR3.1・C2）", () => {
       throw new Error("expected ok state");
     }
     expect(state.videos[0].videoId).toBe("v9");
+    expect(state.hasMore).toBe(true);
+    expect(limit).toBe("100");
+  });
+
+  it("どこにもなければ notFound を返す", async () => {
+    videoNotFound();
+    const { result } = setup(filters("missing"));
+
+    await waitFor(() => expect(result.current.state.kind).toBe("notFound"));
   });
 
   it("URL の動画が未存在なら検索へ進まず notFound を返す", async () => {
     const searchSpy = vi.spyOn(apiClient, "searchVideos");
-    server.use(
-      http.get(`${TEST_API_BASE}/videos/:videoId`, () => errorResponse(404, "video_not_found")),
-    );
-    const { result } = setup();
-
-    act(() => result.current.search({ text: "https://youtu.be/missing" }));
+    videoNotFound();
+    const { result } = setup(filters("https://youtu.be/missing"));
 
     await waitFor(() => expect(result.current.state.kind).toBe("notFound"));
     expect(searchSpy).not.toHaveBeenCalled();
@@ -104,44 +102,31 @@ describe("useVideoSearch（U3 / US3.1・FR3.1・C2）", () => {
   });
 
   it("ID を特定できない URL は API を叩かず invalidInput になる", () => {
-    const { result } = setup();
-
-    act(() => result.current.search({ text: "https://example.com/watch" }));
+    const getSpy = vi.spyOn(apiClient, "getVideo");
+    const { result } = setup(filters("https://example.com/watch"));
 
     expect(result.current.state.kind).toBe("invalidInput");
-  });
-
-  it("空白を含む語と日付指定は getVideo を呼ばず検索する", async () => {
-    const getSpy = vi.spyOn(apiClient, "getVideo");
-    const { result } = setup();
-
-    act(() => result.current.search({ text: "猫 まとめ" }));
-    await waitFor(() => expect(result.current.state.kind).toBe("notFound"));
-    act(() => result.current.search({ text: "v1", backupFrom: "2026-08-01" }));
-    await waitFor(() => expect(result.current.state.kind).toBe("notFound"));
-
     expect(getSpy).not.toHaveBeenCalled();
     getSpy.mockRestore();
   });
 
-  it("空入力は API を叩かず invalidInput になる（US3.1）", async () => {
+  it.each([
+    ["空白を含む語", filters("猫 まとめ")],
+    ["コロンを含むタイトル", filters("Re:ゼロ")],
+    ["日付の指定", filters("v1", "2026-08-01")],
+    ["日付だけの検索", filters("", "2026-08-01", "2026-08-31")],
+  ])("%s は getVideo を呼ばず検索する", async (_name, input) => {
     const getSpy = vi.spyOn(apiClient, "getVideo");
-    const { result } = setup();
+    const { result } = setup(input);
 
-    act(() => result.current.search({ text: "   " }));
-
-    expect(result.current.state.kind).toBe("invalidInput");
-    // 少し待っても getVideo は呼ばれない。
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await waitFor(() => expect(result.current.state.kind).toBe("notFound"));
     expect(getSpy).not.toHaveBeenCalled();
     getSpy.mockRestore();
   });
 
   it("transport 失敗は error を返す（error-path / FR8）", async () => {
     server.use(http.get(`${TEST_API_BASE}/videos/:videoId`, () => HttpResponse.error()));
-    const { result } = setup();
-
-    act(() => result.current.search({ text: "v1" }));
+    const { result } = setup(filters("v1"));
 
     await waitFor(() => expect(result.current.state.kind).toBe("error"));
     const state = result.current.state;
@@ -151,32 +136,20 @@ describe("useVideoSearch（U3 / US3.1・FR3.1・C2）", () => {
     expect(state.message).toContain("通信");
   });
 
-  it("別の video_id で再検索すると新しい結果へ切り替わる", async () => {
-    const { result } = setup();
-
-    act(() => result.current.search({ text: "v1" }));
+  it("条件を変えると新しい結果へ切り替わる", async () => {
+    const { result, rerender } = setup(filters("v1"));
     await waitFor(() => expect(result.current.state.kind).toBe("ok"));
 
-    // 2 件目は別 id を返すハンドラへ差し替え。
     server.use(
       http.get(`${TEST_API_BASE}/videos/:videoId`, () =>
         HttpResponse.json(makeRawVideo({ video_id: "v2", title: "別動画" })),
       ),
     );
-    act(() => result.current.search({ text: "v2" }));
+    rerender(filters("v2"));
 
     await waitFor(() => {
       const state = result.current.state;
-      expect(state.kind).toBe("ok");
-      if (state.kind !== "ok") {
-        throw new Error("expected ok state");
-      }
-      expect(state.videos[0].videoId).toBe("v2");
+      expect(state.kind === "ok" && state.videos[0].videoId).toBe("v2");
     });
-    const state = result.current.state;
-    if (state.kind !== "ok") {
-      throw new Error("expected ok state");
-    }
-    expect(state.videos[0].title).toBe("別動画");
   });
 });

@@ -202,4 +202,21 @@ describe("VideoCatalog 処理中の行の取り消し", () => {
     await user.click(screen.getByRole("button", { name: "削除: 完了動画" }));
     expect(onDelete).toHaveBeenCalledWith(done);
   });
+
+  it("検索語を渡すと、一致部分を強調してバックアップ日を行に出す", () => {
+    renderInRouter(
+      <VideoCatalog
+        state={{
+          status: "ready",
+          data: [makeVideo({ title: "猫の動画", backupDate: "2026-08-03" })],
+        }}
+        searchTerms={["猫"]}
+        listLabel="検索結果"
+      />,
+    );
+
+    expect(screen.getByRole("list", { name: "検索結果" })).toBeInTheDocument();
+    expect(screen.getByText("猫").tagName).toBe("MARK");
+    expect(screen.getByRole("link", { name: /^猫の動画/ })).toHaveTextContent("2026-08-03");
+  });
 });

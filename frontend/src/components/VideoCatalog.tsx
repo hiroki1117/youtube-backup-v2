@@ -4,6 +4,8 @@ import { PlatformIcon } from "@/components/PlatformIcon";
 import { SourceLink } from "@/components/SourceLink";
 import { StatusView, type ViewState } from "@/components/StatusView";
 import { ROUTES } from "@/lib/routes";
+import { highlightParts } from "@/lib/search";
+import { cn } from "@/lib/utils";
 import type { UploadStatus, Video } from "@/types/video";
 
 /**
@@ -29,6 +31,15 @@ export interface VideoCatalogProps {
   onRetry?: () => void;
   /** 行アクション起動口（C6）。未提供のアクションはボタンを描画しない。 */
   handlers?: RowActionHandlers;
+  /** 読み込み中の文言。 */
+  loadingLabel?: string;
+  /** リストの読み上げ名。 */
+  listLabel?: string;
+  /**
+   * 検索結果として表示するときの語。タイトルの一致部分を強調し、見比べられるようタイトルを省略
+   * しすぎず、スマホ幅でもバックアップ日を出す。
+   */
+  searchTerms?: string[];
 }
 
 // upload_status enum → 表示ラベル。制御フローは enum で分岐し、ラベルでは分岐しない。
@@ -56,6 +67,18 @@ const EMPTY_MESSAGE: Record<"nodata" | "filtered", string> = {
  * ready 時は行リスト + ページ送りを描画する。タイトルは再生ページ（/videos/:videoId）へのリンク。
  * (US2.1〜US2.4 / FR8 / C4 / C6)
  */
+function HighlightedTitle({ title, terms }: { title: string; terms: string[] }) {
+  return highlightParts(title, terms).map((part, index) =>
+    part.match ? (
+      <mark key={index} className="rounded-xs bg-yellow-200 text-inherit dark:bg-yellow-500/35">
+        {part.text}
+      </mark>
+    ) : (
+      part.text
+    ),
+  );
+}
+
 export function VideoCatalog({
   state,
   hasMore,
@@ -63,6 +86,9 @@ export function VideoCatalog({
   isLoadingMore,
   onRetry,
   handlers,
+  loadingLabel = "動画一覧を読み込んでいます...",
+  listLabel = "動画一覧",
+  searchTerms,
 }: VideoCatalogProps) {
   const { onDelete } = handlers ?? {};
   const emptyMessage = state.status === "empty" ? EMPTY_MESSAGE[state.variant] : undefined;
@@ -72,11 +98,11 @@ export function VideoCatalog({
       state={state}
       onRetry={onRetry}
       emptyMessage={emptyMessage}
-      loadingLabel="動画一覧を読み込んでいます..."
+      loadingLabel={loadingLabel}
     >
       {(videos) => (
         <div className="space-y-4">
-          <ul aria-label="動画一覧" className="divide-y rounded-md border">
+          <ul aria-label={listLabel} className="divide-y rounded-md border">
             {videos.map((video) => (
               <li
                 key={video.videoId}
@@ -90,11 +116,25 @@ export function VideoCatalog({
                   to={generatePath(ROUTES.videoDetail, { videoId: video.videoId })}
                   // タッチ操作では行の上下の余白をリンク側に持たせ、行の高さ全体をタップできるようにする。
                   // マウス操作の md 以上は行の余白を保つ（右側の操作ボタンが行の高さを決めるため）。
-                  className="min-w-0 flex-1 truncate py-3 font-medium hover:underline md:pointer-fine:py-0"
+                  className={cn(
+                    "min-w-0 flex-1 py-3 font-medium hover:underline md:pointer-fine:py-0",
+                    searchTerms === undefined && "truncate",
+                  )}
                   // 長いタイトルは省略表示になるため、ホバーで全文を出す。
                   title={video.title}
                 >
-                  {video.title}
+                  {searchTerms === undefined ? (
+                    video.title
+                  ) : (
+                    <>
+                      <span className="line-clamp-2">
+                        <HighlightedTitle title={video.title} terms={searchTerms} />
+                      </span>
+                      <span className="mt-0.5 block text-xs font-normal text-muted-foreground md:hidden">
+                        {video.backupDate}
+                      </span>
+                    </>
+                  )}
                 </Link>
                 {/* スマホ幅ではタイトルを読めるよう、アイコンとタイトル以外は出さない。
                     日付・状態・元サイト・削除は再生ページ（詳細）でも見られる・行える。 */}

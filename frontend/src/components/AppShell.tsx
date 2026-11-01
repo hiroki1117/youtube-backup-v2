@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { LogOut, Plus, Search } from "lucide-react";
-import { Outlet, useNavigate } from "react-router-dom";
+import { LogOut, Plus } from "lucide-react";
+import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { RegisterDialog } from "@/components/RegisterDialog";
-import { SearchDialog } from "@/components/SearchDialog";
+import { HeaderSearch } from "@/components/HeaderSearch";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/hooks/useAuth";
 import { ROUTES } from "@/lib/routes";
@@ -12,17 +12,14 @@ import { ROUTES } from "@/lib/routes";
 /**
  * 共通レイアウト（contract C5 AppShell）。ヘッダ（検索/テーマ/ログアウトのアクション起点）+ Outlet
  * + 右下の登録ボタン。
- * 検索アクション（C5 openSearch / U3）・登録アクション（C5 openRegister / U4）は、それぞれ
- * 対応するダイアログを開閉する。検索はヘッダのボタン、登録はどの画面でも右下の丸いボタン
- * （スマホで親指の届く位置）から開く。開閉状態は AppShell が独立に保持する
- * （U4 のダイアログ開閉パターンを踏襲）。
+ * 検索（U3）はヘッダから検索ページへ移る。登録アクション（C5 openRegister / U4）はどの画面でも
+ * 右下の丸いボタン（スマホで親指の届く位置）からダイアログを開く。
  * ログアウトは signOut → TanStack Query キャッシュクリア → /login（WF2 / NFR4.6）。
  */
 export function AppShell() {
   const { signOut } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [searchOpen, setSearchOpen] = useState(false);
   const [registerOpen, setRegisterOpen] = useState(false);
 
   const handleLogout = async () => {
@@ -34,18 +31,11 @@ export function AppShell() {
   return (
     <div className="min-h-dvh">
       <header className="flex items-center justify-between gap-2 border-b px-4 py-3">
-        <h1 className="min-w-0 truncate text-lg font-semibold">youtube-backup</h1>
-        <div className="flex shrink-0 items-center gap-1">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setSearchOpen(true)}
-            aria-label="動画を検索"
-          >
-            <Search className="h-4 w-4" aria-hidden="true" />
-            {/* 狭い画面ではアイコンだけにしてヘッダを 1 行に収める（名前は aria-label が持つ）。 */}
-            <span className="hidden sm:inline">検索</span>
-          </Button>
+        <h1 className="min-w-0 truncate text-lg font-semibold">
+          <Link to={ROUTES.videos}>youtube-backup</Link>
+        </h1>
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
+          <HeaderSearch />
           <ThemeToggle />
           <Button variant="ghost" size="icon" onClick={handleLogout} aria-label="ログアウト">
             <LogOut className="h-5 w-5" />
@@ -63,7 +53,6 @@ export function AppShell() {
       >
         <Plus className="size-6" aria-hidden="true" />
       </Button>
-      <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} />
       <RegisterDialog open={registerOpen} onClose={() => setRegisterOpen(false)} />
     </div>
   );

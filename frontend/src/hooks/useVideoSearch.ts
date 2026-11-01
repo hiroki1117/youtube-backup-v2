@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
 import { apiClient, apiErrorMessage, type ApiResult, type VideoSearchResult } from "@/api/client";
-import { hasConditions, type SearchFilters } from "@/lib/search";
+import { hasConditions, isUrlText, type SearchFilters } from "@/lib/search";
 import { extractVideoId } from "@/lib/videoId";
 import type { Video } from "@/types/video";
 
@@ -35,8 +35,7 @@ const SEARCH_LIMIT = 100;
 /** 条件を検索内容へ変換する。検索できない URL は null。 */
 function toSearchTarget({ text, from, to }: SearchFilters): SearchTarget | null {
   const trimmed = text.trim();
-  // 「Re:ゼロ」のようなタイトルも URL として解釈できるため、http(s) だけを URL として扱う。
-  if (/^https?:\/\//i.test(trimmed)) {
+  if (isUrlText(trimmed)) {
     const videoId = extractVideoId(trimmed);
     return videoId === null ? null : { videoId, text: null, from: "", to: "" };
   }

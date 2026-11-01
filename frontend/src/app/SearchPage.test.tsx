@@ -1,10 +1,11 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createMemoryRouter, useLocation, useParams } from "react-router-dom";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
-import { presetRange } from "@/lib/search";
+import { describe, expect, it, vi } from "vitest";
+import { EMPTY_FILTERS, presetRange, type SearchFilters } from "@/lib/search";
+import { createEntry, parseEntries } from "@/lib/searchHistory";
 import { makeRawVideo } from "@/test/factories";
 import { TEST_API_BASE, errorResponse } from "@/test/handlers";
 import { server } from "@/test/server";
@@ -206,5 +207,231 @@ describe("SearchPage（U3 / US3.1・FR3.1）", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("通信");
     expect(screen.getByRole("button", { name: "再試行" })).toBeInTheDocument();
+  });
+});
+
+describe("SearchPage の検索履歴", () => {
+  const historyList = () => screen.findByRole("list", { name: "検索履歴" });
+  const searchBox = () => screen.getByRole("searchbox", { name: "検索語" });
+
+  /** 別の日に行った検索として履歴を用意する。 */
+  function seedHistory(...filters: Partial<SearchFilters>[]) {
+    const entries = filters.map((filter) =>
+      createEntry({ ...EMPTY_FILTERS, ...filter }, [], new Date(2026, 0, 1)),
+    );
+    localStorage.setItem("searchHistory", JSON.stringify(entries));
+  }
+
+  const storedTexts = () =>
+    parseEntries(localStorage.getItem("searchHistory") ?? "[]").map(({ text }) => text);
+
+  it("結果の出た検索を残し、次に開いたときは検索欄の下から 1 回で検索できる", async () => {
+    const requests = respondWith([makeRawVideo({ title: "猫の動画" })]);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.type(searchBox(), "猫{Enter}");
+    await screen.findByRole("list", { name: "検索結果" });
+    cleanup();
+
+    renderPage();
+    await user.click(within(await historyList()).getByRole("button", { name: "猫 を検索" }));
+
+    expect(await screen.findByRole("list", { name: "検索結果" })).toBeInTheDocument();
+    expect(location()).toBe("?q=%E7%8C%AB");
+    expect(searchBox()).toHaveValue("猫");
+    expect(requests).toHaveLength(2);
+    expect(screen.queryByRole("list", { name: "検索履歴" })).not.toBeInTheDocument();
+  });
+
+  it("履歴があれば使い方の代わりに履歴を出す", async () => {
+    seedHistory({ text: "猫" });
+    renderPage();
+
+    expect(await historyList()).toBeInTheDocument();
+    expect(screen.queryByText(/タイトルの一部、動画 ID/)).not.toBeInTheDocument();
+  });
+
+  it("該当なしの検索は残さない", async () => {
+    respondWith([]);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.type(searchBox(), "ねこｍ{Enter}");
+    await screen.findByText("該当する動画はありません");
+
+    expect(storedTexts()).toEqual([]);
+  });
+
+  it("失敗したあと再試行で結果が出れば残す", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/videos/:videoId`, () => errorResponse(404, "video_not_found")),
+      http.get(`${TEST_API_BASE}/search/videos`, () => HttpResponse.error(), { once: true }),
+      http.get(`${TEST_API_BASE}/search/videos`, () =>
+        HttpResponse.json({ items: [makeRawVideo()], has_more: false }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.type(searchBox(), "猫{Enter}");
+    await user.click(await screen.findByRole("button", { name: "再試行" }));
+
+    await waitFor(() => expect(storedTexts()).toEqual(["猫"]));
+  });
+
+  it("URL で開いた検索は残さない（戻る・再読み込み・共有リンク）", async () => {
+    respondWith([makeRawVideo({ title: "猫の動画" })]);
+    renderPage("/search?q=%E7%8C%AB");
+
+    await screen.findByRole("list", { name: "検索結果" });
+
+    expect(storedTexts()).toEqual([]);
+  });
+
+  it("期間チップを続けて押しても、最後の期間だけを残す", async () => {
+    respondWith([makeRawVideo()]);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: "今年" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "今年" })).toHaveAttribute("aria-pressed", "true"),
+    );
+    await screen.findByRole("list", { name: "検索結果" });
+    await user.click(screen.getByRole("button", { name: "去年" }));
+
+    await waitFor(() => {
+      const [entry, ...rest] = parseEntries(localStorage.getItem("searchHistory") ?? "[]");
+      expect(entry?.preset).toBe("lastYear");
+      expect(rest).toEqual([]);
+    });
+  });
+
+  it("結果の表示中は検索欄へフォーカスすると履歴を出し、Esc や外へ移ると閉じる", async () => {
+    respondWith([makeRawVideo()]);
+    seedHistory({ text: "犬" }, { text: "猫" });
+    const user = userEvent.setup();
+    renderPage("/search?q=%E7%8C%AB");
+    await screen.findByRole("list", { name: "検索結果" });
+    expect(screen.queryByRole("list", { name: "検索履歴" })).not.toBeInTheDocument();
+
+    await user.click(searchBox());
+    expect(within(await historyList()).getAllByRole("listitem")).toHaveLength(2);
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("list", { name: "検索履歴" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "すべて" }));
+    await user.click(searchBox());
+    await historyList();
+    await user.click(document.body);
+    expect(screen.queryByRole("list", { name: "検索履歴" })).not.toBeInTheDocument();
+  });
+
+  it("行を押した瞬間に検索欄のフォーカスを奪わず、検索できる", async () => {
+    respondWith([makeRawVideo()]);
+    seedHistory({ text: "犬" });
+    const user = userEvent.setup();
+    renderPage("/search?from=2026-08-01");
+    await screen.findByRole("list", { name: "検索結果" });
+
+    await user.click(searchBox());
+    await user.click(await screen.findByRole("button", { name: "犬 を検索" }));
+
+    await waitFor(() => expect(location()).toBe("?q=%E7%8A%AC"));
+  });
+
+  it("Tab で履歴の行へ移っても閉じない", async () => {
+    respondWith([makeRawVideo()]);
+    seedHistory({ text: "犬" });
+    const user = userEvent.setup();
+    renderPage("/search?from=2026-08-01");
+    await screen.findByRole("list", { name: "検索結果" });
+
+    await user.click(searchBox());
+    await user.tab();
+    await user.tab();
+
+    expect(await screen.findByRole("button", { name: "すべて削除" })).toHaveFocus();
+  });
+
+  it("入力中はその語を含む履歴に絞り、絞り込み中は「すべて削除」を出さない", async () => {
+    seedHistory({ text: "猫 まとめ" }, { text: "犬" });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.type(searchBox(), "猫");
+
+    const list = await historyList();
+    expect(within(list).getAllByRole("listitem")).toHaveLength(1);
+    expect(within(list).getByRole("button", { name: "猫 まとめ を検索" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "すべて削除" })).not.toBeInTheDocument();
+  });
+
+  it("手で指定した範囲の履歴を選ぶと、期間の入力欄を開いて示す", async () => {
+    respondWith([makeRawVideo()]);
+    seedHistory({ text: "猫", from: "2026-08-01", to: "2026-08-31" });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(
+      await screen.findByRole("button", { name: "猫、2026/8/1〜8/31にバックアップ を検索" }),
+    );
+
+    expect(await screen.findByLabelText("開始日")).toHaveValue("2026-08-01");
+  });
+
+  it("履歴を 1 件ずつ消せる", async () => {
+    seedHistory({ text: "猫" }, { text: "犬" });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "猫 を履歴から削除" }));
+
+    expect(screen.queryByRole("button", { name: "猫 を検索" })).not.toBeInTheDocument();
+    expect(storedTexts()).toEqual(["犬"]);
+  });
+
+  it("キーボードで消しても検索欄の周辺にフォーカスが残る", async () => {
+    seedHistory({ text: "猫" }, { text: "犬" });
+    const user = userEvent.setup();
+    renderPage();
+
+    (await screen.findByRole("button", { name: "猫 を履歴から削除" })).focus();
+    await user.keyboard("{Enter}");
+
+    expect(await historyList()).toHaveFocus();
+  });
+
+  it("すべて削除は確認してから消し、やめることもできる", async () => {
+    seedHistory({ text: "猫" });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "すべて削除" }));
+    await user.click(screen.getByRole("button", { name: "やめる" }));
+    expect(storedTexts()).toEqual(["猫"]);
+
+    await user.click(screen.getByRole("button", { name: "すべて削除" }));
+    await user.click(screen.getByRole("button", { name: "本当に削除" }));
+
+    expect(storedTexts()).toEqual([]);
+    expect(screen.queryByRole("list", { name: "検索履歴" })).not.toBeInTheDocument();
+    expect(screen.getByText(/タイトルの一部、動画 ID/)).toBeInTheDocument();
+  });
+
+  it("保存できない環境でも検索は続けられる", async () => {
+    respondWith([makeRawVideo()]);
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("denied");
+    });
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.type(searchBox(), "猫{Enter}");
+
+    expect(await screen.findByRole("list", { name: "検索結果" })).toBeInTheDocument();
+    setItem.mockRestore();
   });
 });

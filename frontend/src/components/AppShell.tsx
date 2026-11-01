@@ -7,6 +7,7 @@ import { RegisterDialog } from "@/components/RegisterDialog";
 import { HeaderSearch } from "@/components/HeaderSearch";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAuth } from "@/hooks/useAuth";
+import { clearSearchHistory } from "@/hooks/useSearchHistory";
 import { ROUTES } from "@/lib/routes";
 
 /**
@@ -14,7 +15,7 @@ import { ROUTES } from "@/lib/routes";
  * + 右下の登録ボタン。
  * 検索（U3）はヘッダから検索ページへ移る。登録アクション（C5 openRegister / U4）はどの画面でも
  * 右下の丸いボタン（スマホで親指の届く位置）からダイアログを開く。
- * ログアウトは signOut → TanStack Query キャッシュクリア → /login（WF2 / NFR4.6）。
+ * ログアウトは signOut → TanStack Query キャッシュと検索履歴のクリア → /login（WF2 / NFR4.6）。
  */
 export function AppShell() {
   const { signOut } = useAuth();
@@ -25,6 +26,7 @@ export function AppShell() {
   const handleLogout = async () => {
     await signOut();
     queryClient.clear();
+    clearSearchHistory();
     navigate(ROUTES.login, { replace: true });
   };
 

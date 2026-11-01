@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { CommentBackupPanel } from "@/components/CommentBackupPanel";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
@@ -13,7 +13,7 @@ import { useVideoDownload } from "@/hooks/useVideoDownload";
 import { useYoutubeComments } from "@/hooks/useYoutubeComments";
 import { useVideoTitleEdit } from "@/hooks/useVideoTitleEdit";
 import { useVideoPlayback, type PlaybackSource } from "@/hooks/useVideoPlayback";
-import { ROUTES } from "@/lib/routes";
+import { ROUTES, resolveSearchReturn } from "@/lib/routes";
 import { supportsCommentBackup } from "@/types/commentBackup";
 import type { UploadStatus } from "@/types/video";
 
@@ -21,7 +21,7 @@ import type { UploadStatus } from "@/types/video";
  * 動画再生ページ（U6 video-playback / US6.1・US6.2・FR6・FR7・OQ2・A3）。
  * URL param `videoId` を読み、`useVideoPlayback` で詳細 + 署名 URL を取得して状態別に描画する。
  * complete かつ署名 URL 取得成功 → `<video controls src>`（直接参照。認証ヘッダなし=preflight 回避）+
- * ダウンロード + 詳細 + 一覧へ戻るリンク。署名 URL 取得失敗（transport/CORS/期限切れ）→ error フォールバック
+ * ダウンロード + 詳細 + 一覧（検索結果から来たときは検索結果）へ戻るリンク。署名 URL 取得失敗（transport/CORS/期限切れ）→ error フォールバック
  * + 再試行（OQ2）。init/未存在 → 再生不可（再生/DL を出さない / A3）。
  *
  * 制御フローは discriminated union（PlaybackState / ViewState）で表現し、表示テキストで分岐しない。
@@ -53,11 +53,14 @@ function toSourceViewState(source: PlaybackSource): ViewState<string> {
 
 export function VideoPlaybackPage() {
   const { videoId } = useParams<{ videoId: string }>();
+  const location = useLocation();
+  const searchReturn = resolveSearchReturn(location.state);
   const playback = useVideoPlayback(videoId ?? "");
   const download = useVideoDownload();
   const navigate = useNavigate();
   const deletion = useVideoDeletion({
     // 削除した動画のページは残らないので、履歴を置き換えて一覧へ戻る（戻るで消えたページに来ない）。
+    // 検索結果へは戻らない。検索用の複製への反映は遅れるので、消した動画が結果に残って見える。
     onDeleted: () => navigate(ROUTES.videos, { replace: true }),
   });
   const titleEdit = useVideoTitleEdit(videoId ?? "");
@@ -79,6 +82,16 @@ export function VideoPlaybackPage() {
   const completedAt = comments.state.kind === "ready" ? comments.state.backup.completedAt : null;
   const commentList = useYoutubeComments(videoId ?? "", completedAt, showComments);
 
+  // 検索結果は 1 つ前の履歴にあるので、ブラウザの「戻る」と同じく履歴を積まずに戻る。
+  // 修飾キー付きのクリックは href のまま新しいタブ等で開く。
+  const handleBack = (event: MouseEvent<HTMLAnchorElement>) => {
+    const modified = event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
+    if (searchReturn !== null && !modified) {
+      event.preventDefault();
+      void navigate(-1);
+    }
+  };
+
   const saveTitle = async (title: string) => {
     const saved = await titleEdit.save(title);
     if (saved) {
@@ -93,12 +106,13 @@ export function VideoPlaybackPage() {
           見出しは読み上げの順序を保つため DOM では動画より前に置く。 */}
       <div className="max-md:order-first">
         <Link
-          to={ROUTES.videos}
+          to={searchReturn ?? ROUTES.videos}
+          onClick={handleBack}
           // 負のマージンで、周囲の余白を変えずにタップ領域だけを広げる。
           className="-my-3 inline-block py-3 text-sm text-muted-foreground hover:underline"
           data-testid="playback-back-link"
         >
-          ← 一覧へ戻る
+          {searchReturn === null ? "← 一覧へ戻る" : "← 検索結果へ戻る"}
         </Link>
       </div>
       {loadedVideo !== null && isEditingTitle ? (

@@ -102,10 +102,14 @@ export function matchPreset({ from, to }: DateRange, today: Date): DatePreset | 
   return match?.id ?? null;
 }
 
+/** 「Re:ゼロ」のようなタイトルも URL として解釈できるため、http(s) だけを URL として扱う。 */
+export function isUrlText(text: string): boolean {
+  return /^https?:\/\//i.test(text.trim());
+}
+
 /** タイトルのハイライトに使う語。URL で検索したときはタイトルと照合しない。 */
 export function searchTerms(text: string): string[] {
-  const trimmed = text.trim();
-  return /^https?:\/\//i.test(trimmed) ? [] : trimmed.split(/\s+/).filter((term) => term !== "");
+  return isUrlText(text) ? [] : text.split(/\s+/).filter((term) => term !== "");
 }
 
 export interface HighlightPart {

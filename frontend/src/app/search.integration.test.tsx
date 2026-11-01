@@ -122,6 +122,16 @@ describe("動画検索 結合（ヘッダ→検索ページ→結果 / US3.1・F
     expect(mark.tagName).toBe("MARK");
   });
 
+  it("ログアウトすると検索履歴を消す", async () => {
+    localStorage.setItem("searchHistory", "[]");
+    const user = userEvent.setup();
+    renderApp();
+
+    await user.click(await screen.findByRole("button", { name: "ログアウト" }));
+
+    await vi.waitFor(() => expect(localStorage.getItem("searchHistory")).toBeNull());
+  });
+
   it("transport 失敗は error 表示にフォールバックする（error-path / FR8）", async () => {
     server.use(http.get(`${TEST_API_BASE}/videos/:videoId`, () => HttpResponse.error()));
     renderApp(["/search?q=v1"]);

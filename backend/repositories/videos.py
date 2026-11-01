@@ -3,28 +3,23 @@ from datetime import UTC, datetime
 from functools import cached_property
 from urllib.parse import urlparse
 
-import boto3
 import httpx
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
-from usecases.models import TIKTOK_HOSTS, DomainError, is_tiktok_short_link, source_identity
+from repositories.aws import AwsRepository, condition_failed, conditional
+from usecases.models import (
+    TIKTOK_HOSTS,
+    DomainError,
+    is_tiktok_short_link,
+    s3_filename,
+    source_identity,
+)
 
 
-def conditional(error: ClientError) -> None:
-    if error.response["Error"]["Code"] == "ConditionalCheckFailedException":
-        raise DomainError(409, "concurrent_change") from None
-    raise error
-
-
-class VideoRepository:
+class VideoRepository(AwsRepository):
     """Owns the existing DynamoDB video item, S3 file, and source metadata lookup."""
 
-    def __init__(self, session=None):
-        self.session = session or boto3.Session()
-
-    # Clients are created on first use so a request only pays for the AWS services it touches
-    # (e.g. listing videos needs DynamoDB only).
     @cached_property
     def table(self):
         return self.session.resource("dynamodb").Table(os.environ["DYNAMO_TABLE_NAME"])
@@ -32,10 +27,6 @@ class VideoRepository:
     @cached_property
     def s3(self):
         return self.session.client("s3")
-
-    @cached_property
-    def ssm(self):
-        return self.session.client("ssm")
 
     def get(self, video_id: str) -> dict | None:
         return self.table.get_item(Key={"video_id": video_id}, ConsistentRead=True).get("Item")
@@ -93,9 +84,7 @@ class VideoRepository:
         video_id, platform, normalized = source_identity(url)
         title = video_id
         if platform == "youtube":
-            key = self.ssm.get_parameter(
-                Name=os.environ["SSM_YOUTUBE_API_KEY_PARAMETER"], WithDecryption=True
-            )["Parameter"]["Value"]
+            key = self.secret("SSM_YOUTUBE_API_KEY_PARAMETER")
             try:
                 with httpx.Client(timeout=15) as client:
                     response = client.get(
@@ -110,7 +99,6 @@ class VideoRepository:
             # TikTok's oEmbed no longer returns the caption; name it by the poster until edited.
             title = urlparse(normalized).path.split("/")[1] + " の TikTok"
         date = datetime.fromtimestamp(now, UTC).date()
-        filename = "ABCXYZ" + video_id if video_id.startswith("-") else video_id
         return {
             "video_id": video_id,
             "video_url": normalized,
@@ -120,7 +108,7 @@ class VideoRepository:
             "upload_status": "init",
             "request_timestamp": str(now),
             "s3fullpath": f"s3://{os.environ['BACKUP_BACKET']}/{platform}/"
-            f"{date.year}/{date.month}/{date.day}/{filename}",
+            f"{date.year}/{date.month}/{date.day}/{s3_filename(video_id)}",
         }
 
     def insert(self, video: dict) -> bool:
@@ -128,7 +116,7 @@ class VideoRepository:
             self.table.put_item(Item=video, ConditionExpression="attribute_not_exists(video_id)")
             return True
         except ClientError as error:
-            if error.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            if condition_failed(error):
                 return False
             raise
 
@@ -142,7 +130,7 @@ class VideoRepository:
                 ReturnValues="ALL_NEW",
             )["Attributes"]
         except ClientError as error:
-            if error.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            if condition_failed(error):
                 raise DomainError(404, "video_not_found") from None
             raise
 
@@ -231,7 +219,7 @@ class VideoRepository:
             )
             return True
         except ClientError as error:
-            if error.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            if condition_failed(error):
                 return False
             raise
 

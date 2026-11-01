@@ -3,19 +3,14 @@ import json
 import os
 from functools import cached_property
 
-import boto3
 from boto3.dynamodb.conditions import Key
-from botocore.config import Config
 from botocore.exceptions import ClientError
 
-from repositories.videos import conditional
+from repositories.aws import AwsRepository, BatchRepository, condition_failed, conditional
 
 
-class CommentBackupRepository:
+class CommentBackupRepository(AwsRepository):
     """Owns comment_backups: one request-tracking item per video, shared by all platforms."""
-
-    def __init__(self, session=None):
-        self.session = session or boto3.Session()
 
     @cached_property
     def dynamodb(self):
@@ -101,30 +96,16 @@ class CommentBackupRepository:
             )
             return True
         except ClientError as error:
-            if error.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            if condition_failed(error):
                 return False
             raise
 
 
-class CommentJobRepository:
+class CommentJobRepository(BatchRepository):
     """Submits each platform's comment job (its own Batch job definition) to the comment queue."""
 
-    def __init__(self, session=None):
-        self.session = session or boto3.Session()
-
-    @cached_property
-    def batch(self):
-        # SubmitJob has no idempotency token: never automatically resend an ambiguous request.
-        return self.session.client("batch", config=Config(retries={"total_max_attempts": 1}))
-
-    @cached_property
-    def ssm(self):
-        return self.session.client("ssm")
-
     def submit(self, platform: str, url: str, attempt: str, key: str) -> str:
-        cookie = self.ssm.get_parameter(
-            Name=os.environ["SSM_COOKIE_S3_PATH_PARAMETER"], WithDecryption=True
-        )["Parameter"]["Value"]
+        cookie = self.secret("SSM_COOKIE_S3_PATH_PARAMETER")
         prefix = platform.upper()
         env = {
             "URL": url,
@@ -141,19 +122,9 @@ class CommentJobRepository:
         )
         return result["jobId"]
 
-    def get(self, job_id: str) -> dict | None:
-        jobs = self.batch.describe_jobs(jobs=[job_id])["jobs"]
-        return jobs[0] if jobs else None
 
-    def terminate(self, job_id: str, reason: str) -> None:
-        self.batch.terminate_job(jobId=job_id, reason=reason)
-
-
-class CommentObjectRepository:
+class CommentObjectRepository(AwsRepository):
     """Reads the gzip JSON that a comment job stored in the comments bucket, and removes it."""
-
-    def __init__(self, session=None):
-        self.session = session or boto3.Session()
 
     @cached_property
     def s3(self):
@@ -176,11 +147,8 @@ class CommentObjectRepository:
                 raise RuntimeError(f"failed to delete {len(result['Errors'])} comment objects")
 
 
-class YoutubeCommentRepository:
+class YoutubeCommentRepository(AwsRepository):
     """Owns youtube_comments: one item per comment (video_id, comment_id)."""
-
-    def __init__(self, session=None):
-        self.session = session or boto3.Session()
 
     @cached_property
     def table(self):

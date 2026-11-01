@@ -2,9 +2,9 @@ import os
 import re
 from urllib.parse import quote
 
-import boto3
 import httpx
 
+from repositories.aws import AwsRepository
 from usecases.models import DomainError
 
 YOUTUBE_URL = re.compile(
@@ -13,10 +13,7 @@ YOUTUBE_URL = re.compile(
 )
 
 
-class ScrapboxRepository:
-    def __init__(self, session=None):
-        self.ssm = (session or boto3.Session()).client("ssm")
-
+class ScrapboxRepository(AwsRepository):
     def video_urls(self) -> list[str]:
         params = self.ssm.get_parameters(
             Names=[

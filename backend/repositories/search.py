@@ -1,7 +1,6 @@
-import os
 from functools import cached_property
 
-import boto3
+from repositories.aws import AwsRepository
 
 COLUMNS = (
     "video_id",
@@ -21,19 +20,17 @@ def like_pattern(term: str) -> str:
     return f"%{escaped}%"
 
 
-class SearchRepository:
+class SearchRepository(AwsRepository):
     """Owns the Neon copy of the videos. No connection until a method is called."""
 
     def __init__(self, session=None, url=None):
-        self.session = session or boto3.Session()
+        super().__init__(session)
         if url:
             self.url = url
 
     @cached_property
     def url(self) -> str:
-        return self.session.client("ssm").get_parameter(
-            Name=os.environ["SSM_SEARCH_DATABASE_URL_PARAMETER"], WithDecryption=True
-        )["Parameter"]["Value"]
+        return self.secret("SSM_SEARCH_DATABASE_URL_PARAMETER")
 
     def connect(self):
         # Imported here so that the Lambdas without search do not load libpq on cold start.

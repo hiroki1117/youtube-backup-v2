@@ -8,10 +8,12 @@ from repositories.comments import (
 )
 from repositories.jobs import JobRepository
 from repositories.playlists import PlaylistRepository
+from repositories.search import SearchRepository
 from repositories.videos import VideoRepository
 from usecases.backup import BackupService
 from usecases.comments import CommentService
 from usecases.playlists import PlaylistService
+from usecases.search import SearchService
 from usecases.youtube_comments import YoutubeCommentIngest, YoutubeCommentStore
 
 
@@ -43,6 +45,11 @@ def get_comment_service() -> CommentService:
 @cache
 def get_playlist_service() -> PlaylistService:
     return PlaylistService(PlaylistRepository())
+
+
+@cache
+def get_search_service() -> SearchService:
+    return SearchService(SearchRepository(), VideoRepository())
 
 
 @cache

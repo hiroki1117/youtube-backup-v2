@@ -105,6 +105,39 @@ describe("動画検索 結合（ヘッダ→検索ページ→結果 / US3.1・F
     expect(input).toHaveValue("a/b");
   });
 
+  it("検索結果から開いた動画は、同じ検索結果へ戻れる", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/videos/:videoId`, ({ params }) =>
+        params.videoId === "v1"
+          ? HttpResponse.json(makeRawVideo({ video_id: "v1", title: "猫の動画" }))
+          : errorResponse(404, "video_not_found"),
+      ),
+      http.get(`${TEST_API_BASE}/search/videos`, () =>
+        HttpResponse.json({
+          items: [makeRawVideo({ video_id: "v1", title: "猫の動画" })],
+          has_more: false,
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    const router = renderApp(["/videos", "/search?q=%E7%8C%AB&from=2026-08-01"]);
+
+    await user.click(await screen.findByRole("link", { name: /^猫の動画/ }));
+    const back = await screen.findByRole("link", { name: "← 検索結果へ戻る" });
+    expect(router.state.location.pathname).toBe("/videos/v1");
+    // 新しいタブで開くときの行き先も検索結果にする。
+    expect(back).toHaveAttribute("href", "/search?q=%E7%8C%AB&from=2026-08-01");
+
+    await user.click(back);
+
+    expect(await screen.findByRole("list", { name: "検索結果" })).toBeInTheDocument();
+    expect(router.state.location.search).toBe("?q=%E7%8C%AB&from=2026-08-01");
+    expect(screen.getByRole("searchbox", { name: "検索語" })).toHaveValue("猫");
+    // 履歴を積まないので、ブラウザの「戻る」は検索の前のページへ進む。
+    await router.navigate(-1);
+    expect(router.state.location.pathname).toBe("/videos");
+  });
+
   it("タイトルで検索すると一致部分を強調する", async () => {
     server.use(
       http.get(`${TEST_API_BASE}/videos/:videoId`, () => errorResponse(404, "video_not_found")),

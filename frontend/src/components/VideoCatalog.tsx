@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { SourceLink } from "@/components/SourceLink";
 import { StatusView, type ViewState } from "@/components/StatusView";
-import { ROUTES } from "@/lib/routes";
+import { ROUTES, type SearchReturnState } from "@/lib/routes";
 import { highlightParts } from "@/lib/search";
 import { cn } from "@/lib/utils";
 import type { UploadStatus, Video } from "@/types/video";
@@ -40,6 +40,8 @@ export interface VideoCatalogProps {
    * しすぎない。
    */
   searchTerms?: string[];
+  /** 検索結果として表示するときの戻り先。再生ページの戻るリンクが使う。 */
+  searchReturn?: SearchReturnState;
 }
 
 // upload_status enum → 表示ラベル。制御フローは enum で分岐し、ラベルでは分岐しない。
@@ -89,6 +91,7 @@ export function VideoCatalog({
   loadingLabel = "動画一覧を読み込んでいます...",
   listLabel = "動画一覧",
   searchTerms,
+  searchReturn,
 }: VideoCatalogProps) {
   const { onDelete } = handlers ?? {};
   const emptyMessage = state.status === "empty" ? EMPTY_MESSAGE[state.variant] : undefined;
@@ -118,6 +121,7 @@ export function VideoCatalog({
                 </span>
                 <Link
                   to={generatePath(ROUTES.videoDetail, { videoId: video.videoId })}
+                  state={searchReturn}
                   // タッチ操作では ::after を行全体へ広げ、行のどこを押しても再生ページへ移れるようにする。
                   // 検索結果は見比べられるよう、PC でも 2 行まで表示する。
                   className={cn(

@@ -18,6 +18,9 @@ class BackupService:
         self.on_complete = on_complete
         self.on_delete = on_delete
 
+    def list_videos(self, status: str, limit: int) -> list[dict]:
+        return self.videos.list(status, limit)
+
     def video(self, video_id: str) -> dict:
         video = self.videos.get(video_id)
         if video is None:
@@ -25,6 +28,10 @@ class BackupService:
         if video.get("deletion_token"):
             raise DomainError(409, "deletion_needs_reconciliation")
         return video
+
+    def update_title(self, video_id: str, title: str) -> dict:
+        self.video(video_id)
+        return self.videos.update_title(video_id, title)
 
     def backup(self, video_id: str) -> Backup:
         video = self.video(video_id)
@@ -47,25 +54,24 @@ class BackupService:
         video_id, _, _ = source_identity(url)
         existing = self.videos.get(video_id)
         if existing:
-            return Registration(
-                video=Video.model_validate(self.video(video_id)),
-                backup=self.backup(video_id),
-                already_registered=True,
-            ), False
+            return self._existing_registration(video_id), False
         video = self.videos.make_video(url, int(self.clock()))
         inserted = self.videos.insert(video)
         if not inserted:
-            return Registration(
-                video=Video.model_validate(self.video(video_id)),
-                backup=self.backup(video_id),
-                already_registered=True,
-            ), False
+            return self._existing_registration(video_id), False
         backup, started = self.start(video_id, initial=True)
         return Registration(
             video=Video.model_validate(self.video(video_id)),
             backup=backup,
             already_registered=False,
         ), started
+
+    def _existing_registration(self, video_id: str) -> Registration:
+        return Registration(
+            video=Video.model_validate(self.video(video_id)),
+            backup=self.backup(video_id),
+            already_registered=True,
+        )
 
     def start(self, video_id: str, *, initial: bool = False) -> tuple[Backup, bool]:
         video = self.video(video_id)

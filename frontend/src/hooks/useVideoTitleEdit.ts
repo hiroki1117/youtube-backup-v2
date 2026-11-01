@@ -7,15 +7,15 @@ import { useApiAction } from "./useApiAction";
 /** 失敗時は `onSaved` を呼ばないので、編集中の入力は残る。 */
 export function useVideoTitleEdit(videoId: string, onSaved: () => void) {
   const queryClient = useQueryClient();
-  const { run, isPending } = useApiAction(
-    (title: string) => apiClient.updateVideoTitle(videoId, title),
-    (video) => {
+  const { run, isPending } = useApiAction({
+    call: (title: string) => apiClient.updateVideoTitle(videoId, title),
+    onOk: (video) => {
       const latest: ApiResult<Video> = { kind: "ok", data: video };
       queryClient.setQueryData(["video", videoId], latest);
       void queryClient.invalidateQueries({ queryKey: ["videos"] });
       notify("success", "タイトルを更新しました");
       onSaved();
     },
-  );
+  });
   return { save: run, isSaving: isPending };
 }

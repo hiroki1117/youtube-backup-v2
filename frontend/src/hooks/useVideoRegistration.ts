@@ -5,9 +5,9 @@ import { useApiAction } from "./useApiAction";
 
 export function useVideoRegistration({ onRegistered }: { onRegistered?: () => void } = {}) {
   const queryClient = useQueryClient();
-  const { run, isPending } = useApiAction(
-    (url: string) => apiClient.submitVideo(url),
-    ({ title, alreadyBackedUp }) => {
+  const { run, isPending } = useApiAction({
+    call: (url: string) => apiClient.submitVideo(url),
+    onOk: ({ title, alreadyBackedUp }) => {
       if (alreadyBackedUp) {
         notify("info", `既にバックアップ済みです: ${title}`);
       } else {
@@ -16,6 +16,6 @@ export function useVideoRegistration({ onRegistered }: { onRegistered?: () => vo
       void queryClient.invalidateQueries({ queryKey: ["videos"] });
       onRegistered?.();
     },
-  );
+  });
   return { submit: run, isSubmitting: isPending };
 }

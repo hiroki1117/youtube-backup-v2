@@ -1,16 +1,10 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { apiClient, apiErrorMessage } from "@/api/client";
 import type { ViewState } from "@/types/viewState";
-import type { YoutubeCommentThread } from "@/types/youtubeComments";
+import type { YoutubeCommentThreads } from "@/types/youtubeComments";
 
 const PAGE_SIZE = 20;
 const TRANSPORT_MESSAGE = "コメントを読み込めませんでした。時間をおいて再試行してください。";
-
-export interface YoutubeCommentList {
-  threads: YoutubeCommentThread[];
-  totalThreads: number;
-  totalComments: number;
-}
 
 /**
  * スレッド単位のページを「もっと見る」で継ぎ足す。
@@ -34,7 +28,7 @@ export function useYoutubeComments(videoId: string, completedAt: number | null, 
     enabled: enabled && completedAt !== null,
   });
 
-  let state: ViewState<YoutubeCommentList> = { status: "loading" };
+  let state: ViewState<YoutubeCommentThreads> = { status: "loading" };
   if (query.data !== undefined) {
     const pages = query.data.pages;
     const { totalThreads, totalComments } = pages[pages.length - 1];

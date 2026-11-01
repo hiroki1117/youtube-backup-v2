@@ -28,8 +28,6 @@ vi.mock("amazon-cognito-identity-js", () => ({
   }),
 }));
 
-vi.unmock("@/api/token");
-
 describe("AuthModule.signIn（USER_SRP_AUTH / contract C5）", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -86,8 +84,8 @@ describe("AuthModule.getSession", () => {
 
   it("有効セッションがあれば authenticated を返す（セッション復元）", async () => {
     getCurrentUserMock.mockReturnValue({
-      getSession: (cb: (err: Error | null, session: unknown) => void) => {
-        cb(null, { isValid: () => true, getIdToken: () => ({ getJwtToken: () => "token" }) });
+      getSession: (cb: (err: Error | null, session: { isValid: () => boolean } | null) => void) => {
+        cb(null, { isValid: () => true });
       },
     });
     expect(await auth.getSession()).toBe("authenticated");

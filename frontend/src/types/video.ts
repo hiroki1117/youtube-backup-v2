@@ -1,5 +1,18 @@
 import { z } from "zod";
 
+export type UploadStatus = "init" | "complete";
+
+export interface Video {
+  videoId: string;
+  videoUrl: string;
+  platform: string;
+  title: string;
+  backupDate: string; // YYYY-MM-DD
+  s3FullPath: string;
+  uploadStatus: UploadStatus;
+  requestTimestamp: string | null; // epoch 秒（文字列）。旧レコードの不明な時刻は null。
+}
+
 export const videoSchema = z
   .object({
     video_id: z.string(),
@@ -12,27 +25,13 @@ export const videoSchema = z
     // 旧レコードでは欠落または null。
     request_timestamp: z.string().nullish(),
   })
-  .transform((raw) => ({
+  .transform((raw): Video => ({
     videoId: raw.video_id,
     videoUrl: raw.video_url,
     platform: raw.platform,
     title: raw.title,
-    backupDate: raw.backupdate, // YYYY-MM-DD
+    backupDate: raw.backupdate,
     s3FullPath: raw.s3fullpath,
     uploadStatus: raw.upload_status,
-    requestTimestamp: raw.request_timestamp ?? null, // epoch 秒（文字列）
+    requestTimestamp: raw.request_timestamp ?? null,
   }));
-
-export type Video = z.output<typeof videoSchema>;
-export type UploadStatus = Video["uploadStatus"];
-
-export const STATUS_LABEL: Record<UploadStatus, string> = {
-  init: "処理中",
-  complete: "完了",
-};
-
-// 処理中（init）の動画に対する削除は、バックアップの取り消しになる。
-export const REMOVE_LABEL: Record<UploadStatus, string> = {
-  init: "取り消し",
-  complete: "削除",
-};

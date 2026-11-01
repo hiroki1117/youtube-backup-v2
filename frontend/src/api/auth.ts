@@ -1,5 +1,5 @@
 import { AuthenticationDetails, CognitoUser } from "amazon-cognito-identity-js";
-import { getIdToken, userPool } from "./token";
+import { currentSession, userPool } from "./cognito";
 
 /** Cognito の USER_SRP_AUTH でログインする（パスワードを平文で送らない）。例外は投げない。 */
 export type AuthResult =
@@ -35,7 +35,7 @@ function readError(err: unknown): { code: string; message: string } {
 
 export const authModule: AuthApi = {
   async getSession() {
-    return (await getIdToken()) === null ? "unauthenticated" : "authenticated";
+    return (await currentSession()) === null ? "unauthenticated" : "authenticated";
   },
 
   signIn(username, password) {

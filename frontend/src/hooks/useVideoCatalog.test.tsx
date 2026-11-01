@@ -6,22 +6,12 @@ import { describe, expect, it } from "vitest";
 import { server } from "@/test/server";
 import { INIT_RAW_VIDEOS, TEST_API_BASE } from "@/test/handlers";
 import { makeRawVideos } from "@/test/factories";
-import type { Video } from "@/types/video";
-import type { ViewState } from "@/types/viewState";
 import {
   CATALOG_FETCH_MAX,
   CATALOG_FETCH_NUM,
   CATALOG_FETCH_STEP,
   useVideoCatalog,
 } from "./useVideoCatalog";
-
-function readyVideos(state: ViewState<Video[]>): Video[] {
-  return state.status === "ready" ? state.data : [];
-}
-
-function errorOf(state: ViewState<Video[]>): string | null {
-  return state.status === "error" ? state.message : null;
-}
 
 function createWrapper() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -36,8 +26,8 @@ describe("useVideoCatalog（U2 / US2.1・US2.2・US2.4・US2.5）", () => {
     const { result } = renderHook(() => useVideoCatalog(), { wrapper: createWrapper() });
 
     await waitFor(() => expect(result.current.isFetching).toBe(false));
-    expect(readyVideos(result.current.state).length).toBe(3);
-    expect(readyVideos(result.current.state).map((v) => v.videoId)).toEqual(["c2", "c3", "c1"]);
+    expect(result.current.items.length).toBe(3);
+    expect(result.current.items.map((v) => v.videoId)).toEqual(["c2", "c3", "c1"]);
     expect(result.current.uploadStatus).toBe("complete");
     expect(result.current.sortOrder).toBe("desc");
     expect(result.current.hasMore).toBe(false); // 3 件 < 取得件数 50（続きなし）
@@ -67,14 +57,14 @@ describe("useVideoCatalog（U2 / US2.1・US2.2・US2.4・US2.5）", () => {
     );
     const { result } = renderHook(() => useVideoCatalog(), { wrapper: createWrapper() });
 
-    await waitFor(() => expect(readyVideos(result.current.state).length).toBe(25));
+    await waitFor(() => expect(result.current.items.length).toBe(25));
 
     act(() => result.current.setUploadStatus("init"));
 
     await waitFor(() => expect(result.current.uploadStatus).toBe("init"));
-    await waitFor(() => expect(readyVideos(result.current.state).length).toBe(2));
+    await waitFor(() => expect(result.current.items.length).toBe(2));
     // init は i1(07-20)/i2(07-25) → desc で i2, i1
-    expect(readyVideos(result.current.state).map((v) => v.videoId)).toEqual(["i2", "i1"]);
+    expect(result.current.items.map((v) => v.videoId)).toEqual(["i2", "i1"]);
   });
 
   it("空一覧は success かつ total 0 を返す（FR8 empty）", async () => {
@@ -82,17 +72,17 @@ describe("useVideoCatalog（U2 / US2.1・US2.2・US2.4・US2.5）", () => {
     const { result } = renderHook(() => useVideoCatalog(), { wrapper: createWrapper() });
 
     await waitFor(() => expect(result.current.isFetching).toBe(false));
-    expect(readyVideos(result.current.state).length).toBe(0);
-    expect(readyVideos(result.current.state)).toEqual([]);
+    expect(result.current.items.length).toBe(0);
+    expect(result.current.items).toEqual([]);
   });
 
   it("transport 失敗は error を配布する（error-path 必須 / FR8）", async () => {
     server.use(http.get(`${TEST_API_BASE}/videos`, () => HttpResponse.error()));
     const { result } = renderHook(() => useVideoCatalog(), { wrapper: createWrapper() });
 
-    await waitFor(() => expect(result.current.state.status).toBe("error"));
-    expect(errorOf(result.current.state)).toBeTruthy();
-    expect(readyVideos(result.current.state)).toEqual([]);
+    await waitFor(() => expect(result.current.status).toBe("error"));
+    expect(result.current.errorMessage).toBeTruthy();
+    expect(result.current.items).toEqual([]);
   });
 
   it("要求した件数を満たしたら hasMore。loadMore で fetch_num を 50 ずつ増やして取り直す", async () => {
@@ -110,15 +100,15 @@ describe("useVideoCatalog（U2 / US2.1・US2.2・US2.4・US2.5）", () => {
     );
     const { result } = renderHook(() => useVideoCatalog(), { wrapper: createWrapper() });
 
-    await waitFor(() => expect(readyVideos(result.current.state).length).toBe(50));
+    await waitFor(() => expect(result.current.items.length).toBe(50));
     expect(result.current.hasMore).toBe(true);
 
     act(() => result.current.loadMore());
-    await waitFor(() => expect(readyVideos(result.current.state).length).toBe(100));
+    await waitFor(() => expect(result.current.items.length).toBe(100));
     expect(result.current.hasMore).toBe(true);
 
     act(() => result.current.loadMore());
-    await waitFor(() => expect(readyVideos(result.current.state).length).toBe(120));
+    await waitFor(() => expect(result.current.items.length).toBe(120));
     expect(result.current.hasMore).toBe(false); // 150 件要求して 120 件 = 末尾まで取得
     expect(requested).toEqual(["50", "100", "150"]);
   });
@@ -132,10 +122,10 @@ describe("useVideoCatalog（U2 / US2.1・US2.2・US2.4・US2.5）", () => {
     );
     const { result } = renderHook(() => useVideoCatalog(), { wrapper: createWrapper() });
 
-    await waitFor(() => expect(readyVideos(result.current.state).length).toBe(50));
+    await waitFor(() => expect(result.current.items.length).toBe(50));
     for (let expected = 100; expected <= CATALOG_FETCH_MAX; expected += CATALOG_FETCH_STEP) {
       act(() => result.current.loadMore());
-      await waitFor(() => expect(readyVideos(result.current.state).length).toBe(expected));
+      await waitFor(() => expect(result.current.items.length).toBe(expected));
     }
     expect(result.current.hasMore).toBe(false);
   });
@@ -145,13 +135,13 @@ describe("useVideoCatalog（U2 / US2.1・US2.2・US2.4・US2.5）", () => {
     server.use(http.get(`${TEST_API_BASE}/videos`, () => HttpResponse.json(makeRawVideos(25))));
     const { result } = renderHook(() => useVideoCatalog(), { wrapper: createWrapper() });
 
-    await waitFor(() => expect(readyVideos(result.current.state).length).toBe(25));
+    await waitFor(() => expect(result.current.items.length).toBe(25));
     // desc 既定: 先頭は最新 08-25（動画25）
-    expect(readyVideos(result.current.state)[0].title).toBe("動画25");
+    expect(result.current.items[0].title).toBe("動画25");
 
     act(() => result.current.toggleSortOrder());
     await waitFor(() => expect(result.current.sortOrder).toBe("asc"));
-    expect(readyVideos(result.current.state)[0].title).toBe("動画1"); // asc: 最古 08-01
+    expect(result.current.items[0].title).toBe("動画1"); // asc: 最古 08-01
   });
 
   it("complete の取得後にもう一方の状態（init）を先読みし、切り替え時は即表示する", async () => {
@@ -170,7 +160,7 @@ describe("useVideoCatalog（U2 / US2.1・US2.2・US2.4・US2.5）", () => {
 
     act(() => result.current.setUploadStatus("init"));
     // キャッシュ済みのため pending を経由せず、そのまま行が出る。
-    expect(result.current.state.status).toBe("ready");
-    expect(readyVideos(result.current.state).length).toBe(INIT_RAW_VIDEOS.length);
+    expect(result.current.status).toBe("success");
+    expect(result.current.items.length).toBe(INIT_RAW_VIDEOS.length);
   });
 });

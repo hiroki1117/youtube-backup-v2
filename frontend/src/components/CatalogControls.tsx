@@ -1,7 +1,8 @@
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { SortOrder } from "@/lib/catalog";
-import { STATUS_LABEL, type UploadStatus } from "@/types/video";
+import { STATUS_LABEL } from "@/lib/videoLabels";
+import type { UploadStatus } from "@/types/video";
 
 export interface CatalogControlsProps {
   uploadStatus: UploadStatus;

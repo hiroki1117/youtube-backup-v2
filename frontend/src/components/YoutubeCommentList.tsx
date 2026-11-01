@@ -1,12 +1,11 @@
 import { Button } from "@/components/ui/button";
-import type { YoutubeCommentList as CommentList } from "@/hooks/useYoutubeComments";
 import type { ViewState } from "@/types/viewState";
-import type { YoutubeComment } from "@/types/youtubeComments";
+import type { YoutubeComment, YoutubeCommentThreads } from "@/types/youtubeComments";
 
 /** 親コメントを並べ、返信は `<details>` に畳む。本文はテキストとして描画する（HTML 解釈しない）。 */
 
 export interface YoutubeCommentListProps {
-  state: ViewState<CommentList>;
+  state: ViewState<YoutubeCommentThreads>;
   hasMore: boolean;
   isLoadingMore: boolean;
   onLoadMore: () => void;

@@ -3,9 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { sortVideos, type SortOrder } from "@/lib/catalog";
 import type { UploadStatus, Video } from "@/types/video";
-import type { ViewState } from "@/types/viewState";
 
-const DEFAULT_UPLOAD_STATUS: UploadStatus = "complete";
+export const DEFAULT_UPLOAD_STATUS: UploadStatus = "complete";
 // API はカーソルページング非対応なので、「もっと見る」は取得件数を増やして先頭から取り直す。
 export const CATALOG_FETCH_NUM = 50;
 export const CATALOG_FETCH_STEP = 50;
@@ -48,26 +47,13 @@ export function useVideoCatalog() {
 
   const items = useMemo(() => sortVideos(query.data ?? [], sortOrder), [query.data, sortOrder]);
 
-  let state: ViewState<Video[]>;
-  if (query.status === "pending") {
-    state = { status: "loading" };
-  } else if (query.status === "error") {
-    state = { status: "error", message: query.error.message };
-  } else if (items.length === 0) {
-    const message =
-      uploadStatus === DEFAULT_UPLOAD_STATUS
-        ? "バックアップ済み動画がありません"
-        : "条件に一致するデータがありません";
-    state = { status: "empty", message };
-  } else {
-    state = { status: "ready", data: items };
-  }
-
   // placeholder 表示中は増分前の件数で判定し、ボタンを消さない。
   const requested = query.isPlaceholderData ? fetchNum - CATALOG_FETCH_STEP : fetchNum;
 
   return {
-    state,
+    status: query.status,
+    errorMessage: query.error?.message ?? "",
+    items,
     hasMore: query.data !== undefined && items.length >= requested && requested < CATALOG_FETCH_MAX,
     uploadStatus,
     sortOrder,

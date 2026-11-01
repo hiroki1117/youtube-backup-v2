@@ -25,9 +25,9 @@ export function useCommentBackup(videoId: string, enabled: boolean) {
     },
   });
 
-  const { run, isPending } = useApiAction(
-    (_: void) => apiClient.startCommentBackup(videoId),
-    ({ backup, started }) => {
+  const { run, isPending } = useApiAction({
+    call: (_: void) => apiClient.startCommentBackup(videoId),
+    onOk: ({ backup, started }) => {
       const latest: ApiResult<CommentBackup> = { kind: "ok", data: backup };
       queryClient.setQueryData(queryKey, latest);
       if (started) {
@@ -36,7 +36,7 @@ export function useCommentBackup(videoId: string, enabled: boolean) {
         notify("info", "コメントはすでに取得中です");
       }
     },
-  );
+  });
 
   const result = query.data;
   let state: ViewState<CommentBackup> = { status: "loading" };

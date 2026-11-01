@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { commentBackupSchema } from "@/types/commentBackup";
-import { videoSchema, type UploadStatus } from "@/types/video";
-import { youtubeCommentPageSchema } from "@/types/youtubeComments";
-import { youtubePlaylistSchema } from "@/types/youtubePlaylist";
+import { commentBackupSchema, type CommentBackup } from "@/types/commentBackup";
+import { videoSchema, type UploadStatus, type Video } from "@/types/video";
+import { youtubeCommentPageSchema, type YoutubeCommentPage } from "@/types/youtubeComments";
+import { youtubePlaylistSchema, type YoutubePlaylist } from "@/types/youtubePlaylist";
 import { getIdToken } from "@/api/token";
 import { config } from "./config";
 
@@ -24,6 +24,58 @@ const AUTH_EXPIRED_MESSAGE = "認証が切れました。再度ログインし�
 /** 失敗を利用者向けの文言にする。transport の詳細は画面に出さない。 */
 export function apiErrorMessage(failure: ApiFailure, transportMessage = TRANSPORT_MESSAGE): string {
   return failure.kind === "transport" ? transportMessage : failure.message;
+}
+
+export interface SubmitResult {
+  videoId: string;
+  title: string;
+  /** 登録済みの URL だった。 */
+  alreadyBackedUp: boolean;
+}
+
+export interface CommentBackupStart {
+  backup: CommentBackup;
+  /** 取得中で何もしなければ false。 */
+  started: boolean;
+}
+
+export interface VideoSearchResult {
+  videos: Video[];
+  /** `limit` を超えて該当する動画があれば true。 */
+  hasMore: boolean;
+}
+
+export interface ApiClient {
+  listVideos(params: {
+    uploadStatus: UploadStatus;
+    fetchNum?: number;
+  }): Promise<ApiResult<Video[]>>;
+  getVideo(videoId: string): Promise<ApiResult<Video>>;
+  /** 動画の検索。毎時同期の複製を読む。 */
+  searchVideos(params: {
+    query: string;
+    backupFrom?: string;
+    backupTo?: string;
+    limit?: number;
+  }): Promise<ApiResult<VideoSearchResult>>;
+  submitVideo(url: string): Promise<ApiResult<SubmitResult>>;
+  updateVideoTitle(videoId: string, title: string): Promise<ApiResult<Video>>;
+  /** 完了済み動画の削除。 */
+  deleteVideo(videoId: string): Promise<ApiResult<null>>;
+  /** 未完了バックアップの取り消し。実行中のジョブを止めて未完了の動画記録を消す。 */
+  cancelBackup(videoId: string): Promise<ApiResult<null>>;
+  /** 再生・ダウンロード用の署名付き URL。 */
+  getPresignedUrl(videoId: string): Promise<ApiResult<string>>;
+  getCommentBackup(videoId: string): Promise<ApiResult<CommentBackup>>;
+  /** コメントの取得を開始する（取得済みなら最新化）。 */
+  startCommentBackup(videoId: string): Promise<ApiResult<CommentBackupStart>>;
+  /** スレッド単位のページ。固定コメント→新しい順。 */
+  getYoutubeComments(
+    videoId: string,
+    params: { offset: number; limit: number },
+  ): Promise<ApiResult<YoutubeCommentPage>>;
+  /** 再生リストの動画一覧。URL の解釈は backend が行い、何も登録しない。 */
+  getYoutubePlaylist(url: string): Promise<ApiResult<YoutubePlaylist>>;
 }
 
 // サーバーが返す `detail` コード → 利用者向けメッセージ（コードは画面に出さない）。
@@ -85,7 +137,7 @@ const registrationSchema = z
     backup: z.object({ video_id: z.string(), state: z.string() }),
     already_registered: z.boolean(),
   })
-  .transform(({ video, already_registered }) => ({
+  .transform(({ video, already_registered }): SubmitResult => ({
     videoId: video.videoId,
     title: video.title,
     alreadyBackedUp: already_registered,
@@ -93,13 +145,7 @@ const registrationSchema = z
 
 const searchResultsSchema = z
   .object({ items: z.array(videoSchema), has_more: z.boolean() })
-  .transform((raw) => ({
-    videos: raw.items,
-    /** `limit` を超えて該当する動画があれば true。 */
-    hasMore: raw.has_more,
-  }));
-
-export type VideoSearchResult = z.output<typeof searchResultsSchema>;
+  .transform((raw): VideoSearchResult => ({ videos: raw.items, hasMore: raw.has_more }));
 
 const playbackSchema = z
   .object({ url: z.string(), expires_in: z.number() })
@@ -113,7 +159,7 @@ const videoPath = (videoId: string) => `/videos/${encodeURIComponent(videoId)}`;
 export function createApiClient(
   baseUrl: string = config.apiBaseUrl,
   getToken: () => Promise<string | null> = getIdToken,
-) {
+): ApiClient {
   const root = baseUrl.replace(/\/+$/, "");
 
   async function send(
@@ -159,7 +205,6 @@ export function createApiClient(
 
     getVideo: (videoId: string) => request(videoSchema, videoPath(videoId)),
 
-    /** 動画の検索。毎時同期の複製を読む。 */
     searchVideos(params: {
       query: string;
       backupFrom?: string;
@@ -183,7 +228,6 @@ export function createApiClient(
       return request(searchResultsSchema, `/search/videos?${search.toString()}`);
     },
 
-    /** 登録済みの URL も ok で返す（`alreadyBackedUp`）。 */
     submitVideo: (url: string) =>
       request(registrationSchema, "/videos", { method: "POST", body: JSON.stringify({ url }) }),
 
@@ -193,22 +237,18 @@ export function createApiClient(
         body: JSON.stringify({ title }),
       }),
 
-    /** 完了済み動画の削除。 */
     deleteVideo: (videoId: string) =>
       request(noContentSchema, videoPath(videoId), { method: "DELETE" }),
 
-    /** 未完了バックアップの取り消し。実行中のジョブを止めて未完了の動画記録を消す。 */
     cancelBackup: (videoId: string) =>
       request(noContentSchema, `${videoPath(videoId)}/backup`, { method: "DELETE" }),
 
-    /** 再生・ダウンロード用の署名付き URL。 */
     getPresignedUrl: (videoId: string) =>
       request(playbackSchema, `${videoPath(videoId)}/playback_url`),
 
     getCommentBackup: (videoId: string) =>
       request(commentBackupSchema, `${videoPath(videoId)}/comments/backup`),
 
-    /** コメントの取得を開始する（取得済みなら最新化）。取得中で何もしなければ `started: false`。 */
     async startCommentBackup(videoId: string) {
       const path = `${videoPath(videoId)}/comments/backup`;
       const sent = await send(path, { method: "POST" });
@@ -224,14 +264,12 @@ export function createApiClient(
         : backup;
     },
 
-    /** スレッド単位のページ。固定コメント→新しい順。 */
     getYoutubeComments: (videoId: string, { offset, limit }: { offset: number; limit: number }) =>
       request(
         youtubeCommentPageSchema,
         `${videoPath(videoId)}/comments?offset=${offset}&limit=${limit}`,
       ),
 
-    /** 再生リストの動画一覧。URL の解釈は backend が行い、何も登録しない。 */
     getYoutubePlaylist: (url: string) =>
       request(youtubePlaylistSchema, `/youtube/playlist?url=${encodeURIComponent(url)}`),
   };

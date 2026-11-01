@@ -1,7 +1,11 @@
 /** 入力を trim して https URL として解釈する。それ以外（javascript: 等）は null。 */
 export function parseHttpsUrl(input: string): URL | null {
-  const validation = validateVideoUrl(input);
-  return validation.ok ? new URL(validation.url) : null;
+  try {
+    const parsed = new URL(input.trim());
+    return parsed.protocol === "https:" ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 export type VideoUrlValidation = { ok: true; url: string } | { ok: false; reason: string };

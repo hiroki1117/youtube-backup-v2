@@ -10,12 +10,12 @@ export function useVideoDeletion({ onDeleted }: { onDeleted?: (video: Video) => 
   const queryClient = useQueryClient();
   const [pendingVideo, setPendingVideo] = useState<Video | null>(null);
 
-  const { run, isPending } = useApiAction(
-    (video: Video) =>
+  const { run, isPending } = useApiAction({
+    call: (video: Video) =>
       video.uploadStatus === "init"
         ? apiClient.cancelBackup(video.videoId)
         : apiClient.deleteVideo(video.videoId),
-    (_, video) => {
+    onOk: (_, video) => {
       notify(
         "success",
         video.uploadStatus === "init"
@@ -25,8 +25,8 @@ export function useVideoDeletion({ onDeleted }: { onDeleted?: (video: Video) => 
       void queryClient.invalidateQueries({ queryKey: ["videos"] });
       onDeleted?.(video);
     },
-    () => setPendingVideo(null),
-  );
+    onSettled: () => setPendingVideo(null),
+  });
 
   return {
     pendingVideo,

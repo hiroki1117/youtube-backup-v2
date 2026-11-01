@@ -1,6 +1,7 @@
 import { SourceLink } from "@/components/SourceLink";
 import { parseHttpsUrl } from "@/lib/url";
-import { STATUS_LABEL, type Video } from "@/types/video";
+import { STATUS_LABEL } from "@/lib/videoLabels";
+import type { Video } from "@/types/video";
 
 export function VideoDetail({ video }: { video: Video }) {
   return (

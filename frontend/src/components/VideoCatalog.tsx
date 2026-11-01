@@ -3,10 +3,11 @@ import { Button } from "@/components/ui/button";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { SourceLink } from "@/components/SourceLink";
 import { StatusView } from "@/components/StatusView";
-import { ROUTES } from "@/lib/routes";
+import { ROUTES, type SearchReturnState } from "@/lib/routes";
 import { highlightParts } from "@/lib/search";
 import { cn } from "@/lib/utils";
-import { REMOVE_LABEL, STATUS_LABEL, type Video } from "@/types/video";
+import { REMOVE_LABEL, STATUS_LABEL } from "@/lib/videoLabels";
+import type { Video } from "@/types/video";
 import type { ViewState } from "@/types/viewState";
 
 export interface VideoCatalogProps {
@@ -26,6 +27,8 @@ export interface VideoCatalogProps {
    * しすぎない。
    */
   searchTerms?: string[];
+  /** 検索結果として表示するときの戻り先。再生ページの戻るリンクが使う。 */
+  searchReturn?: SearchReturnState;
 }
 
 function HighlightedTitle({ title, terms }: { title: string; terms: string[] }) {
@@ -50,6 +53,7 @@ export function VideoCatalog({
   loadingLabel = "動画一覧を読み込んでいます...",
   listLabel = "動画一覧",
   searchTerms,
+  searchReturn,
 }: VideoCatalogProps) {
   return (
     <StatusView state={state} onRetry={onRetry} loadingLabel={loadingLabel}>
@@ -71,6 +75,7 @@ export function VideoCatalog({
                 </span>
                 <Link
                   to={generatePath(ROUTES.videoDetail, { videoId: video.videoId })}
+                  state={searchReturn}
                   // タッチ操作では ::after を行全体へ広げ、行のどこを押しても再生ページへ移れるようにする。
                   // 検索結果は見比べられるよう、PC でも 2 行まで表示する。
                   className={cn(

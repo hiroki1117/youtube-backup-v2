@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { VideoCatalog } from "@/components/VideoCatalog";
 import { useSearchHistory } from "@/hooks/useSearchHistory";
 import { useVideoSearch, type VideoSearchState } from "@/hooks/useVideoSearch";
+import { ROUTES } from "@/lib/routes";
 import {
   EMPTY_FILTERS,
   hasConditions,
@@ -251,6 +252,7 @@ export function SearchPage() {
             loadingLabel="検索しています..."
             listLabel="検索結果"
             searchTerms={searchTerms(filters.text)}
+            searchReturn={{ searchReturnTo: `${ROUTES.search}?${params.toString()}` }}
           />
         </div>
       )}

@@ -15,7 +15,8 @@ class Video(BaseModel):
     backupdate: str
     s3fullpath: str
     upload_status: Literal["init", "complete"]
-    request_timestamp: str
+    # Older records predate this attribute. Unknown request times must stay unknown.
+    request_timestamp: str | None = None
 
 
 class RegisterVideo(BaseModel):
@@ -77,6 +78,11 @@ class YoutubeCommentPage(BaseModel):
     total_comments: int
     threads: list[YoutubeCommentThread]
     next_offset: int | None
+
+
+class VideoSearchResults(BaseModel):
+    items: list[Video]
+    has_more: bool
 
 
 class Registration(BaseModel):

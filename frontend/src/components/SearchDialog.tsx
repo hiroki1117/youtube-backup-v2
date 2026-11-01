@@ -10,8 +10,8 @@ import type { UploadStatus, Video } from "@/types/video";
 
 /**
  * 動画検索ダイアログ（U3 video-search / US3.1・FR3.1・C4・C5・OQ-C2）。
- * 入力（video_id / YouTube URL）→ 検索フック（useVideoSearch）→ 結果を StatusView（C4）で描画する。
- * ready 時は動画詳細を表示し、`uploadStatus === "complete"` のときのみ「再生ページへ」ナビゲーション
+ * 入力（タイトル / video_id / URL / バックアップ日）→ 検索フック（useVideoSearch）→ 結果を
+ * StatusView（C4）で描画する。ready 時は該当する動画の一覧を表示し、`uploadStatus === "complete"` のときのみ「再生ページへ」ナビゲーション
  * （ROUTES.videoDetail = /videos/:videoId、ルーター経由で U6 到達。OQ-C2）を提供する。
  *
  * 表示専用に近い presentational で、副作用（取得）は検索フック（hooks 層）へ委譲する。
@@ -36,7 +36,9 @@ const STATUS_LABEL: Record<UploadStatus, string> = {
  * idle（未検索）・invalidInput（入力不正）は結果領域を描画しない（null）。
  * invalidInput はフォーム直下のバリデーション表示で扱う（RegisterDialog と同様のパターン）。
  */
-function toResultViewState(state: VideoSearchState): ViewState<Video> | null {
+function toResultViewState(
+  state: VideoSearchState,
+): ViewState<Extract<VideoSearchState, { kind: "ok" }>> | null {
   switch (state.kind) {
     case "idle":
     case "invalidInput":
@@ -44,7 +46,7 @@ function toResultViewState(state: VideoSearchState): ViewState<Video> | null {
     case "loading":
       return { status: "loading" };
     case "ok":
-      return { status: "ready", data: state.video };
+      return { status: "ready", data: state };
     case "notFound":
       return { status: "empty", variant: "nodata" };
     case "error":
@@ -54,6 +56,8 @@ function toResultViewState(state: VideoSearchState): ViewState<Video> | null {
 
 export function SearchDialog({ open, onClose }: SearchDialogProps) {
   const [query, setQuery] = useState("");
+  const [backupFrom, setBackupFrom] = useState("");
+  const [backupTo, setBackupTo] = useState("");
   const { search, state, refetch } = useVideoSearch();
   const navigate = useNavigate();
 
@@ -64,6 +68,8 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
     setPrevOpen(open);
     if (!open) {
       setQuery("");
+      setBackupFrom("");
+      setBackupTo("");
     }
   }
 
@@ -73,8 +79,8 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    // 空/不正入力の判定はフック（extractVideoId）に一元化する（API を叩かない）。
-    search(query);
+    // 空/不正入力の判定はフックに一元化する（API を叩かない）。
+    search({ text: query, backupFrom, backupTo });
   };
 
   const validationMessage = state.kind === "invalidInput" ? state.message : null;
@@ -93,19 +99,19 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="search-dialog-title"
-        className="w-full max-w-md rounded-lg border bg-background p-6 shadow-lg"
+        className="max-h-full w-full max-w-md overflow-y-auto rounded-lg border bg-background p-6 shadow-lg"
       >
         <h2 id="search-dialog-title" className="text-lg font-semibold">
           動画を検索
         </h2>
         <form onSubmit={handleSubmit} className="mt-4 space-y-4" aria-label="動画検索フォーム">
           <div className="space-y-2">
-            <Label htmlFor="search-input">動画 ID または YouTube URL</Label>
+            <Label htmlFor="search-input">タイトル、動画 ID または URL</Label>
             <div className="flex gap-2">
               <Input
                 id="search-input"
                 type="text"
-                placeholder="dQw4w9WgXcQ または https://www.youtube.com/watch?v=..."
+                placeholder="猫 まとめ、dQw4w9WgXcQ、https://www.youtube.com/watch?v=..."
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 aria-invalid={hasValidationError}
@@ -119,6 +125,26 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
               </p>
             )}
           </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="min-w-0 space-y-2">
+              <Label htmlFor="search-backup-from">バックアップ日（から）</Label>
+              <Input
+                id="search-backup-from"
+                type="date"
+                value={backupFrom}
+                onChange={(event) => setBackupFrom(event.target.value)}
+              />
+            </div>
+            <div className="min-w-0 space-y-2">
+              <Label htmlFor="search-backup-to">バックアップ日（まで）</Label>
+              <Input
+                id="search-backup-to"
+                type="date"
+                value={backupTo}
+                onChange={(event) => setBackupTo(event.target.value)}
+              />
+            </div>
+          </div>
         </form>
 
         {resultViewState !== null && (
@@ -129,21 +155,36 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
               emptyMessage="指定した動画が見つかりませんでした。"
               loadingLabel="検索しています..."
             >
-              {(video) => (
-                <div className="space-y-3" data-testid="search-result">
-                  <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-                    <dt className="text-muted-foreground">タイトル</dt>
-                    <dd className="font-medium">{video.title}</dd>
-                    <dt className="text-muted-foreground">プラットフォーム</dt>
-                    <dd>{video.platform}</dd>
-                    <dt className="text-muted-foreground">バックアップ日</dt>
-                    <dd>{video.backupDate}</dd>
-                    <dt className="text-muted-foreground">状態</dt>
-                    <dd>{STATUS_LABEL[video.uploadStatus]}</dd>
-                  </dl>
-                  {video.uploadStatus === "complete" ? (
-                    <Button onClick={() => handlePlay(video)}>再生ページへ</Button>
-                  ) : null}
+              {({ videos, hasMore }) => (
+                <div className="space-y-4">
+                  <ul className="space-y-4 divide-y" data-testid="search-result">
+                    {videos.map((video) => (
+                      <li key={video.videoId} className="space-y-3 pt-4 first:pt-0">
+                        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm">
+                          <dt className="whitespace-nowrap text-muted-foreground">タイトル</dt>
+                          <dd className="break-words font-medium">{video.title}</dd>
+                          <dt className="whitespace-nowrap text-muted-foreground">
+                            プラットフォーム
+                          </dt>
+                          <dd>{video.platform}</dd>
+                          <dt className="whitespace-nowrap text-muted-foreground">
+                            バックアップ日
+                          </dt>
+                          <dd>{video.backupDate}</dd>
+                          <dt className="whitespace-nowrap text-muted-foreground">状態</dt>
+                          <dd>{STATUS_LABEL[video.uploadStatus]}</dd>
+                        </dl>
+                        {video.uploadStatus === "complete" ? (
+                          <Button onClick={() => handlePlay(video)}>再生ページへ</Button>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                  {hasMore && (
+                    <p className="text-sm text-muted-foreground">
+                      ほかにも該当する動画があります。条件を絞ってください。
+                    </p>
+                  )}
                 </div>
               )}
             </StatusView>

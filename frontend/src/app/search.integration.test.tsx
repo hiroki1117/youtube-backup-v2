@@ -62,7 +62,7 @@ describe("動画検索 結合（ヘッダ→ダイアログ→検索 / US3.1・F
     renderApp();
 
     await openSearchDialog(user);
-    await user.type(screen.getByLabelText("動画 ID または YouTube URL"), "v1");
+    await user.type(screen.getByLabelText("タイトル、動画 ID または URL"), "v1");
     await user.click(screen.getByRole("button", { name: "検索" }));
 
     expect(await screen.findByTestId("search-result")).toBeInTheDocument();
@@ -79,7 +79,7 @@ describe("動画検索 結合（ヘッダ→ダイアログ→検索 / US3.1・F
     renderApp();
 
     await openSearchDialog(user);
-    await user.type(screen.getByLabelText("動画 ID または YouTube URL"), "missing");
+    await user.type(screen.getByLabelText("タイトル、動画 ID または URL"), "missing");
     await user.click(screen.getByRole("button", { name: "検索" }));
 
     expect(await screen.findByText(/見つかりませんでした/)).toBeInTheDocument();
@@ -92,7 +92,7 @@ describe("動画検索 結合（ヘッダ→ダイアログ→検索 / US3.1・F
     renderApp();
 
     await openSearchDialog(user);
-    await user.type(screen.getByLabelText("動画 ID または YouTube URL"), "v1");
+    await user.type(screen.getByLabelText("タイトル、動画 ID または URL"), "v1");
     await user.click(screen.getByRole("button", { name: "検索" }));
 
     const alert = await screen.findByRole("alert");

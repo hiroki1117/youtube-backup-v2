@@ -98,10 +98,7 @@ export const Loading: Story = {
   },
 };
 
-/**
- * 一覧取得の失敗。GET /video は成功時に裸配列を返す契約のため、エラーエンベロープは ApiClient で
- * 配列不一致の transport 失敗として扱われ、その内部メッセージがそのまま表示される（実挙動）。
- */
+/** 一覧取得の失敗。 */
 export const Error: Story = {
   parameters: {
     msw: { handlers: [listErrorHandler()] },

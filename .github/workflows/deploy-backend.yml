@@ -1,6 +1,6 @@
 name: Deploy backend (prod Lambda)
 
-# infra が作成した 5 関数へ共通 ZIP を配布する。関数の設定（handler/runtime/env/role）は infra が所有し、
+# infra が作成した関数へ共通 ZIP を配布する。関数の設定（handler/runtime/env/role）は infra が所有し、
 # このワークフローは code と発行 version だけを扱う。
 on:
   push:

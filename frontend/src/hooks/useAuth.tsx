@@ -1,38 +1,25 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { authModule, type AuthApi, type AuthResult, type SessionStatus } from "@/api/auth";
 
-/**
- * 認証状態プロバイダ（functional-spec SM1 / security-design §1）。
- * 起動時はセッション復元を試み、確定まで `unknown`（RequireAuth は loading 表示）。
- * 認証 API は `authApi` prop で注入できる（既定は Cognito 実装 `authModule`。本番挙動は不変）。
- * Storybook / テストはここにスタブを渡し、Cognito SDK へ到達させない（R-01 依存注入）。
- */
-export type AuthState = "unknown" | SessionStatus;
-
 interface AuthContextValue {
-  status: AuthState;
+  /** 起動時のセッション復元が済むまで `unknown`。 */
+  status: "unknown" | SessionStatus;
   signIn: (username: string, password: string) => Promise<AuthResult>;
   signOut: () => Promise<void>;
-  refresh: () => Promise<void>;
-}
-
-export interface AuthProviderProps {
-  children: ReactNode;
-  /** 認証 API の注入口。省略時は `authModule`（Cognito）。 */
-  authApi?: AuthApi;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export function AuthProvider({ children, authApi = authModule }: AuthProviderProps) {
-  const [status, setStatus] = useState<AuthState>("unknown");
+/** Storybook とテストは `authApi` にスタブを渡し、Cognito へ到達させない。 */
+export function AuthProvider({
+  children,
+  authApi = authModule,
+}: {
+  children: ReactNode;
+  authApi?: AuthApi;
+}) {
+  const [status, setStatus] = useState<AuthContextValue["status"]>("unknown");
 
-  const refresh = useCallback(async () => {
-    const next = await authApi.getSession();
-    setStatus(next);
-  }, [authApi]);
-
-  // 起動時のセッション復元。setState は非同期コールバック内で行い、アンマウント後の更新は捨てる。
   useEffect(() => {
     let cancelled = false;
     void authApi.getSession().then((next) => {
@@ -45,26 +32,21 @@ export function AuthProvider({ children, authApi = authModule }: AuthProviderPro
     };
   }, [authApi]);
 
-  const signIn = useCallback(
-    async (username: string, password: string): Promise<AuthResult> => {
-      const result = await authApi.signIn(username, password);
-      if (result.kind === "ok") {
-        setStatus("authenticated");
-      }
-      return result;
-    },
-    [authApi],
-  );
+  const signIn = async (username: string, password: string) => {
+    const result = await authApi.signIn(username, password);
+    if (result.kind === "ok") {
+      setStatus("authenticated");
+    }
+    return result;
+  };
 
-  const signOut = useCallback(async (): Promise<void> => {
+  const signOut = async () => {
     await authApi.signOut();
     setStatus("unauthenticated");
-  }, [authApi]);
+  };
 
   return (
-    <AuthContext.Provider value={{ status, signIn, signOut, refresh }}>
-      {children}
-    </AuthContext.Provider>
+    <AuthContext.Provider value={{ status, signIn, signOut }}>{children}</AuthContext.Provider>
   );
 }
 

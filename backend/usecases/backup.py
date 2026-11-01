@@ -3,9 +3,25 @@ from datetime import UTC, datetime
 from urllib.parse import unquote_plus, urlparse
 from uuid import uuid4
 
-from usecases.models import Backup, DomainError, Registration, Video, source_identity
+from usecases.models import (
+    Backup,
+    DomainError,
+    Registration,
+    Video,
+    s3_filename,
+    source_identity,
+)
 
 ACTIVE = {"SUBMITTED", "PENDING", "RUNNABLE", "STARTING", "RUNNING"}
+
+
+def live_video(videos, video_id: str) -> dict:
+    video = videos.get(video_id)
+    if video is None:
+        raise DomainError(404, "video_not_found")
+    if video.get("deletion_token"):
+        raise DomainError(409, "deletion_needs_reconciliation")
+    return video
 
 
 class BackupService:
@@ -22,12 +38,7 @@ class BackupService:
         return self.videos.list(status, limit)
 
     def video(self, video_id: str) -> dict:
-        video = self.videos.get(video_id)
-        if video is None:
-            raise DomainError(404, "video_not_found")
-        if video.get("deletion_token"):
-            raise DomainError(409, "deletion_needs_reconciliation")
-        return video
+        return live_video(self.videos, video_id)
 
     def update_title(self, video_id: str, title: str) -> dict:
         self.video(video_id)
@@ -94,13 +105,12 @@ class BackupService:
             raise DomainError(409, "legacy_job_untracked")
         attempt = uuid4().hex  # Internal attempt only: existing video IDs are preserved.
         path = urlparse(video["s3fullpath"])
-        filename = "ABCXYZ" + video_id if video_id.startswith("-") else video_id
         now = int(self.clock())
         date = datetime.fromtimestamp(now, UTC).date()
         # New attempt-specific object keys prevent old completion events completing a new retry.
         target = (
             f"s3://{path.netloc}/{video['platform']}/{date.year}/{date.month}/{date.day}/"
-            f"attempts/{attempt}/{filename}"
+            f"attempts/{attempt}/{s3_filename(video_id)}"
         )
         claimed = self.videos.claim(video, attempt, target, now)
         try:

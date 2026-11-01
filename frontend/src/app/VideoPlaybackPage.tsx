@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { CommentBackupPanel } from "@/components/CommentBackupPanel";
 import { DeleteConfirmDialog } from "@/components/DeleteConfirmDialog";
 import { YoutubeCommentList } from "@/components/YoutubeCommentList";
-import { StatusView, type ViewState } from "@/components/StatusView";
+import { StatusView } from "@/components/StatusView";
 import { VideoDetail } from "@/components/VideoDetail";
 import { VideoTitleEditor } from "@/components/VideoTitleEditor";
 import { useCommentBackup } from "@/hooks/useCommentBackup";
@@ -12,10 +12,11 @@ import { useVideoDeletion } from "@/hooks/useVideoDeletion";
 import { useVideoDownload } from "@/hooks/useVideoDownload";
 import { useYoutubeComments } from "@/hooks/useYoutubeComments";
 import { useVideoTitleEdit } from "@/hooks/useVideoTitleEdit";
-import { useVideoPlayback, type PlaybackSource } from "@/hooks/useVideoPlayback";
+import { useVideoPlayback } from "@/hooks/useVideoPlayback";
 import { ROUTES, resolveSearchReturn } from "@/lib/routes";
 import { supportsCommentBackup } from "@/types/commentBackup";
-import type { UploadStatus } from "@/types/video";
+import { REMOVE_LABEL } from "@/lib/videoLabels";
+import type { Video } from "@/types/video";
 
 /**
  * 動画再生ページ（U6 video-playback / US6.1・US6.2・FR6・FR7・OQ2・A3）。
@@ -33,22 +34,18 @@ import type { UploadStatus } from "@/types/video";
  * 削除（init は取り消し）もここから行える（スマホ幅の一覧では行に削除を出さないため）。成功したら一覧へ戻る。
  */
 
-// 削除ボタンのラベル。処理中（init）の動画に対する削除は、バックアップの取り消しになる。
-const REMOVE_LABEL: Record<UploadStatus, string> = {
-  init: "取り消し",
-  complete: "削除",
-};
-
-/** 署名 URL の取得状態（PlaybackSource）を StatusView の ViewState へ変換する。 */
-function toSourceViewState(source: PlaybackSource): ViewState<string> {
-  switch (source.status) {
-    case "loading":
-      return { status: "loading" };
-    case "error":
-      return { status: "error", message: source.message };
-    case "ready":
-      return { status: "ready", data: source.url };
-  }
+function RemoveButton({ video, onClick }: { video: Video; onClick: () => void }) {
+  const label = REMOVE_LABEL[video.uploadStatus];
+  return (
+    <Button
+      variant="outline"
+      onClick={onClick}
+      aria-label={`${label}: ${video.title}`}
+      data-testid="playback-delete-button"
+    >
+      {label}
+    </Button>
+  );
 }
 
 export function VideoPlaybackPage() {
@@ -63,8 +60,8 @@ export function VideoPlaybackPage() {
     // 検索結果へは戻らない。検索用の複製への反映は遅れるので、消した動画が結果に残って見える。
     onDeleted: () => navigate(ROUTES.videos, { replace: true }),
   });
-  const titleEdit = useVideoTitleEdit(videoId ?? "");
   const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const titleEdit = useVideoTitleEdit(videoId ?? "", () => setIsEditingTitle(false));
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   // 表示時に見出しへフォーカスする（アクセシビリティ。ページ遷移でフォーカスを画面先頭へ移す）。
@@ -79,7 +76,7 @@ export function VideoPlaybackPage() {
   const showComments = state.kind === "ready" && supportsCommentBackup(state.video.platform);
   const comments = useCommentBackup(videoId ?? "", showComments);
   // 完了時刻が変わる（再取得が完了する）たびに一覧を読み直す。
-  const completedAt = comments.state.kind === "ready" ? comments.state.backup.completedAt : null;
+  const completedAt = comments.state.status === "ready" ? comments.state.data.completedAt : null;
   const commentList = useYoutubeComments(videoId ?? "", completedAt, showComments);
 
   // 検索結果は 1 つ前の履歴にあるので、ブラウザの「戻る」と同じく履歴を積まずに戻る。
@@ -90,14 +87,6 @@ export function VideoPlaybackPage() {
       event.preventDefault();
       void navigate(-1);
     }
-  };
-
-  const saveTitle = async (title: string) => {
-    const saved = await titleEdit.save(title);
-    if (saved) {
-      setIsEditingTitle(false);
-    }
-    return saved;
   };
 
   return (
@@ -119,7 +108,7 @@ export function VideoPlaybackPage() {
         <VideoTitleEditor
           title={loadedVideo.title}
           isSaving={titleEdit.isSaving}
-          onSave={saveTitle}
+          onSave={titleEdit.save}
           onCancel={() => setIsEditingTitle(false)}
         />
       ) : (
@@ -147,24 +136,18 @@ export function VideoPlaybackPage() {
       )}
 
       {state.kind === "loading" && (
-        <StatusView state={{ status: "loading" }} loadingLabel="動画情報を読み込んでいます...">
-          {() => null}
-        </StatusView>
+        <StatusView state={{ status: "loading" }} loadingLabel="動画情報を読み込んでいます..." />
       )}
 
       {state.kind === "notFound" && (
-        <StatusView
-          state={{ status: "empty", variant: "nodata" }}
-          emptyMessage="動画が見つかりませんでした。"
-        >
-          {() => null}
-        </StatusView>
+        <StatusView state={{ status: "empty", message: "動画が見つかりませんでした。" }} />
       )}
 
       {state.kind === "error" && (
-        <StatusView state={{ status: "error", message: state.message }} onRetry={playback.refetch}>
-          {() => null}
-        </StatusView>
+        <StatusView
+          state={{ status: "error", message: state.message }}
+          onRetry={playback.refetch}
+        />
       )}
 
       {state.kind === "notPlayable" && (
@@ -176,14 +159,7 @@ export function VideoPlaybackPage() {
             この動画はまだ再生・ダウンロードできません（処理中）。
           </p>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={() => deletion.requestDelete(state.video)}
-              aria-label={`${REMOVE_LABEL.init}: ${state.video.title}`}
-              data-testid="playback-delete-button"
-            >
-              {REMOVE_LABEL.init}
-            </Button>
+            <RemoveButton video={state.video} onClick={() => deletion.requestDelete(state.video)} />
           </div>
           <VideoDetail video={state.video} />
         </div>
@@ -194,7 +170,7 @@ export function VideoPlaybackPage() {
         <div className="contents md:flex md:flex-col md:gap-4">
           <div className="max-md:order-first max-md:-mx-4">
             <StatusView
-              state={toSourceViewState(state.source)}
+              state={state.source}
               onRetry={playback.refetch}
               loadingLabel="再生準備中..."
             >
@@ -225,21 +201,14 @@ export function VideoPlaybackPage() {
             >
               {download.isPreparing ? "準備中..." : "ダウンロード"}
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => deletion.requestDelete(state.video)}
-              aria-label={`${REMOVE_LABEL[state.video.uploadStatus]}: ${state.video.title}`}
-              data-testid="playback-delete-button"
-            >
-              {REMOVE_LABEL[state.video.uploadStatus]}
-            </Button>
+            <RemoveButton video={state.video} onClick={() => deletion.requestDelete(state.video)} />
           </div>
           <VideoDetail video={state.video} />
           {showComments ? (
             <CommentBackupPanel
               state={comments.state}
               isStarting={comments.isStarting}
-              onStart={() => void comments.start()}
+              onStart={() => comments.start()}
               onRetry={comments.refetch}
             />
           ) : null}

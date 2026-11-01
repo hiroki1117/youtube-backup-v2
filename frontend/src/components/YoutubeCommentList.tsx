@@ -1,25 +1,11 @@
 import { Button } from "@/components/ui/button";
-import type { YoutubeComment, YoutubeCommentThread } from "@/types/youtubeComments";
+import type { ViewState } from "@/types/viewState";
+import type { YoutubeComment, YoutubeCommentThreads } from "@/types/youtubeComments";
 
-/**
- * バックアップした YouTube コメントの一覧（presentational）。
- * スレッドごとに親コメントを出し、返信は `<details>` に畳む。本文はテキストとして描画する（HTML 解釈しない）。
- * YouTube で削除・非表示になったコメント（removed）には印を付ける。
- * 副作用・API 依存を持たない（レイヤ境界: components → types のみ）。
- */
-
-export type YoutubeCommentListState =
-  | { kind: "loading" }
-  | { kind: "error"; message: string }
-  | {
-      kind: "ready";
-      threads: YoutubeCommentThread[];
-      totalThreads: number;
-      totalComments: number;
-    };
+/** 親コメントを並べ、返信は `<details>` に畳む。本文はテキストとして描画する（HTML 解釈しない）。 */
 
 export interface YoutubeCommentListProps {
-  state: YoutubeCommentListState;
+  state: ViewState<YoutubeCommentThreads>;
   hasMore: boolean;
   isLoadingMore: boolean;
   onLoadMore: () => void;
@@ -63,12 +49,12 @@ export function YoutubeCommentList({
       className="space-y-3 text-sm"
       data-testid="youtube-comment-list"
     >
-      {state.kind === "loading" && (
+      {state.status === "loading" && (
         <p role="status" className="text-muted-foreground">
           コメントを読み込んでいます...
         </p>
       )}
-      {state.kind === "error" && (
+      {state.status === "error" && (
         <div role="alert" className="flex items-center gap-2">
           <span className="text-destructive">{state.message}</span>
           <Button variant="outline" size="sm" onClick={onRetry}>
@@ -76,15 +62,15 @@ export function YoutubeCommentList({
           </Button>
         </div>
       )}
-      {state.kind === "ready" && (
+      {state.status === "ready" && (
         <>
           <p className="text-muted-foreground" data-testid="youtube-comment-total">
-            {state.totalThreads === 0
+            {state.data.totalThreads === 0
               ? "バックアップしたコメントはありません。"
-              : `${state.totalComments} 件（スレッド ${state.totalThreads} 件）`}
+              : `${state.data.totalComments} 件（スレッド ${state.data.totalThreads} 件）`}
           </p>
           <ul className="space-y-4">
-            {state.threads.map((thread) => (
+            {state.data.threads.map((thread) => (
               <li key={thread.commentId} className="space-y-2">
                 <Comment comment={thread} />
                 {thread.replies.length > 0 ? (

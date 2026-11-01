@@ -1,12 +1,6 @@
 import os
 
 from api.app import create_app as build_app
-from api.dependencies import (
-    get_comment_service,
-    get_playlist_service,
-    get_search_service,
-    get_service,
-)
 from repositories.memory import (
     MemoryCommentBackups,
     MemoryCommentJobs,
@@ -22,6 +16,12 @@ from usecases.comments import CommentService
 from usecases.playlists import PlaylistService
 from usecases.search import SearchService
 from usecases.youtube_comments import YoutubeCommentStore
+from wiring import (
+    get_comment_service,
+    get_playlist_service,
+    get_search_service,
+    get_service,
+)
 
 
 def create_app():

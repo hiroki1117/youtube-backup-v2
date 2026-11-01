@@ -4,12 +4,9 @@ import {
   type CommentBackup,
   type CommentBackupState,
 } from "@/types/commentBackup";
+import type { ViewState } from "@/types/viewState";
 
-/**
- * コメントバックアップの状態と開始ボタンを表示する presentational コンポーネント。
- * 未取得なら「コメントをバックアップ」、取得済み・失敗なら「コメントを最新化」を出し、取得中は無効にする。
- * 副作用・API 依存を持たない（レイヤ境界: components → types のみ）。状態は enum で分岐する。
- */
+/** 未取得なら「コメントをバックアップ」、取得済み・失敗なら「コメントを最新化」を出す。 */
 
 const STATE_LABEL: Record<CommentBackupState, string> = {
   not_started: "未取得",
@@ -20,14 +17,9 @@ const STATE_LABEL: Record<CommentBackupState, string> = {
   failed: "失敗",
 };
 
-/** 読み込み中・照会失敗の間はボタンを出さず、メッセージ（と再試行）だけを表示する。 */
-export type CommentBackupPanelState =
-  | { kind: "loading" }
-  | { kind: "error"; message: string }
-  | { kind: "ready"; backup: CommentBackup };
-
 export interface CommentBackupPanelProps {
-  state: CommentBackupPanelState;
+  /** 読み込み中・照会失敗の間はボタンを出さない。 */
+  state: ViewState<CommentBackup>;
   isStarting: boolean;
   onStart: () => void;
   onRetry: () => void;
@@ -50,12 +42,12 @@ export function CommentBackupPanel({
       data-testid="comment-backup-panel"
     >
       <h3 className="font-medium">コメント</h3>
-      {state.kind === "loading" && (
+      {state.status === "loading" && (
         <p role="status" className="text-muted-foreground">
           コメントの状態を読み込んでいます...
         </p>
       )}
-      {state.kind === "error" && (
+      {state.status === "error" && (
         <div role="alert" className="flex items-center gap-2">
           <span className="text-destructive">{state.message}</span>
           <Button variant="outline" size="sm" onClick={onRetry}>
@@ -63,8 +55,8 @@ export function CommentBackupPanel({
           </Button>
         </div>
       )}
-      {state.kind === "ready" && (
-        <ReadyContent backup={state.backup} isStarting={isStarting} onStart={onStart} />
+      {state.status === "ready" && (
+        <ReadyContent backup={state.data} isStarting={isStarting} onStart={onStart} />
       )}
     </section>
   );

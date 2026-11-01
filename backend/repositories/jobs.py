@@ -1,25 +1,11 @@
 import os
-from functools import cached_property
 from urllib.parse import urlparse
 
-import boto3
-from botocore.config import Config
+from repositories.aws import BatchRepository
 
 
-class JobRepository:
-    """Batch registration/query and its SSM inputs. No AWS work until constructed/called."""
-
-    def __init__(self, session=None):
-        self.session = session or boto3.Session()
-
-    @cached_property
-    def batch(self):
-        # SubmitJob has no idempotency token: never automatically resend an ambiguous request.
-        return self.session.client("batch", config=Config(retries={"total_max_attempts": 1}))
-
-    @cached_property
-    def ssm(self):
-        return self.session.client("ssm")
+class JobRepository(BatchRepository):
+    """Submits the video backup job with its SSM inputs."""
 
     def submit(self, video: dict, attempt_id: str) -> str:
         path = urlparse(video["s3fullpath"])
@@ -47,11 +33,3 @@ class JobRepository:
             containerOverrides={"environment": [{"name": k, "value": v} for k, v in env.items()]},
         )
         return result["jobId"]
-
-    def terminate(self, job_id: str, reason: str) -> None:
-        # Works in any non-terminal state: queued jobs are cancelled, running ones stopped.
-        self.batch.terminate_job(jobId=job_id, reason=reason)
-
-    def get(self, job_id: str) -> dict | None:
-        jobs = self.batch.describe_jobs(jobs=[job_id])["jobs"]
-        return jobs[0] if jobs else None

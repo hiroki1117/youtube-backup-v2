@@ -25,8 +25,8 @@ describe("useVideoCatalog（U2 / US2.1・US2.2・US2.4・US2.5）", () => {
     // 既定ハンドラ: complete = c1(08-01)/c2(08-03)/c3(08-02)
     const { result } = renderHook(() => useVideoCatalog(), { wrapper: createWrapper() });
 
-    await waitFor(() => expect(result.current.status).toBe("success"));
-    expect(result.current.total).toBe(3);
+    await waitFor(() => expect(result.current.isFetching).toBe(false));
+    expect(result.current.items.length).toBe(3);
     expect(result.current.items.map((v) => v.videoId)).toEqual(["c2", "c3", "c1"]);
     expect(result.current.uploadStatus).toBe("complete");
     expect(result.current.sortOrder).toBe("desc");
@@ -43,7 +43,7 @@ describe("useVideoCatalog（U2 / US2.1・US2.2・US2.4・US2.5）", () => {
     );
     const { result } = renderHook(() => useVideoCatalog(), { wrapper: createWrapper() });
 
-    await waitFor(() => expect(result.current.status).toBe("success"));
+    await waitFor(() => expect(result.current.isFetching).toBe(false));
     expect(CATALOG_FETCH_NUM).toBe(50);
     expect(fetchNum).toBe(String(CATALOG_FETCH_NUM));
   });
@@ -57,12 +57,12 @@ describe("useVideoCatalog（U2 / US2.1・US2.2・US2.4・US2.5）", () => {
     );
     const { result } = renderHook(() => useVideoCatalog(), { wrapper: createWrapper() });
 
-    await waitFor(() => expect(result.current.total).toBe(25));
+    await waitFor(() => expect(result.current.items.length).toBe(25));
 
     act(() => result.current.setUploadStatus("init"));
 
     await waitFor(() => expect(result.current.uploadStatus).toBe("init"));
-    await waitFor(() => expect(result.current.total).toBe(2));
+    await waitFor(() => expect(result.current.items.length).toBe(2));
     // init は i1(07-20)/i2(07-25) → desc で i2, i1
     expect(result.current.items.map((v) => v.videoId)).toEqual(["i2", "i1"]);
   });
@@ -71,8 +71,8 @@ describe("useVideoCatalog（U2 / US2.1・US2.2・US2.4・US2.5）", () => {
     server.use(http.get(`${TEST_API_BASE}/videos`, () => HttpResponse.json([])));
     const { result } = renderHook(() => useVideoCatalog(), { wrapper: createWrapper() });
 
-    await waitFor(() => expect(result.current.status).toBe("success"));
-    expect(result.current.total).toBe(0);
+    await waitFor(() => expect(result.current.isFetching).toBe(false));
+    expect(result.current.items.length).toBe(0);
     expect(result.current.items).toEqual([]);
   });
 
@@ -100,15 +100,15 @@ describe("useVideoCatalog（U2 / US2.1・US2.2・US2.4・US2.5）", () => {
     );
     const { result } = renderHook(() => useVideoCatalog(), { wrapper: createWrapper() });
 
-    await waitFor(() => expect(result.current.total).toBe(50));
+    await waitFor(() => expect(result.current.items.length).toBe(50));
     expect(result.current.hasMore).toBe(true);
 
     act(() => result.current.loadMore());
-    await waitFor(() => expect(result.current.total).toBe(100));
+    await waitFor(() => expect(result.current.items.length).toBe(100));
     expect(result.current.hasMore).toBe(true);
 
     act(() => result.current.loadMore());
-    await waitFor(() => expect(result.current.total).toBe(120));
+    await waitFor(() => expect(result.current.items.length).toBe(120));
     expect(result.current.hasMore).toBe(false); // 150 件要求して 120 件 = 末尾まで取得
     expect(requested).toEqual(["50", "100", "150"]);
   });
@@ -122,10 +122,10 @@ describe("useVideoCatalog（U2 / US2.1・US2.2・US2.4・US2.5）", () => {
     );
     const { result } = renderHook(() => useVideoCatalog(), { wrapper: createWrapper() });
 
-    await waitFor(() => expect(result.current.total).toBe(50));
+    await waitFor(() => expect(result.current.items.length).toBe(50));
     for (let expected = 100; expected <= CATALOG_FETCH_MAX; expected += CATALOG_FETCH_STEP) {
       act(() => result.current.loadMore());
-      await waitFor(() => expect(result.current.total).toBe(expected));
+      await waitFor(() => expect(result.current.items.length).toBe(expected));
     }
     expect(result.current.hasMore).toBe(false);
   });
@@ -135,7 +135,7 @@ describe("useVideoCatalog（U2 / US2.1・US2.2・US2.4・US2.5）", () => {
     server.use(http.get(`${TEST_API_BASE}/videos`, () => HttpResponse.json(makeRawVideos(25))));
     const { result } = renderHook(() => useVideoCatalog(), { wrapper: createWrapper() });
 
-    await waitFor(() => expect(result.current.total).toBe(25));
+    await waitFor(() => expect(result.current.items.length).toBe(25));
     // desc 既定: 先頭は最新 08-25（動画25）
     expect(result.current.items[0].title).toBe("動画25");
 
@@ -159,8 +159,8 @@ describe("useVideoCatalog（U2 / US2.1・US2.2・US2.4・US2.5）", () => {
     await waitFor(() => expect(result.current.isFetching).toBe(false));
 
     act(() => result.current.setUploadStatus("init"));
-    // キャッシュ済みのため pending を経由せず、そのまま success で行が出る。
+    // キャッシュ済みのため pending を経由せず、そのまま行が出る。
     expect(result.current.status).toBe("success");
-    expect(result.current.total).toBe(INIT_RAW_VIDEOS.length);
+    expect(result.current.items.length).toBe(INIT_RAW_VIDEOS.length);
   });
 });

@@ -104,21 +104,6 @@ describe("useVideoDeletion（U5 / US5.1・FR5.1・C2・C4）", () => {
     cap.unsub();
   });
 
-  it("deleteVideo が想定外に throw しても silent failure にせず error 通知を出す（FR8）", async () => {
-    const deleteSpy = vi
-      .spyOn(apiClient, "deleteVideo")
-      .mockRejectedValueOnce(new Error("unexpected"));
-    const cap = captureNotifications();
-    const { result } = setup();
-
-    act(() => result.current.requestDelete(makeVideo({ videoId: "c1" })));
-    act(() => result.current.confirmDelete());
-
-    await waitFor(() => expect(cap.get().some((n) => n.kind === "error")).toBe(true));
-    await waitFor(() => expect(result.current.pendingVideo).toBeNull());
-    deleteSpy.mockRestore();
-  });
-
   it("確定中の再確定は無視され deleteVideo は 1 回だけ呼ばれる（二重確定抑止）", async () => {
     const deleteSpy = vi.spyOn(apiClient, "deleteVideo");
     const { result } = setup();

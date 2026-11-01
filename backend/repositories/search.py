@@ -1,7 +1,8 @@
-import os
 from functools import cached_property
 
 import boto3
+
+from repositories.aws import read_secret
 
 COLUMNS = (
     "video_id",
@@ -31,9 +32,7 @@ class SearchRepository:
 
     @cached_property
     def url(self) -> str:
-        return self.session.client("ssm").get_parameter(
-            Name=os.environ["SSM_SEARCH_DATABASE_URL_PARAMETER"], WithDecryption=True
-        )["Parameter"]["Value"]
+        return read_secret(self.session.client("ssm"), "SSM_SEARCH_DATABASE_URL_PARAMETER")
 
     def connect(self):
         # Imported here so that the Lambdas without search do not load libpq on cold start.

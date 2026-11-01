@@ -9,5 +9,8 @@
   "dependencies": {
     "@liam-hq/cli": "0.7.24",
     "redoc": "3.0.1"
+  },
+  "engines": {
+    "node": "^26.13.0"
   }
 }

@@ -63,10 +63,13 @@ export const TitleResults: Story = {
   parameters: {
     msw: {
       handlers: [
-        searchResultsHandler([
-          makeRawVideo({ video_id: "v1", title: "猫の動画 まとめ", backupdate: "2026-08-03" }),
-          makeRawVideo({ video_id: "v2", title: "まとめ 猫", backupdate: "2026-08-01" }),
-        ]),
+        searchResultsHandler(
+          [
+            makeRawVideo({ video_id: "v1", title: "猫の動画 まとめ", backupdate: "2026-08-03" }),
+            makeRawVideo({ video_id: "v2", title: "まとめ 猫", backupdate: "2026-08-01" }),
+          ],
+          true,
+        ),
       ],
     },
   },

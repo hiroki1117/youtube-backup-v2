@@ -1365,7 +1365,7 @@
           "search"
         ],
         "summary": "Search Videos",
-        "description": "Videos matching every condition, newest first; no condition finds nothing.\n\nEach whitespace-separated term of `q` must be part of the title or the video ID.\n`backup_from` and `backup_to` bound the backup date, both inclusive.\n\nReads an hourly copy of the videos, so a recent change appears after the next sync.",
+        "description": "Videos matching every condition, newest first. At least one condition is required.\n\nEach whitespace-separated term of `q` must be part of the title or the video ID.\n`backup_from` and `backup_to` bound the backup date, both inclusive.\n`has_more` tells that more videos match than `limit` returned.\n\nReads an hourly copy of the videos, so a recent change appears after the next sync.",
         "operationId": "search_videos_search_videos_get",
         "security": [
           {
@@ -1438,11 +1438,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Video"
-                  },
-                  "title": "Response Search Videos Search Videos Get"
+                  "$ref": "#/components/schemas/VideoSearchResults"
                 }
               }
             }
@@ -1457,7 +1453,7 @@
             },
             "description": "Unauthorized"
           },
-          "404": {
+          "422": {
             "content": {
               "application/json": {
                 "schema": {
@@ -1465,27 +1461,7 @@
                 }
               }
             },
-            "description": "Not Found"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Conflict"
-          },
-          "502": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Bad Gateway"
+            "description": "Unprocessable Content"
           },
           "503": {
             "content": {
@@ -1496,16 +1472,6 @@
               }
             },
             "description": "Service Unavailable"
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
           }
         }
       }
@@ -1813,6 +1779,27 @@
           "upload_status"
         ],
         "title": "Video"
+      },
+      "VideoSearchResults": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Video"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "has_more"
+        ],
+        "title": "VideoSearchResults"
       },
       "YoutubeComment": {
         "properties": {

@@ -71,7 +71,10 @@ describe("useVideoSearch（U3 / US3.1・FR3.1・C2）", () => {
     server.use(
       http.get(`${TEST_API_BASE}/videos/:videoId`, () => errorResponse(404, "video_not_found")),
       http.get(`${TEST_API_BASE}/search/videos`, () =>
-        HttpResponse.json([makeRawVideo({ video_id: "v9", title: "猫" })]),
+        HttpResponse.json({
+          items: [makeRawVideo({ video_id: "v9", title: "猫" })],
+          has_more: false,
+        }),
       ),
     );
     const { result } = setup();

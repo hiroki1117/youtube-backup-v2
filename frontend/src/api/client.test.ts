@@ -101,13 +101,16 @@ describe("ApiClient.searchVideos（GET /search/videos）", () => {
     server.use(
       http.get(`${TEST_API_BASE}/search/videos`, ({ request }) => {
         requested = request.url;
-        return HttpResponse.json([makeRawVideo({ video_id: "v1" })]);
+        return HttpResponse.json({
+          items: [makeRawVideo({ video_id: "v1" })],
+          has_more: true,
+        });
       }),
     );
 
     const result = await client.searchVideos({ query: "猫 & 犬", backupFrom: "2026-08-01" });
 
-    expect(result.kind).toBe("ok");
+    expect(result).toMatchObject({ kind: "ok", data: { hasMore: true } });
     const params = new URL(requested).searchParams;
     expect(params.get("q")).toBe("猫 & 犬");
     expect(params.get("backup_from")).toBe("2026-08-01");
@@ -120,9 +123,31 @@ describe("ApiClient.searchVideos（GET /search/videos）", () => {
 
   it("スキーマ不一致は transport", async () => {
     server.use(
-      http.get(`${TEST_API_BASE}/search/videos`, () => HttpResponse.json([{ video_id: "v1" }])),
+      http.get(`${TEST_API_BASE}/search/videos`, () =>
+        HttpResponse.json({ items: [{ video_id: "v1" }], has_more: false }),
+      ),
     );
     expect((await client.searchVideos({ query: "x" })).kind).toBe("transport");
+
+    server.use(http.get(`${TEST_API_BASE}/search/videos`, () => HttpResponse.json([])));
+    expect((await client.searchVideos({ query: "x" })).kind).toBe("transport");
+  });
+
+  it("日付の範囲が逆なら invalidInput（422 invalid_backup_date_range）", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/search/videos`, () =>
+        errorResponse(422, "invalid_backup_date_range"),
+      ),
+    );
+    const result = await client.searchVideos({
+      query: "",
+      backupFrom: "2026-08-02",
+      backupTo: "2026-08-01",
+    });
+    expect(result).toMatchObject({
+      kind: "invalidInput",
+      message: "バックアップ日の範囲が正しくありません。",
+    });
   });
 });
 

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiClient, type ApiResult } from "@/api/client";
+import { apiClient, type ApiResult, type VideoSearchResult } from "@/api/client";
 import { extractVideoId } from "@/lib/videoId";
 import type { Video } from "@/types/video";
 
@@ -21,7 +21,7 @@ import type { Video } from "@/types/video";
 export type VideoSearchState =
   | { kind: "idle" } // 未検索
   | { kind: "loading" } // 取得中
-  | { kind: "ok"; videos: Video[] } // 取得成功（1 件以上）
+  | { kind: "ok"; videos: Video[]; hasMore: boolean } // 取得成功（1 件以上）
   | { kind: "notFound" } // 未存在（見つからない）
   | { kind: "invalidInput"; message: string } // 入力不正・空（API 非実行）
   | { kind: "error"; message: string }; // transport / 業務拒否など
@@ -76,11 +76,11 @@ function toSearchTarget({
   return { videoId, text: trimmed, backupFrom, backupTo };
 }
 
-async function findVideos(target: SearchTarget): Promise<ApiResult<Video[]>> {
+async function findVideos(target: SearchTarget): Promise<ApiResult<VideoSearchResult>> {
   if (target.videoId !== null) {
     const result = await apiClient.getVideo(target.videoId);
     if (result.kind === "ok") {
-      return { kind: "ok", data: [result.data] };
+      return { kind: "ok", data: { videos: [result.data], hasMore: false } };
     }
     if (result.kind !== "notFound" || target.text === null) {
       return result;
@@ -145,7 +145,7 @@ export function useVideoSearch(): VideoSearchController {
     const result = query.data;
     switch (result.kind) {
       case "ok":
-        return { kind: "ok", videos: result.data };
+        return { kind: "ok", ...result.data };
       case "empty":
       case "notFound":
         return { kind: "notFound" };

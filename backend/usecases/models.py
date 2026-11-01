@@ -80,6 +80,11 @@ class YoutubeCommentPage(BaseModel):
     next_offset: int | None
 
 
+class VideoSearchResults(BaseModel):
+    items: list[Video]
+    has_more: bool
+
+
 class Registration(BaseModel):
     video: Video
     backup: Backup

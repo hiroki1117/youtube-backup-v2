@@ -110,10 +110,13 @@ describe("SearchDialog（U3 / US3.1・FR3.1・C4・C5・OQ-C2）", () => {
     server.use(
       http.get(`${TEST_API_BASE}/search/videos`, ({ request }) => {
         requested = request.url;
-        return HttpResponse.json([
-          makeRawVideo({ video_id: "v1", title: "猫の動画" }),
-          makeRawVideo({ video_id: "i1", title: "猫のまとめ", upload_status: "init" }),
-        ]);
+        return HttpResponse.json({
+          items: [
+            makeRawVideo({ video_id: "v1", title: "猫の動画" }),
+            makeRawVideo({ video_id: "i1", title: "猫のまとめ", upload_status: "init" }),
+          ],
+          has_more: true,
+        });
       }),
     );
     const user = userEvent.setup();
@@ -126,6 +129,23 @@ describe("SearchDialog（U3 / US3.1・FR3.1・C4・C5・OQ-C2）", () => {
     expect(new URL(requested).searchParams.get("q")).toBe("Re:猫 まとめ");
     // 再生ナビは complete の動画のみ。
     expect(screen.getAllByRole("button", { name: "再生ページへ" })).toHaveLength(1);
+    expect(screen.getByText(/ほかにも該当する動画があります/)).toBeInTheDocument();
+  });
+
+  it("日付の範囲が逆ならサーバーの検証結果を入力エラーとして表示する", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/search/videos`, () =>
+        errorResponse(422, "invalid_backup_date_range"),
+      ),
+    );
+    const user = userEvent.setup();
+    renderDialog();
+
+    await user.type(screen.getByLabelText("バックアップ日（から）"), "2026-08-31");
+    await user.type(screen.getByLabelText("バックアップ日（まで）"), "2026-08-01");
+    await user.click(screen.getByRole("button", { name: "検索" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("範囲が正しくありません");
   });
 
   it("日付だけでも検索でき、バックアップ日の範囲を API へ渡す", async () => {
@@ -133,7 +153,10 @@ describe("SearchDialog（U3 / US3.1・FR3.1・C4・C5・OQ-C2）", () => {
     server.use(
       http.get(`${TEST_API_BASE}/search/videos`, ({ request }) => {
         requested = request.url;
-        return HttpResponse.json([makeRawVideo({ title: "日付の動画" })]);
+        return HttpResponse.json({
+          items: [makeRawVideo({ title: "日付の動画" })],
+          has_more: false,
+        });
       }),
     );
     const user = userEvent.setup();

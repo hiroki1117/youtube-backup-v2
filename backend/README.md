@@ -68,7 +68,7 @@ Lambda を足すときは `entrypoints/` に 1 ファイル追加し、[build_la
 | `POST /videos/{id}/comments/backup` | コメントの取得開始（再取得も同じ）。開始は 202、取得中は 200。動画が未完了なら 409、YouTube 以外は 422 |
 | `GET /videos/{id}/comments` | バックアップしたコメントをスレッド単位で返す（`offset`・`limit` 最大 100）。形式は platform ごと（現状 YouTube のみ、それ以外は 422） |
 | `GET /youtube/playlist` | YouTube の再生リスト（query: `url`）を YouTube から読み、動画を並び順で返す。保存・登録はしない（下記） |
-| `GET /search/videos` | 検索（query: `q`・`backup_from`・`backup_to`、`limit` 最大 100）。条件をすべて満たす動画を新しい順に返す（下記） |
+| `GET /search/videos` | 検索（query: `q`・`backup_from`・`backup_to`、`limit` 最大 100）。条件をすべて満たす動画を新しい順に返す。条件なしと日付の範囲が逆の場合は 422（下記） |
 
 対応 URL は YouTube（watch・shorts・live・youtu.be）、TikTok（下記）とその他の URL（URL のハッシュを ID にする）。Twitter / X は未対応で 422。
 
@@ -136,4 +136,4 @@ POST /videos/{id}/comments/backup（comments Lambda）または動画の complet
 
 動画の原本は DynamoDB で、検索には [Neon](../db/README.md) の `videos` テーブルを使う。`search_sync` が毎時 DynamoDB を全件読み、1 トランザクションで Neon の内容を置き換えるので、登録・更新・削除は次の同期まで検索結果に反映されない。削除済みの動画が結果に残っている間は、詳細を開くと 404 になる。
 
-`q` は空白で区切った語がすべてタイトルか動画 ID の一部であるものを探す `ILIKE` の部分一致で、語の順序は問わない。`backup_from`・`backup_to` はバックアップ日の範囲（両端を含む）で、`q` なしでも使える。形態素解析はしないので、表記が違う語（全角と半角、ひらがなとカタカナ）は一致しない。接続情報は Lambda ごとに別の SSM パラメータ（`SSM_SEARCH_DATABASE_URL_PARAMETER`）から読み、API は読み取り専用の role で接続する。タイトルなどの属性が欠けた古い動画は同期しない（`skipped` の件数を返す）。
+`q` は空白で区切った語がすべてタイトルか動画 ID の一部であるものを探す `ILIKE` の部分一致で、語の順序は問わない。`backup_from`・`backup_to` はバックアップ日の範囲（両端を含む）で、`q` なしでも使える。結果は `items` で返し、`limit` を超えて該当するときは `has_more` が true になる（続きの取得はない）。形態素解析はしないので、表記が違う語（全角と半角、ひらがなとカタカナ）は一致しない。接続情報は Lambda ごとに別の SSM パラメータ（`SSM_SEARCH_DATABASE_URL_PARAMETER`）から読み、API は読み取り専用の role で接続する。タイトルなどの属性が欠けた古い動画は同期しない（`skipped` の件数を返す）。

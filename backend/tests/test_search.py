@@ -30,26 +30,58 @@ def test_search_returns_videos_containing_every_term_newest_first(client, search
     response = client.get("/search/videos", params={"q": "まとめ　猫", "limit": 10})
 
     assert response.status_code == 200
-    assert [v["video_id"] for v in response.json()] == ["new", "old"]
+    assert [v["video_id"] for v in response.json()["items"]] == ["new", "old"]
+    assert response.json()["has_more"] is False
 
 
-def test_search_limits_the_results(client, search_service):
+def test_search_limits_the_results_and_tells_when_more_match(client, search_service):
     search_service.index.replace_all([video(f"v{n}", "猫") for n in range(3)])
 
-    assert len(client.get("/search/videos", params={"q": "猫", "limit": 2}).json()) == 2
+    body = client.get("/search/videos", params={"q": "猫", "limit": 2}).json()
+    assert len(body["items"]) == 2
+    assert body["has_more"] is True
+
+    body = client.get("/search/videos", params={"q": "猫", "limit": 3}).json()
+    assert len(body["items"]) == 3
+    assert body["has_more"] is False
 
 
-def test_blank_query_finds_nothing_without_reading_the_index(client, search_service):
+@pytest.mark.parametrize("params", [{}, {"q": ""}, {"q": "   "}])
+def test_search_without_a_condition_is_rejected(client, search_service, params):
     search_service.index = None
 
-    assert client.get("/search/videos", params={"q": "   "}).json() == []
-    assert client.get("/search/videos").json() == []
+    response = client.get("/search/videos", params=params)
+
+    assert (response.status_code, response.json()) == (
+        422,
+        {"detail": "search_condition_required"},
+    )
+
+
+def test_search_rejects_an_inverted_date_range(client, search_service):
+    search_service.index = None
+
+    response = client.get(
+        "/search/videos", params={"backup_from": "2026-02-02", "backup_to": "2026-02-01"}
+    )
+
+    assert (response.status_code, response.json()) == (
+        422,
+        {"detail": "invalid_backup_date_range"},
+    )
+
+
+def test_search_accepts_a_single_day_range(client, search_service):
+    search_service.index.replace_all([video("v1", "猫", "2026-02-01")])
+    day = {"backup_from": "2026-02-01", "backup_to": "2026-02-01"}
+
+    assert len(client.get("/search/videos", params=day).json()["items"]) == 1
 
 
 def test_search_matches_part_of_the_video_id(client, search_service):
     search_service.index.replace_all([video("dQw4w9WgXcQ", "猫"), video("other", "犬")])
 
-    found = client.get("/search/videos", params={"q": "w4w9"}).json()
+    found = client.get("/search/videos", params={"q": "w4w9"}).json()["items"]
 
     assert [v["video_id"] for v in found] == ["dQw4w9WgXcQ"]
 
@@ -65,10 +97,10 @@ def test_search_filters_by_inclusive_backup_dates_without_a_query(client, search
     )
     dates = {"backup_from": "2026-02-01", "backup_to": "2026-02-28"}
 
-    found = client.get("/search/videos", params=dates).json()
+    found = client.get("/search/videos", params=dates).json()["items"]
     assert [v["video_id"] for v in found] == ["last", "first"]
 
-    found = client.get("/search/videos", params={**dates, "q": "猫"}).json()
+    found = client.get("/search/videos", params={**dates, "q": "猫"}).json()["items"]
     assert [v["video_id"] for v in found] == ["first"]
 
 

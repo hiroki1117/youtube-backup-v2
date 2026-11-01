@@ -20,6 +20,7 @@ from usecases.models import (
     Registration,
     UpdateVideo,
     Video,
+    VideoSearchResults,
     YoutubeCommentPage,
     YoutubePlaylist,
 )
@@ -31,7 +32,8 @@ video_router = APIRouter(tags=["videos"], responses=errors)
 backup_router = APIRouter(tags=["backup"], responses=errors)
 comment_router = APIRouter(tags=["comments"], responses=errors | {422: {"model": ErrorResponse}})
 youtube_router = APIRouter(tags=["youtube"], responses=errors | {422: {"model": ErrorResponse}})
-search_router = APIRouter(tags=["search"], responses=errors)
+search_errors = {status: {"model": ErrorResponse} for status in (401, 422, 503)}
+search_router = APIRouter(tags=["search"], responses=search_errors)
 Service = Annotated[BackupService, Depends(get_service)]
 Comments = Annotated[CommentService, Depends(get_comment_service)]
 Playlists = Annotated[PlaylistService, Depends(get_playlist_service)]
@@ -135,7 +137,7 @@ def get_youtube_playlist(
     return playlists.get(url)
 
 
-@search_router.get("/search/videos", response_model=list[Video])
+@search_router.get("/search/videos", response_model=VideoSearchResults)
 def search_videos(
     search: Search,
     q: Annotated[str, Query(max_length=200, pattern=r"^[^\x00]*$")] = "",
@@ -143,10 +145,11 @@ def search_videos(
     backup_to: date | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 30,
 ):
-    """Videos matching every condition, newest first; no condition finds nothing.
+    """Videos matching every condition, newest first. At least one condition is required.
 
     Each whitespace-separated term of `q` must be part of the title or the video ID.
     `backup_from` and `backup_to` bound the backup date, both inclusive.
+    `has_more` tells that more videos match than `limit` returned.
 
     Reads an hourly copy of the videos, so a recent change appears after the next sync."""
     return search.find(

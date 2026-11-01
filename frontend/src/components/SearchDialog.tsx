@@ -36,7 +36,9 @@ const STATUS_LABEL: Record<UploadStatus, string> = {
  * idle（未検索）・invalidInput（入力不正）は結果領域を描画しない（null）。
  * invalidInput はフォーム直下のバリデーション表示で扱う（RegisterDialog と同様のパターン）。
  */
-function toResultViewState(state: VideoSearchState): ViewState<Video[]> | null {
+function toResultViewState(
+  state: VideoSearchState,
+): ViewState<Extract<VideoSearchState, { kind: "ok" }>> | null {
   switch (state.kind) {
     case "idle":
     case "invalidInput":
@@ -44,7 +46,7 @@ function toResultViewState(state: VideoSearchState): ViewState<Video[]> | null {
     case "loading":
       return { status: "loading" };
     case "ok":
-      return { status: "ready", data: state.videos };
+      return { status: "ready", data: state };
     case "notFound":
       return { status: "empty", variant: "nodata" };
     case "error":
@@ -153,28 +155,37 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
               emptyMessage="指定した動画が見つかりませんでした。"
               loadingLabel="検索しています..."
             >
-              {(videos) => (
-                <ul className="space-y-4 divide-y" data-testid="search-result">
-                  {videos.map((video) => (
-                    <li key={video.videoId} className="space-y-3 pt-4 first:pt-0">
-                      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm">
-                        <dt className="whitespace-nowrap text-muted-foreground">タイトル</dt>
-                        <dd className="break-words font-medium">{video.title}</dd>
-                        <dt className="whitespace-nowrap text-muted-foreground">
-                          プラットフォーム
-                        </dt>
-                        <dd>{video.platform}</dd>
-                        <dt className="whitespace-nowrap text-muted-foreground">バックアップ日</dt>
-                        <dd>{video.backupDate}</dd>
-                        <dt className="whitespace-nowrap text-muted-foreground">状態</dt>
-                        <dd>{STATUS_LABEL[video.uploadStatus]}</dd>
-                      </dl>
-                      {video.uploadStatus === "complete" ? (
-                        <Button onClick={() => handlePlay(video)}>再生ページへ</Button>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
+              {({ videos, hasMore }) => (
+                <div className="space-y-4">
+                  <ul className="space-y-4 divide-y" data-testid="search-result">
+                    {videos.map((video) => (
+                      <li key={video.videoId} className="space-y-3 pt-4 first:pt-0">
+                        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm">
+                          <dt className="whitespace-nowrap text-muted-foreground">タイトル</dt>
+                          <dd className="break-words font-medium">{video.title}</dd>
+                          <dt className="whitespace-nowrap text-muted-foreground">
+                            プラットフォーム
+                          </dt>
+                          <dd>{video.platform}</dd>
+                          <dt className="whitespace-nowrap text-muted-foreground">
+                            バックアップ日
+                          </dt>
+                          <dd>{video.backupDate}</dd>
+                          <dt className="whitespace-nowrap text-muted-foreground">状態</dt>
+                          <dd>{STATUS_LABEL[video.uploadStatus]}</dd>
+                        </dl>
+                        {video.uploadStatus === "complete" ? (
+                          <Button onClick={() => handlePlay(video)}>再生ページへ</Button>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                  {hasMore && (
+                    <p className="text-sm text-muted-foreground">
+                      ほかにも該当する動画があります。条件を絞ってください。
+                    </p>
+                  )}
+                </div>
               )}
             </StatusView>
           </div>

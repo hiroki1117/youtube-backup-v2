@@ -100,8 +100,10 @@ export function videoNotFoundHandler(): HttpHandler {
 }
 
 /** GET /search/videos: 指定の動画を返す。 */
-export function searchResultsHandler(raws: RawVideo[]): HttpHandler {
-  return http.get(`${TEST_API_BASE}/search/videos`, () => HttpResponse.json(raws));
+export function searchResultsHandler(raws: RawVideo[], hasMore = false): HttpHandler {
+  return http.get(`${TEST_API_BASE}/search/videos`, () =>
+    HttpResponse.json({ items: raws, has_more: hasMore }),
+  );
 }
 
 /** GET /videos/{id}/playback_url の失敗（404 video_not_found）。 */

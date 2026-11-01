@@ -3,7 +3,7 @@
 
 [tools]
 # frontend/.node-version（CI が参照）と package.json の packageManager に合わせる。
-node = "24.22.0"
+node = "26.13.0"
 pnpm = "10.34.5"
 # backend/pyproject.toml の requires-python（>=3.14,<3.15）に合わせる。
 python = "3.14"

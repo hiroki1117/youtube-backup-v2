@@ -25,6 +25,8 @@ AWS リソース・IAM・Lambda 設定は [infra](https://github.com/hiroki1117/
 
 必要なもの: [mise](https://mise.jdx.dev)（Node・pnpm・Python を [mise.toml](mise.toml) で固定）、Git 2.32 以上。Docker は batch image をローカルで build するときだけ。
 
+Node は 26.13.0 LTS を使う。frontend・ドキュメント生成の engines は 26 系に揃え、CI と frontend 配布は `frontend/.node-version`、ローカル開発は `mise.toml` の固定値を参照する。Linux では公式 Node バイナリに `libatomic` が必要になる。
+
 ```bash
 mise trust && mise install
 mise run install                       # frontend + backend の依存

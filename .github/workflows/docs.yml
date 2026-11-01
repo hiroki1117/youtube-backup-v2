@@ -3,10 +3,10 @@ name: Documentation
 on:
   push:
     branches: [main]
-    paths: ["frontend/**", "openapi/**", "docs/site/**", ".github/workflows/docs.yml"]
+    paths: ["frontend/**", "openapi/**", "db/**", "docs/site/**", ".github/workflows/docs.yml"]
   pull_request:
     branches: [main]
-    paths: ["frontend/**", "openapi/**", "docs/site/**", ".github/workflows/docs.yml"]
+    paths: ["frontend/**", "openapi/**", "db/**", "docs/site/**", ".github/workflows/docs.yml"]
   workflow_dispatch:
     inputs:
       publish:
@@ -25,6 +25,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: docs
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v7
         with:
@@ -43,7 +55,24 @@ jobs:
       - run: pnpm --dir docs/site install --frozen-lockfile --ignore-scripts
       # Storybook fixes VITE_* to synthetic values; no production variables or secrets.
       - run: pnpm --dir frontend build-storybook
+      # The ERD reads a throwaway database built from db/migrations, never Neon.
+      - uses: ./.github/actions/setup-dbmate
+      - run: dbmate --no-dump-schema migrate
+        env:
+          DATABASE_URL: postgresql://postgres:docs@localhost:5432/postgres?sslmode=disable
+      - name: Build ERD
+        env:
+          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          mkdir -p build
+          # pg_dump's \restrict lines are psql commands, which the ERD parser cannot read.
+          docker exec "$POSTGRES_CONTAINER" pg_dump -U postgres --schema-only --no-owner \
+            --no-privileges --exclude-table=schema_migrations postgres |
+            sed -E '/^\\(un)?restrict /d' > build/schema.sql
+          pnpm --dir docs/site exec liam erd build --format postgres \
+            --input ../../build/schema.sql --output-dir ../../build/erd
       - run: node docs/site/build.mjs
+      - run: test -f build/docs/erd/schema.json
       - uses: actions/upload-pages-artifact@v5
         with:
           path: build/docs

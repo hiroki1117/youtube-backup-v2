@@ -7,7 +7,7 @@
 | [frontend/](frontend/) | Vite / React / TypeScript（Cognito ログイン） | Amplify Hosting |
 | [backend/](backend/) | FastAPI の API とイベント処理（[詳細](backend/README.md)） | Lambda 9 関数（共通 ZIP） |
 | [batch/](batch/) | yt-dlp で S3 へ置くジョブ（`scripts/yt-dlp-script`）と、YouTube のコメントだけを取得するジョブ（`scripts/youtube-comments`）のイメージ | ECR `youtube-downloader-ytdlp`・`youtube-backup-comments-youtube` |
-| [db/](db/README.md) | 検索用の Neon（Postgres）のマイグレーション（Atlas） | Neon |
+| [db/](db/README.md) | 検索用の Neon（Postgres）のマイグレーション（dbmate） | Neon |
 | [openapi/](openapi/) | backend から生成した API 定義 | — |
 
 AWS リソース・IAM・Lambda 設定は [infra](https://github.com/hiroki1117/infra/tree/main/youtube-backup) が管理し、このリポジトリはコードとイメージだけを扱う。

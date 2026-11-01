@@ -1,3 +1,5 @@
+-- migrate:up
+
 -- pg_trgm lets ILIKE '%term%' use an index.
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
@@ -32,3 +34,10 @@ $$;
 
 GRANT SELECT ON videos TO search_reader;
 GRANT SELECT, INSERT, UPDATE, DELETE ON videos TO search_writer;
+
+-- migrate:down
+
+DROP TABLE videos;
+DROP ROLE search_reader;
+DROP ROLE search_writer;
+DROP EXTENSION pg_trgm;

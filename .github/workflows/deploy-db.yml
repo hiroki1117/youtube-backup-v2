@@ -6,7 +6,7 @@ on:
     branches: [main]
     paths:
       - "db/**"
-      - ".github/actions/setup-atlas/**"
+      - ".github/actions/setup-dbmate/**"
       - ".github/workflows/deploy-db.yml"
   workflow_dispatch:
 
@@ -25,8 +25,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-atlas
+      - uses: ./.github/actions/setup-dbmate
       - name: Apply
         env:
           DATABASE_URL: ${{ secrets.NEON_MIGRATION_DATABASE_URL }}
-        run: atlas migrate apply --dir file://db/migrations --url "$DATABASE_URL"
+        run: dbmate --no-dump-schema migrate

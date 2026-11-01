@@ -140,13 +140,20 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
+      DATABASE_URL: postgresql://postgres:ci@localhost:5432/postgres?sslmode=disable
       TEST_DATABASE_URL: postgresql://postgres:ci@localhost:5432/postgres?sslmode=disable
     steps:
       - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-atlas
-      - run: atlas migrate apply --dir file://db/migrations --url "$TEST_DATABASE_URL"
-      # 適用済みなら何もしないことも確認する。
-      - run: atlas migrate apply --dir file://db/migrations --url "$TEST_DATABASE_URL"
+      - uses: ./.github/actions/setup-dbmate
+      - run: dbmate --no-dump-schema migrate
+      # 全ファイルの down が動き、もう一度適用でき、適用済みなら何もしないことも確認する。
+      - name: Roll back every migration
+        run: |
+          while dbmate status | grep -q '^\[X\]'; do
+            dbmate --no-dump-schema rollback
+          done
+      - run: dbmate --no-dump-schema migrate
+      - run: dbmate --no-dump-schema migrate
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"

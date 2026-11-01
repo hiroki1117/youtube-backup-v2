@@ -64,6 +64,16 @@ class VideoRepository:
                 return
             start = {"ExclusiveStartKey": page["LastEvaluatedKey"]}
 
+    def all(self):
+        # Every video item, across Scan pages.
+        start = {}
+        while True:
+            page = self.table.scan(**start)
+            yield from page["Items"]
+            if "LastEvaluatedKey" not in page:
+                return
+            start = {"ExclusiveStartKey": page["LastEvaluatedKey"]}
+
     def resolve(self, url: str) -> str:
         """The video URL behind a TikTok share link; any other URL as is."""
         if not is_tiktok_short_link(url):

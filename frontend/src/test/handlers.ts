@@ -132,6 +132,9 @@ export const handlers = [
   ),
   // GET /videos/{video_id}: 既定は complete 動画の取得成功。未存在・transport・init は各テストで上書き。
   http.get(`${TEST_API_BASE}/videos/:videoId`, () => HttpResponse.json(makeRawVideo())),
+  http.get(`${TEST_API_BASE}/search/videos`, () =>
+    HttpResponse.json({ items: [], has_more: false }),
+  ),
   // DELETE /videos/{video_id}: 既定は削除成功（204 本文なし）。
   http.delete(`${TEST_API_BASE}/videos/:videoId`, () => new HttpResponse(null, { status: 204 })),
   // DELETE /videos/{video_id}/backup: 既定はバックアップ取り消し成功（204 本文なし）。

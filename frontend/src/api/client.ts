@@ -36,12 +36,24 @@ export interface CommentBackupStart {
   started: boolean;
 }
 
+export interface VideoSearchResult {
+  videos: Video[];
+  /** `limit` を超えて該当する動画があれば true。 */
+  hasMore: boolean;
+}
+
 export interface ApiClient {
   listVideos(params: {
     uploadStatus: UploadStatus;
     fetchNum?: number;
   }): Promise<ApiResult<Video[]>>;
   getVideo(videoId: string): Promise<ApiResult<Video>>;
+  /** 動画の検索（`GET /search/videos`）。毎時同期の複製を読む。0 件は `empty`。 */
+  searchVideos(params: {
+    query: string;
+    backupFrom?: string;
+    backupTo?: string;
+  }): Promise<ApiResult<VideoSearchResult>>;
   submitVideo(url: string): Promise<ApiResult<SubmitResult>>;
   /** タイトルを更新する（`PATCH /videos/{id}`）。成功は更新後の Video。 */
   updateVideoTitle(videoId: string, title: string): Promise<ApiResult<Video>>;
@@ -116,6 +128,8 @@ const DETAIL_MESSAGES: Record<string, string> = {
   unsupported_playlist: "ミックス・後で見る・高く評価した動画の再生リストは読み込めません。",
   playlist_not_found: "再生リストが見つかりません。非公開の再生リストは読み込めません。",
   playlist_unavailable: "再生リストを読み込めませんでした。時間をおいて再試行してください。",
+  search_condition_required: "検索条件を入力してください。",
+  invalid_backup_date_range: "バックアップ日の範囲が正しくありません。",
 };
 
 // 409 のうち「バックアップ処理が絡んで今は実行できない」もの（UI は backupInProgress として扱う）。
@@ -126,6 +140,11 @@ const IN_PROGRESS_CODES = new Set([
   "job_needs_reconciliation",
   "submission_needs_reconciliation",
 ]);
+
+const searchResultsSchema = z.object({
+  items: z.array(z.unknown()),
+  has_more: z.boolean(),
+});
 
 type RawFetch = { ok: true; status: number; body: unknown } | { ok: false; failure: ApiFailure };
 
@@ -239,6 +258,43 @@ export class HttpApiClient implements ApiClient {
       return { kind: "transport", message: "video schema mismatch in GET /videos/{id}" };
     }
     return { kind: "ok", data: video };
+  }
+
+  async searchVideos(params: {
+    query: string;
+    backupFrom?: string;
+    backupTo?: string;
+  }): Promise<ApiResult<VideoSearchResult>> {
+    const query = new URLSearchParams();
+    if (params.query !== "") {
+      query.set("q", params.query);
+    }
+    if (params.backupFrom) {
+      query.set("backup_from", params.backupFrom);
+    }
+    if (params.backupTo) {
+      query.set("backup_to", params.backupTo);
+    }
+    const res = await this.request(`/search/videos?${query.toString()}`);
+    if (!res.ok) {
+      return res.failure;
+    }
+    const page = searchResultsSchema.safeParse(res.body);
+    if (!page.success) {
+      return { kind: "transport", message: "unexpected response for GET /search/videos" };
+    }
+    if (page.data.items.length === 0) {
+      return { kind: "empty" };
+    }
+    const videos: Video[] = [];
+    for (const item of page.data.items) {
+      const video = parseVideo(item);
+      if (video === null) {
+        return { kind: "transport", message: "video schema mismatch in GET /search/videos" };
+      }
+      videos.push(video);
+    }
+    return { kind: "ok", data: { videos, hasMore: page.data.has_more } };
   }
 
   async submitVideo(url: string): Promise<ApiResult<SubmitResult>> {

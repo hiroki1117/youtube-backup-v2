@@ -20,6 +20,29 @@ import {
 const client = new HttpApiClient(TEST_API_BASE, () => Promise.resolve("test-token"));
 
 describe("ApiClient.listVideos（GET /videos）", () => {
+  it("時刻が欠落・null の旧動画と新動画を同じ一覧で読める", async () => {
+    const legacy: Record<string, unknown> = { ...makeRawVideo({ video_id: "legacy" }) };
+    delete legacy.request_timestamp;
+    server.use(
+      http.get(`${TEST_API_BASE}/videos`, () =>
+        HttpResponse.json([
+          legacy,
+          { ...makeRawVideo({ video_id: "unknown" }), request_timestamp: null },
+          makeRawVideo(),
+        ]),
+      ),
+    );
+    const result = await client.listVideos({ uploadStatus: "complete" });
+    expect(result.kind).toBe("ok");
+    if (result.kind === "ok") {
+      expect(result.data.map((video) => video.requestTimestamp)).toEqual([
+        null,
+        null,
+        "1690000000",
+      ]);
+    }
+  });
+
   it("配列レスポンスを ok(Video[]) に正規化する", async () => {
     server.use(
       http.get(`${TEST_API_BASE}/videos`, () =>
@@ -69,6 +92,62 @@ describe("ApiClient.listVideos（GET /videos）", () => {
     await client.listVideos({ uploadStatus: "init", fetchNum: 50 });
     expect(capturedUrl).toContain("upload_status=init");
     expect(capturedUrl).toContain("fetch_num=50");
+  });
+});
+
+describe("ApiClient.searchVideos（GET /search/videos）", () => {
+  it("該当する動画を返し、空の条件はクエリへ含めない", async () => {
+    let requested = "";
+    server.use(
+      http.get(`${TEST_API_BASE}/search/videos`, ({ request }) => {
+        requested = request.url;
+        return HttpResponse.json({
+          items: [makeRawVideo({ video_id: "v1" })],
+          has_more: true,
+        });
+      }),
+    );
+
+    const result = await client.searchVideos({ query: "猫 & 犬", backupFrom: "2026-08-01" });
+
+    expect(result).toMatchObject({ kind: "ok", data: { hasMore: true } });
+    const params = new URL(requested).searchParams;
+    expect(params.get("q")).toBe("猫 & 犬");
+    expect(params.get("backup_from")).toBe("2026-08-01");
+    expect(params.has("backup_to")).toBe(false);
+  });
+
+  it("0 件は empty", async () => {
+    expect((await client.searchVideos({ query: "x" })).kind).toBe("empty");
+  });
+
+  it("スキーマ不一致は transport", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/search/videos`, () =>
+        HttpResponse.json({ items: [{ video_id: "v1" }], has_more: false }),
+      ),
+    );
+    expect((await client.searchVideos({ query: "x" })).kind).toBe("transport");
+
+    server.use(http.get(`${TEST_API_BASE}/search/videos`, () => HttpResponse.json([])));
+    expect((await client.searchVideos({ query: "x" })).kind).toBe("transport");
+  });
+
+  it("日付の範囲が逆なら invalidInput（422 invalid_backup_date_range）", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/search/videos`, () =>
+        errorResponse(422, "invalid_backup_date_range"),
+      ),
+    );
+    const result = await client.searchVideos({
+      query: "",
+      backupFrom: "2026-08-02",
+      backupTo: "2026-08-01",
+    });
+    expect(result).toMatchObject({
+      kind: "invalidInput",
+      message: "バックアップ日の範囲が正しくありません。",
+    });
   });
 });
 

@@ -42,6 +42,12 @@ export interface ApiClient {
     fetchNum?: number;
   }): Promise<ApiResult<Video[]>>;
   getVideo(videoId: string): Promise<ApiResult<Video>>;
+  /** 動画の検索（`GET /search/videos`）。毎時同期の複製を読む。0 件は `empty`。 */
+  searchVideos(params: {
+    query: string;
+    backupFrom?: string;
+    backupTo?: string;
+  }): Promise<ApiResult<Video[]>>;
   submitVideo(url: string): Promise<ApiResult<SubmitResult>>;
   /** タイトルを更新する（`PATCH /videos/{id}`）。成功は更新後の Video。 */
   updateVideoTitle(videoId: string, title: string): Promise<ApiResult<Video>>;
@@ -239,6 +245,42 @@ export class HttpApiClient implements ApiClient {
       return { kind: "transport", message: "video schema mismatch in GET /videos/{id}" };
     }
     return { kind: "ok", data: video };
+  }
+
+  async searchVideos(params: {
+    query: string;
+    backupFrom?: string;
+    backupTo?: string;
+  }): Promise<ApiResult<Video[]>> {
+    const query = new URLSearchParams();
+    if (params.query !== "") {
+      query.set("q", params.query);
+    }
+    if (params.backupFrom) {
+      query.set("backup_from", params.backupFrom);
+    }
+    if (params.backupTo) {
+      query.set("backup_to", params.backupTo);
+    }
+    const res = await this.request(`/search/videos?${query.toString()}`);
+    if (!res.ok) {
+      return res.failure;
+    }
+    if (!Array.isArray(res.body)) {
+      return { kind: "transport", message: "expected an array response for GET /search/videos" };
+    }
+    if (res.body.length === 0) {
+      return { kind: "empty" };
+    }
+    const videos: Video[] = [];
+    for (const item of res.body) {
+      const video = parseVideo(item);
+      if (video === null) {
+        return { kind: "transport", message: "video schema mismatch in GET /search/videos" };
+      }
+      videos.push(video);
+    }
+    return { kind: "ok", data: videos };
   }
 
   async submitVideo(url: string): Promise<ApiResult<SubmitResult>> {

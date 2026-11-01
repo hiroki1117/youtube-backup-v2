@@ -1,8 +1,14 @@
+from datetime import date
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Path, Query, Response
 
-from api.dependencies import get_comment_service, get_playlist_service, get_service
+from api.dependencies import (
+    get_comment_service,
+    get_playlist_service,
+    get_search_service,
+    get_service,
+)
 from usecases.backup import BackupService
 from usecases.comments import CommentService
 from usecases.models import (
@@ -18,15 +24,18 @@ from usecases.models import (
     YoutubePlaylist,
 )
 from usecases.playlists import PlaylistService
+from usecases.search import SearchService
 
 errors = {status: {"model": ErrorResponse} for status in (401, 404, 409, 502, 503)}
 video_router = APIRouter(tags=["videos"], responses=errors)
 backup_router = APIRouter(tags=["backup"], responses=errors)
 comment_router = APIRouter(tags=["comments"], responses=errors | {422: {"model": ErrorResponse}})
 youtube_router = APIRouter(tags=["youtube"], responses=errors | {422: {"model": ErrorResponse}})
+search_router = APIRouter(tags=["search"], responses=errors)
 Service = Annotated[BackupService, Depends(get_service)]
 Comments = Annotated[CommentService, Depends(get_comment_service)]
 Playlists = Annotated[PlaylistService, Depends(get_playlist_service)]
+Search = Annotated[SearchService, Depends(get_search_service)]
 VideoId = Annotated[str, Path(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")]
 
 
@@ -124,3 +133,25 @@ def get_youtube_playlist(
 
     Nothing is stored or registered; register the videos with POST /videos."""
     return playlists.get(url)
+
+
+@search_router.get("/search/videos", response_model=list[Video])
+def search_videos(
+    search: Search,
+    q: Annotated[str, Query(max_length=200, pattern=r"^[^\x00]*$")] = "",
+    backup_from: date | None = None,
+    backup_to: date | None = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 30,
+):
+    """Videos matching every condition, newest first; no condition finds nothing.
+
+    Each whitespace-separated term of `q` must be part of the title or the video ID.
+    `backup_from` and `backup_to` bound the backup date, both inclusive.
+
+    Reads an hourly copy of the videos, so a recent change appears after the next sync."""
+    return search.find(
+        q,
+        backup_from.isoformat() if backup_from else None,
+        backup_to.isoformat() if backup_to else None,
+        limit,
+    )

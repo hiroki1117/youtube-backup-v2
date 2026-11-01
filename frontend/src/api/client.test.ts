@@ -95,6 +95,37 @@ describe("ApiClient.listVideos（GET /videos）", () => {
   });
 });
 
+describe("ApiClient.searchVideos（GET /search/videos）", () => {
+  it("該当する動画を返し、空の条件はクエリへ含めない", async () => {
+    let requested = "";
+    server.use(
+      http.get(`${TEST_API_BASE}/search/videos`, ({ request }) => {
+        requested = request.url;
+        return HttpResponse.json([makeRawVideo({ video_id: "v1" })]);
+      }),
+    );
+
+    const result = await client.searchVideos({ query: "猫 & 犬", backupFrom: "2026-08-01" });
+
+    expect(result.kind).toBe("ok");
+    const params = new URL(requested).searchParams;
+    expect(params.get("q")).toBe("猫 & 犬");
+    expect(params.get("backup_from")).toBe("2026-08-01");
+    expect(params.has("backup_to")).toBe(false);
+  });
+
+  it("0 件は empty", async () => {
+    expect((await client.searchVideos({ query: "x" })).kind).toBe("empty");
+  });
+
+  it("スキーマ不一致は transport", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/search/videos`, () => HttpResponse.json([{ video_id: "v1" }])),
+    );
+    expect((await client.searchVideos({ query: "x" })).kind).toBe("transport");
+  });
+});
+
 describe("ApiClient.getVideo（GET /videos/{id}）", () => {
   it("Video を ok(Video) に正規化する", async () => {
     server.use(http.get(`${TEST_API_BASE}/videos/:id`, () => HttpResponse.json(makeRawVideo())));

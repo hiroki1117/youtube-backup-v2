@@ -5,8 +5,9 @@
 | 配置 | 内容 | 配布先 |
 |---|---|---|
 | [frontend/](frontend/) | Vite / React / TypeScript（Cognito ログイン） | Amplify Hosting |
-| [backend/](backend/) | FastAPI の API とイベント処理（[詳細](backend/README.md)） | Lambda 7 関数（共通 ZIP） |
+| [backend/](backend/) | FastAPI の API とイベント処理（[詳細](backend/README.md)） | Lambda 9 関数（共通 ZIP） |
 | [batch/](batch/) | yt-dlp で S3 へ置くジョブ（`scripts/yt-dlp-script`）と、YouTube のコメントだけを取得するジョブ（`scripts/youtube-comments`）のイメージ | ECR `youtube-downloader-ytdlp`・`youtube-backup-comments-youtube` |
+| [db/](db/README.md) | 検索用の Neon（Postgres）のマイグレーション（Atlas） | Neon |
 | [openapi/](openapi/) | backend から生成した API 定義 | — |
 
 AWS リソース・IAM・Lambda 設定は [infra](https://github.com/hiroki1117/infra/tree/main/youtube-backup) が管理し、このリポジトリはコードとイメージだけを扱う。
@@ -73,9 +74,10 @@ main への push で、変更のあった部分だけが production Environment 
 | 部分 | workflow | 配布先 |
 |---|---|---|
 | frontend | [deploy-frontend.yml](.github/workflows/deploy-frontend.yml) | Amplify Hosting |
-| backend | [deploy-backend.yml](.github/workflows/deploy-backend.yml) | Lambda 7 関数のコード更新と version 発行 |
+| backend | [deploy-backend.yml](.github/workflows/deploy-backend.yml) | Lambda 9 関数のコード更新と version 発行 |
 | batch | [deploy-batch.yml](.github/workflows/deploy-batch.yml)・[deploy-batch-youtube-comments.yml](.github/workflows/deploy-batch-youtube-comments.yml) | ECR（`latest` と commit SHA） |
+| database | [deploy-db.yml](.github/workflows/deploy-db.yml) | Neon（`db/migrations` の未適用分を適用） |
 
-- secrets: `AWS_LAMBDA_DEPLOY_ROLE_ARN`・`AWS_FRONTEND_DEPLOY_ROLE_ARN`・`AWS_BATCH_DEPLOY_ROLE_ARN`
+- secrets: `AWS_LAMBDA_DEPLOY_ROLE_ARN`・`AWS_FRONTEND_DEPLOY_ROLE_ARN`・`AWS_BATCH_DEPLOY_ROLE_ARN`・`NEON_MIGRATION_DATABASE_URL`
 - variables: `AWS_REGION`・`AMPLIFY_APP_ID`・`VITE_*`
 - 値は infra の Terraform output から取得する。実環境の値はコードに書かない（過去の履歴には残っているため、公開前に確認する）。

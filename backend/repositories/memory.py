@@ -22,6 +22,9 @@ class MemoryVideos:
     def iterate(self, status):
         return iter(self.list(status, len(self.items)))
 
+    def all(self):
+        return iter(deepcopy(list(self.items.values())))
+
     def make_video(self, url, now):
         video_id, platform, normalized = source_identity(url)
         return {
@@ -222,3 +225,24 @@ class MemoryPlaylists:
             raise DomainError(404, "playlist_not_found")
         videos, unavailable = self.items[playlist_id]
         return deepcopy(videos), unavailable
+
+
+class MemorySearchIndex:
+    """Local/test stand-in for the Neon copy of the videos."""
+
+    def __init__(self):
+        self.items = {}
+
+    def search(self, terms, backup_from, backup_to, limit):
+        found = [
+            v
+            for v in self.items.values()
+            if all(t.lower() in f"{v['title']} {v['video_id']}".lower() for t in terms)
+            and (backup_from or "") <= v["backupdate"] <= (backup_to or "9999")
+        ]
+        found.sort(key=lambda v: (v["backupdate"], v["video_id"]), reverse=True)
+        return deepcopy(found[:limit])
+
+    def replace_all(self, videos):
+        self.items = {v["video_id"]: deepcopy(v) for v in videos}
+        return len(self.items)

@@ -45,6 +45,8 @@ wiring/        repository を組み立てて BackupService を返す
 | comments | `entrypoints.comments.handler` | HTTP API | コメントバックアップの照会・開始、コメントの一覧 |
 | youtube_comments | `entrypoints.youtube_comments.handler` | S3 通知（コメント用バケット `youtube/`） | 取得した YouTube コメントを DynamoDB へ取り込む |
 | comments_backfill | `entrypoints.comments_backfill.handler` | 毎時（一時的） | コメントのバックアップがない完了済み動画を、1 回に `LIMIT` 本ずつ開始する（下記） |
+| search | `entrypoints.search.handler` | HTTP API | 動画の検索（下記） |
+| search_sync | `entrypoints.search_sync.handler` | 毎時 | 動画を Neon の検索用テーブルへ同期する（下記） |
 
 Lambda を足すときは `entrypoints/` に 1 ファイル追加し、[build_lambda.py](build_lambda.py) の `HANDLERS` と [deploy-backend.yml](../.github/workflows/deploy-backend.yml) の `FUNCTIONS` に 1 行足す。関数本体は infra で作る。
 
@@ -66,6 +68,7 @@ Lambda を足すときは `entrypoints/` に 1 ファイル追加し、[build_la
 | `POST /videos/{id}/comments/backup` | コメントの取得開始（再取得も同じ）。開始は 202、取得中は 200。動画が未完了なら 409、YouTube 以外は 422 |
 | `GET /videos/{id}/comments` | バックアップしたコメントをスレッド単位で返す（`offset`・`limit` 最大 100）。形式は platform ごと（現状 YouTube のみ、それ以外は 422） |
 | `GET /youtube/playlist` | YouTube の再生リスト（query: `url`）を YouTube から読み、動画を並び順で返す。保存・登録はしない（下記） |
+| `GET /search/videos` | 検索（query: `q`・`backup_from`・`backup_to`、`limit` 最大 100）。条件をすべて満たす動画を新しい順に返す（下記） |
 
 対応 URL は YouTube（watch・shorts・live・youtu.be）、TikTok（下記）とその他の URL（URL のハッシュを ID にする）。Twitter / X は未対応で 422。
 
@@ -128,3 +131,9 @@ POST /videos/{id}/comments/backup（comments Lambda）または動画の complet
 - 本数の調整は `LIMIT` を変えて配布する（スケジュールは本数を渡さない）。手動で invoke するときは `{"limit": N}` で上書きできる。
 - 開始する動画がなくなると、自分のスケジュール（`COMMENTS_BACKFILL_RULE_NAME`）を無効化する。
 - 一巡したら、[entrypoints/comments_backfill.py](entrypoints/comments_backfill.py)・[tests/test_comments_backfill.py](tests/test_comments_backfill.py)・`CommentService.backfill` と、`HANDLERS`・`FUNCTIONS` の行を消す。先に infra の関数を消すと配布が失敗するため、アプリ側を先に消す。
+
+## 検索
+
+動画の原本は DynamoDB で、検索には [Neon](../db/README.md) の `videos` テーブルを使う。`search_sync` が毎時 DynamoDB を全件読み、1 トランザクションで Neon の内容を置き換えるので、登録・更新・削除は次の同期まで検索結果に反映されない。削除済みの動画が結果に残っている間は、詳細を開くと 404 になる。
+
+`q` は空白で区切った語がすべてタイトルか動画 ID の一部であるものを探す `ILIKE` の部分一致で、語の順序は問わない。`backup_from`・`backup_to` はバックアップ日の範囲（両端を含む）で、`q` なしでも使える。形態素解析はしないので、表記が違う語（全角と半角、ひらがなとカタカナ）は一致しない。接続情報は Lambda ごとに別の SSM パラメータ（`SSM_SEARCH_DATABASE_URL_PARAMETER`）から読み、API は読み取り専用の role で接続する。タイトルなどの属性が欠けた古い動画は同期しない（`skipped` の件数を返す）。

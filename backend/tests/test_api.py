@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from api.app import app, create_app
 from api.dependencies import get_service
 from api.factory import build_app
-from api.routes import backup_router, comment_router, video_router
+from api.routes import backup_router, comment_router, search_router, video_router
 from build_lambda import HANDLERS
 from entrypoints.backup import handler as backup_handler
 from entrypoints.comments import handler as comments_handler
@@ -146,6 +146,7 @@ def test_openapi_generated_from_same_routers():
         (video_router,),
         (backup_router,),
         (comment_router,),
+        (search_router,),
     ],
 )
 def test_runtime_apps_have_no_unauthenticated_documentation_routes(routers, monkeypatch):

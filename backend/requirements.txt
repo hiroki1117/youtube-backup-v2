@@ -38,6 +38,10 @@ mangum==0.22.0
     # via youtube-backup-backend (backend/pyproject.toml)
 opentelemetry-api==1.45.1
     # via fastapi
+psycopg==3.3.6
+    # via youtube-backup-backend (backend/pyproject.toml)
+psycopg-binary==3.3.6
+    # via psycopg
 pydantic==2.14.1
     # via
     #   youtube-backup-backend (backend/pyproject.toml)

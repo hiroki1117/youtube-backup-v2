@@ -1,19 +1,26 @@
 import os
 
 from api.app import create_app as build_app
-from api.dependencies import get_comment_service, get_playlist_service, get_service
+from api.dependencies import (
+    get_comment_service,
+    get_playlist_service,
+    get_search_service,
+    get_service,
+)
 from repositories.memory import (
     MemoryCommentBackups,
     MemoryCommentJobs,
     MemoryCommentObjects,
     MemoryJobs,
     MemoryPlaylists,
+    MemorySearchIndex,
     MemoryVideos,
     MemoryYoutubeComments,
 )
 from usecases.backup import BackupService
 from usecases.comments import CommentService
 from usecases.playlists import PlaylistService
+from usecases.search import SearchService
 from usecases.youtube_comments import YoutubeCommentStore
 
 
@@ -33,4 +40,7 @@ def create_app():
     app.dependency_overrides[get_comment_service] = lambda: comments
     playlists = PlaylistService(MemoryPlaylists())  # Empty: every playlist is not found.
     app.dependency_overrides[get_playlist_service] = lambda: playlists
+    # Empty until a sync: search finds nothing, as before the first sync in production.
+    search = SearchService(MemorySearchIndex(), service.videos)
+    app.dependency_overrides[get_search_service] = lambda: search
     return app

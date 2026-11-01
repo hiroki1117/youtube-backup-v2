@@ -9,7 +9,7 @@ export interface RawVideo {
   backupdate: string;
   s3fullpath: string;
   upload_status: "init" | "complete";
-  request_timestamp: string;
+  request_timestamp?: string | null;
 }
 
 /** 有効な生 Video（API 応答）を生成する。 */

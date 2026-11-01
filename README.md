@@ -19,6 +19,7 @@ AWS リソース・IAM・Lambda 設定は [infra](https://github.com/hiroki1117/
 | [ドキュメント入口](https://hiroki1117.github.io/youtube-backup-v2/) | Storybook と OpenAPI への案内 |
 | [Storybook](https://hiroki1117.github.io/youtube-backup-v2/storybook/) | 合成データによる画面・状態の例 |
 | [OpenAPI](https://hiroki1117.github.io/youtube-backup-v2/openapi/) | API のエンドポイントと入出力仕様 |
+| [ER 図](https://hiroki1117.github.io/youtube-backup-v2/erd/) | 検索用 DB のスキーマ（[Liam ERD](https://liambx.com)） |
 
 ## セットアップ
 
@@ -58,6 +59,7 @@ python -m http.server 8000 --directory build/docs
 - 手動実行は既定の `publish=false` なら build のみ。`publish=true`（main のみ）で再 build 成功後に再公開。
 - 実 `VITE_*`・secrets は使わず、Storybook は合成認証と MSW を使う。OpenAPI は自前配信の Redoc CE で表示し、API の実行機能は持たない。
 - OpenAPI の原本は [openapi/openapi.json](openapi/openapi.json)。backend 変更後は `make -C backend export` で更新。
+- ER 図は docs.yml が `db/migrations` を一時的な Postgres へ適用し、`pg_dump` の結果から生成する。Postgres が必要なので、ローカルの `build.mjs` では省略される（Neon には接続しない）。
 
 ## 依存ライブラリの継続更新
 

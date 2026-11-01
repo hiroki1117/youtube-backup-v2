@@ -7,6 +7,7 @@
     "build": "node build.mjs"
   },
   "dependencies": {
+    "@liam-hq/cli": "0.7.24",
     "redoc": "3.0.1"
   }
 }

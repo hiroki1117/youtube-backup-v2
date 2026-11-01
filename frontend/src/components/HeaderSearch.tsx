@@ -1,15 +1,13 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect } from "react";
 import { Search } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { EMPTY_FILTERS, toSearchParams } from "@/lib/search";
 import { ROUTES } from "@/lib/routes";
 
 /**
- * ヘッダの検索入口（U3 / C5）。どの画面からも検索ページへ移る。広い画面はその場で入力でき、
- * 狭い画面はヘッダが 1 行に収まるようアイコンから検索ページを開く。検索ページには専用の
- * 検索欄があるので、そこでは表示しない。`/` キーで検索欄へ移れる。
+ * ヘッダの検索入口（U3 / C5）。入力は検索ページだけで行い、ここはそこへのリンクに徹する。
+ * 語を決めていなくても日付の絞り込みへ進めるよう、PC もスマホも同じ動きにする。
+ * 広い画面は検索欄の見た目、狭い画面はアイコンで表示する。検索ページには専用の検索欄があるので
+ * そこでは表示しない。`/` キーでも検索欄へ移れる。
  */
 
 function isTyping(target: EventTarget | null): boolean {
@@ -22,7 +20,6 @@ function isTyping(target: EventTarget | null): boolean {
 export function HeaderSearch() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const [text, setText] = useState("");
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
@@ -33,12 +30,10 @@ export function HeaderSearch() {
         return;
       }
       event.preventDefault();
-      // 検索ページの検索欄と、広い画面のヘッダの検索欄のうち、画面に出ているほうへ移る。
-      const inputs = document.querySelectorAll<HTMLInputElement>("[data-search-input]");
-      const visible = [...inputs].find((input) => input.offsetParent !== null);
-      if (visible) {
-        visible.focus();
-        visible.select();
+      const input = document.querySelector<HTMLInputElement>("[data-search-input]");
+      if (input) {
+        input.focus();
+        input.select();
       } else {
         navigate(ROUTES.search);
       }
@@ -51,43 +46,18 @@ export function HeaderSearch() {
     return null;
   }
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const params = toSearchParams({ ...EMPTY_FILTERS, text: text.trim() }).toString();
-    setText("");
-    navigate({ pathname: ROUTES.search, search: params });
-  };
-
   return (
-    <>
-      <form
-        role="search"
-        onSubmit={handleSubmit}
-        className="relative hidden w-full max-w-sm sm:block"
-      >
-        <Search
-          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-          aria-hidden="true"
-        />
-        <Input
-          type="search"
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          placeholder="動画を検索"
-          aria-label="動画を検索"
-          enterKeyHint="search"
-          className="h-9 pl-9 pointer-fine:pr-8"
-          data-search-input
-        />
-        <kbd className="pointer-events-none absolute top-1/2 right-2.5 hidden -translate-y-1/2 rounded border px-1.5 text-xs text-muted-foreground pointer-fine:block">
-          /
-        </kbd>
-      </form>
-      <Button asChild variant="ghost" size="icon" className="sm:hidden">
-        <Link to={ROUTES.search} aria-label="検索ページを開く">
-          <Search className="size-5" aria-hidden="true" />
-        </Link>
-      </Button>
-    </>
+    <Link
+      to={ROUTES.search}
+      aria-label="動画を検索"
+      className="flex size-10 items-center justify-center gap-2 rounded-md text-sm text-muted-foreground ring-offset-background hover:bg-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:h-9 sm:w-full sm:max-w-sm sm:justify-start sm:border sm:border-input sm:bg-background sm:px-3"
+    >
+      <Search
+        className="size-5 text-foreground sm:size-4 sm:text-muted-foreground"
+        aria-hidden="true"
+      />
+      <span className="hidden sm:inline">動画を検索</span>
+      <kbd className="ml-auto hidden rounded border px-1.5 text-xs sm:pointer-fine:block">/</kbd>
+    </Link>
   );
 }

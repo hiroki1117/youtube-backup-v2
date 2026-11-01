@@ -20,24 +20,10 @@ CREATE INDEX videos_title_trgm_idx ON videos USING gin (title gin_trgm_ops);
 CREATE INDEX videos_video_id_trgm_idx ON videos USING gin (video_id gin_trgm_ops);
 CREATE INDEX videos_backupdate_idx ON videos (backupdate);
 
--- Roles start without login. Their passwords are set by hand (db/README.md) so none enters git.
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'search_reader') THEN
-        CREATE ROLE search_reader NOLOGIN;
-    END IF;
-    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'search_writer') THEN
-        CREATE ROLE search_writer NOLOGIN;
-    END IF;
-END
-$$;
-
 GRANT SELECT ON videos TO search_reader;
 GRANT SELECT, INSERT, UPDATE, DELETE ON videos TO search_writer;
 
 -- migrate:down
 
 DROP TABLE videos;
-DROP ROLE search_reader;
-DROP ROLE search_writer;
 DROP EXTENSION pg_trgm;

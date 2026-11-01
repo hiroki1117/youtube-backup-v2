@@ -15,7 +15,8 @@ dbmate new <name>   # db/migrations に空のファイルを作る
 - dbmate の更新は [setup-dbmate](../.github/actions/setup-dbmate/action.yml) の version と checksum を変える。Dependabot の対象外。
 - `db/schema.sql` は作らない（`--no-dump-schema`）。`pg_dump` の用意が必要になるため。現在のスキーマはマイグレーションから読む。
 - 適用履歴は `schema_migrations` テーブルにある。
-- 本番で `rollback` を実行すると、`search_reader` などの role も消える。その場合は role の設定からやり直す。
+- テーブルと role はファイルを分けているので、`rollback` でテーブルを取り消しても role とパスワードは残る。`create_search_roles` まで取り消した場合は、初回の設定からやり直す。
+- 新しいテーブルの `GRANT` は、そのテーブルを作るファイルに書く。
 
 ## role
 

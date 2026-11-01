@@ -57,6 +57,27 @@ def test_completed_playback_and_delete(client, service):
     assert client.get("/videos/abcdefghijk").status_code == 404
 
 
+@pytest.mark.parametrize(
+    ("existing", "status", "code"),
+    [(False, 404, "video_not_found"), (True, 409, "deletion_needs_reconciliation")],
+)
+def test_title_update_rejects_missing_or_deleting_video(client, service, existing, status, code):
+    if existing:
+        service.register(URL)
+        video = service.videos.items["abcdefghijk"]
+        video["deletion_token"] = "reconciliation-required"
+        original_title = video["title"]
+
+    response = client.patch("/videos/abcdefghijk", json={"title": "Edited"})
+
+    assert response.status_code == status
+    assert response.json() == {"detail": code}
+    if existing:
+        assert video["title"] == original_title
+    else:
+        assert service.videos.get("abcdefghijk") is None
+
+
 def test_input_and_not_found(client):
     for body in [
         {},

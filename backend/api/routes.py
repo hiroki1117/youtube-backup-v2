@@ -47,7 +47,7 @@ def list_videos(
     upload_status: Literal["init", "complete"] = "complete",
     fetch_num: Annotated[int, Query(ge=1, le=1000)] = 30,
 ):
-    return service.videos.list(upload_status, fetch_num)
+    return service.list_videos(upload_status, fetch_num)
 
 
 @video_router.post("/videos", response_model=Registration, responses={202: {"model": Registration}})
@@ -64,8 +64,7 @@ def get_video(video_id: VideoId, service: Service):
 
 @video_router.patch("/videos/{video_id}", response_model=Video)
 def update_video(video_id: VideoId, body: UpdateVideo, service: Service):
-    service.video(video_id)
-    return service.videos.update_title(video_id, body.title)
+    return service.update_title(video_id, body.title)
 
 
 @video_router.delete("/videos/{video_id}", status_code=204)

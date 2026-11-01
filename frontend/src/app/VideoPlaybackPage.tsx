@@ -88,8 +88,10 @@ export function VideoPlaybackPage() {
   };
 
   return (
-    <section aria-label="動画再生" className="space-y-4">
-      <div>
+    <section aria-label="動画再生" className="flex flex-col gap-4">
+      {/* スマホでは動画を最上部に置くので、戻るリンクと動画に order-first を付ける（docs/mobile-ui.md）。
+          見出しは読み上げの順序を保つため DOM では動画より前に置く。 */}
+      <div className="max-md:order-first">
         <Link
           to={ROUTES.videos}
           // 負のマージンで、周囲の余白を変えずにタップ領域だけを広げる。
@@ -111,7 +113,7 @@ export function VideoPlaybackPage() {
           <h2
             ref={headingRef}
             tabIndex={-1}
-            className="min-w-0 flex-1 break-words text-xl font-semibold outline-hidden"
+            className="min-w-0 flex-1 break-words text-lg font-semibold outline-hidden md:text-xl"
             data-testid="playback-heading"
           >
             {headingText}
@@ -174,29 +176,34 @@ export function VideoPlaybackPage() {
       )}
 
       {state.kind === "ready" && (
-        <div className="space-y-4">
-          <StatusView
-            state={toSourceViewState(state.source)}
-            onRetry={playback.refetch}
-            loadingLabel="再生準備中..."
-          >
-            {(url) => (
-              <video
-                controls
-                // iPhone でページ内のまま再生する（無いと再生開始で全画面に切り替わる）。
-                playsInline
-                src={url}
-                // dvh だとアドレスバーの開閉で動画の高さが変わり、スクロール中にページがずれる。
-                className="max-h-[80svh] w-full rounded-md bg-black"
-                aria-label={`動画プレイヤー: ${state.video.title}`}
-                data-testid="video-player"
-              >
-                お使いのブラウザは動画再生に対応していません。
-              </video>
-            )}
-          </StatusView>
+        // スマホでは contents で子を section の並びに加え、プレイヤーだけ最上部へ動かす。
+        <div className="contents md:flex md:flex-col md:gap-4">
+          <div className="max-md:order-first max-md:-mx-4">
+            <StatusView
+              state={toSourceViewState(state.source)}
+              onRetry={playback.refetch}
+              loadingLabel="再生準備中..."
+            >
+              {(url) => (
+                <video
+                  controls
+                  // iPhone でページ内のまま再生する（無いと再生開始で全画面に切り替わる）。
+                  playsInline
+                  src={url}
+                  // dvh だとアドレスバーの開閉で動画の高さが変わり、スクロール中にページがずれる。
+                  // 縦持ちは、縦長の動画でも下の見出しとダウンロードが見える高さに抑える。
+                  className="max-h-[80svh] w-full bg-black max-md:portrait:max-h-[60svh] md:rounded-md"
+                  aria-label={`動画プレイヤー: ${state.video.title}`}
+                  data-testid="video-player"
+                >
+                  お使いのブラウザは動画再生に対応していません。
+                </video>
+              )}
+            </StatusView>
+          </div>
           <div className="flex items-center gap-2">
             <Button
+              className="max-md:flex-1"
               onClick={() => download.download(state.video)}
               disabled={download.isPreparing}
               aria-label={`ダウンロード: ${state.video.title}`}

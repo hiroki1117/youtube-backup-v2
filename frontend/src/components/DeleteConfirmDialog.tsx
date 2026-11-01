@@ -33,13 +33,13 @@ export function DeleteConfirmDialog({
   const isCancel = video.uploadStatus === "init";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 md:items-center md:p-4">
       <div
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="delete-dialog-title"
         aria-describedby="delete-dialog-description"
-        className="max-h-full w-full max-w-md overflow-y-auto rounded-lg border bg-background p-6 shadow-lg"
+        className="max-h-full w-full max-w-md overflow-y-auto overscroll-contain rounded-t-lg border bg-background p-6 shadow-lg md:rounded-lg"
         data-testid="delete-confirm-dialog"
       >
         <h2 id="delete-dialog-title" className="text-lg font-semibold">
@@ -53,7 +53,8 @@ export function DeleteConfirmDialog({
             ? `「${video.title}」のバックアップを中止し、一覧から削除します。同じ URL はあとで再登録できます。`
             : `「${video.title}」を削除します。バックアップしたコメントも削除されます。この操作は取り消せません。`}
         </p>
-        <div className="mt-6 flex justify-end gap-2">
+        {/* スマホでは親指が届くよう、確定を下にして縦に並べる。 */}
+        <div className="mt-6 flex flex-col-reverse gap-2 md:flex-row md:justify-end">
           <Button type="button" variant="outline" onClick={onCancel} disabled={isDeleting}>
             キャンセル
           </Button>

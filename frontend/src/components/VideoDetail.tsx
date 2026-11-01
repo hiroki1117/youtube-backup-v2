@@ -25,8 +25,9 @@ export function VideoDetail({ video }: VideoDetailProps) {
       className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm"
       data-testid="playback-detail"
     >
-      <dt className="whitespace-nowrap text-muted-foreground">タイトル</dt>
-      <dd className="break-words font-medium">{video.title}</dd>
+      {/* スマホでは再生ページの見出しの直下に来て重複するので隠す。 */}
+      <dt className="whitespace-nowrap text-muted-foreground max-md:hidden">タイトル</dt>
+      <dd className="break-words font-medium max-md:hidden">{video.title}</dd>
       <dt className="whitespace-nowrap text-muted-foreground">プラットフォーム</dt>
       <dd>{video.platform}</dd>
       <dt className="whitespace-nowrap text-muted-foreground">バックアップ日</dt>

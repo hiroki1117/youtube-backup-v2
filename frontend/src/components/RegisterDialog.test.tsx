@@ -223,6 +223,14 @@ describe("RegisterDialog のクリップボードから登録", () => {
     expect(screen.getByLabelText("動画 URL")).toHaveFocus();
   });
 
+  it("タッチ操作では、キーボードでシートを隠さないよう自動でフォーカスしない", () => {
+    vi.spyOn(window, "matchMedia").mockImplementation(
+      (query) => ({ matches: query === "(pointer: coarse)", media: query }) as MediaQueryList,
+    );
+    renderDialog();
+    expect(screen.getByLabelText("動画 URL")).not.toHaveFocus();
+  });
+
   it("クリップボードの URL をそのまま送信し、受理で閉じる", async () => {
     const user = userEvent.setup();
     await navigator.clipboard.writeText("  https://youtu.be/fromclip  ");

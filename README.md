@@ -5,7 +5,7 @@
 | 配置 | 内容 | 配布先 |
 |---|---|---|
 | [frontend/](frontend/) | Vite / React / TypeScript（Cognito ログイン） | Amplify Hosting |
-| [backend/](backend/) | FastAPI の API とイベント処理（[詳細](backend/README.md)） | Lambda 9 関数（共通 ZIP） |
+| [backend/](backend/) | FastAPI の API とイベント処理（[詳細](backend/README.md)） | Lambda 10 関数（共通 ZIP） |
 | [batch/](batch/) | yt-dlp で S3 へ置くジョブ（`scripts/yt-dlp-script`）と、YouTube のコメントだけを取得するジョブ（`scripts/youtube-comments`）のイメージ | ECR `youtube-downloader-ytdlp`・`youtube-backup-comments-youtube` |
 | [db/](db/README.md) | 検索用の Neon（Postgres）のマイグレーション（dbmate） | Neon |
 | [openapi/](openapi/) | backend から生成した API 定義 | — |
@@ -78,7 +78,7 @@ main への push で、変更のあった部分だけが production Environment 
 | 部分 | workflow | 配布先 |
 |---|---|---|
 | frontend | [deploy-frontend.yml](.github/workflows/deploy-frontend.yml) | Amplify Hosting |
-| backend | [deploy-backend.yml](.github/workflows/deploy-backend.yml) | Lambda 9 関数のコード更新と version 発行 |
+| backend | [deploy-backend.yml](.github/workflows/deploy-backend.yml) | Lambda 10 関数のコード更新と version 発行 |
 | batch | [deploy-batch.yml](.github/workflows/deploy-batch.yml)・[deploy-batch-youtube-comments.yml](.github/workflows/deploy-batch-youtube-comments.yml) | ECR（`latest` と commit SHA） |
 | database | [deploy-db.yml](.github/workflows/deploy-db.yml) | Neon（`db/migrations` の未適用分を適用） |
 

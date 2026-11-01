@@ -56,7 +56,7 @@ export default tseslint.config(
       ],
       eqeqeq: ["error", "always"],
 
-      // レイヤ一方向依存の機械的強制（team.md: 逆流を import-x/no-cycle で禁止）
+      // import の循環を検出する。
       "import-x/no-cycle": ["error", { maxDepth: 10 }],
     },
   },

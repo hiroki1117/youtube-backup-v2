@@ -125,12 +125,14 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
               </p>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          {/* 日付欄は 2 列だと狭い画面で値とカレンダーアイコンが見切れるため、sm 未満は縦に積む。 */}
+          <div className="grid gap-4 sm:grid-cols-2 sm:gap-2">
             <div className="min-w-0 space-y-2">
               <Label htmlFor="search-backup-from">バックアップ日（から）</Label>
               <Input
                 id="search-backup-from"
                 type="date"
+                className="block"
                 value={backupFrom}
                 onChange={(event) => setBackupFrom(event.target.value)}
               />
@@ -140,6 +142,7 @@ export function SearchDialog({ open, onClose }: SearchDialogProps) {
               <Input
                 id="search-backup-to"
                 type="date"
+                className="block"
                 value={backupTo}
                 onChange={(event) => setBackupTo(event.target.value)}
               />

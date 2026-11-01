@@ -80,7 +80,7 @@ export function VideoCatalog({
             {videos.map((video) => (
               <li
                 key={video.videoId}
-                className="flex items-center gap-2 p-3"
+                className="flex items-center gap-2 px-3"
                 data-testid="video-row"
               >
                 <span className="flex items-center" data-testid="video-platform">
@@ -88,7 +88,8 @@ export function VideoCatalog({
                 </span>
                 <Link
                   to={generatePath(ROUTES.videoDetail, { videoId: video.videoId })}
-                  className="min-w-0 flex-1 truncate font-medium hover:underline"
+                  // 行の上下の余白はリンク側に持たせ、行の高さ全体をタップできるようにする。
+                  className="min-w-0 flex-1 truncate py-3 font-medium hover:underline"
                   // 長いタイトルは省略表示になるため、ホバーで全文を出す。
                   title={video.title}
                 >

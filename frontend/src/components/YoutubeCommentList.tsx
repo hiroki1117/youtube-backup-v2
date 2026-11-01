@@ -89,7 +89,7 @@ export function YoutubeCommentList({
                 <Comment comment={thread} />
                 {thread.replies.length > 0 ? (
                   <details className="ml-6 space-y-2 border-l pl-3">
-                    <summary className="cursor-pointer text-xs text-muted-foreground">
+                    <summary className="cursor-pointer py-3 text-xs text-muted-foreground">
                       返信 {thread.replies.length} 件
                     </summary>
                     {thread.replies.map((reply) => (

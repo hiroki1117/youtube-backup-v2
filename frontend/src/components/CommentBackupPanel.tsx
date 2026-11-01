@@ -89,12 +89,12 @@ function ReadyContent({
         : "コメントを最新化";
   return (
     <>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
-        <dt className="text-muted-foreground">状態</dt>
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
+        <dt className="whitespace-nowrap text-muted-foreground">状態</dt>
         <dd data-testid="comment-backup-state">{STATE_LABEL[backup.state]}</dd>
         {backup.completedAt !== null ? (
           <>
-            <dt className="text-muted-foreground">最終取得</dt>
+            <dt className="whitespace-nowrap text-muted-foreground">最終取得</dt>
             <dd data-testid="comment-backup-last">
               {formatCompletedAt(backup.completedAt)}（{backup.commentCount ?? 0} 件）
             </dd>

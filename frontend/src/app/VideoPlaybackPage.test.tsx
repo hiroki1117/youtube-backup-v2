@@ -47,6 +47,7 @@ describe("VideoPlaybackPage（U6 / US6.2・FR7・A3・C4）", () => {
     expect(player.tagName).toBe("VIDEO");
     expect(player).toHaveAttribute("src", TEST_PRESIGNED_URL);
     expect(player).toHaveAttribute("controls");
+    expect(player).toHaveAttribute("playsinline");
     expect(screen.getByTestId("playback-download-button")).toBeInTheDocument();
   });
 

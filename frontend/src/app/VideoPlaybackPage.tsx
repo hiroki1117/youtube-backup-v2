@@ -92,7 +92,8 @@ export function VideoPlaybackPage() {
       <div>
         <Link
           to={ROUTES.videos}
-          className="text-sm text-muted-foreground hover:underline"
+          // 負のマージンで、周囲の余白を変えずにタップ領域だけを広げる。
+          className="-my-3 inline-block py-3 text-sm text-muted-foreground hover:underline"
           data-testid="playback-back-link"
         >
           ← 一覧へ戻る
@@ -182,8 +183,10 @@ export function VideoPlaybackPage() {
             {(url) => (
               <video
                 controls
+                // iPhone でページ内のまま再生する（無いと再生開始で全画面に切り替わる）。
+                playsInline
                 src={url}
-                className="max-h-[80vh] w-full rounded-md bg-black"
+                className="max-h-[80dvh] w-full rounded-md bg-black"
                 aria-label={`動画プレイヤー: ${state.video.title}`}
                 data-testid="video-player"
               >

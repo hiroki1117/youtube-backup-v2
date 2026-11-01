@@ -39,7 +39,7 @@ export function DeleteConfirmDialog({
         aria-modal="true"
         aria-labelledby="delete-dialog-title"
         aria-describedby="delete-dialog-description"
-        className="w-full max-w-md rounded-lg border bg-background p-6 shadow-lg"
+        className="max-h-full w-full max-w-md overflow-y-auto rounded-lg border bg-background p-6 shadow-lg"
         data-testid="delete-confirm-dialog"
       >
         <h2 id="delete-dialog-title" className="text-lg font-semibold">

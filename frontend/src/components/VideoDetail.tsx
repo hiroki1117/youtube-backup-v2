@@ -21,18 +21,21 @@ export interface VideoDetailProps {
 
 export function VideoDetail({ video }: VideoDetailProps) {
   return (
-    <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm" data-testid="playback-detail">
-      <dt className="text-muted-foreground">タイトル</dt>
-      <dd className="font-medium">{video.title}</dd>
-      <dt className="text-muted-foreground">プラットフォーム</dt>
+    <dl
+      className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm"
+      data-testid="playback-detail"
+    >
+      <dt className="whitespace-nowrap text-muted-foreground">タイトル</dt>
+      <dd className="break-words font-medium">{video.title}</dd>
+      <dt className="whitespace-nowrap text-muted-foreground">プラットフォーム</dt>
       <dd>{video.platform}</dd>
-      <dt className="text-muted-foreground">バックアップ日</dt>
+      <dt className="whitespace-nowrap text-muted-foreground">バックアップ日</dt>
       <dd>{video.backupDate}</dd>
-      <dt className="text-muted-foreground">状態</dt>
+      <dt className="whitespace-nowrap text-muted-foreground">状態</dt>
       <dd>{STATUS_LABEL[video.uploadStatus]}</dd>
       {parseHttpsUrl(video.videoUrl) !== null ? (
         <>
-          <dt className="text-muted-foreground">掲載元</dt>
+          <dt className="whitespace-nowrap text-muted-foreground">掲載元</dt>
           <dd>
             <SourceLink video={video} />
           </dd>

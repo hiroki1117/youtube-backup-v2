@@ -1,6 +1,9 @@
+from functools import cached_property
+
+import boto3
 import httpx
 
-from repositories.aws import AwsRepository
+from repositories.aws import read_secret
 from usecases.models import DomainError
 
 ITEMS_URL = "https://www.googleapis.com/youtube/v3/playlistItems"
@@ -10,11 +13,18 @@ NOT_FOUND = {"playlistNotFound", "playlistItemsNotAccessible"}
 AVAILABLE = {"public", "unlisted"}
 
 
-class PlaylistRepository(AwsRepository):
+class PlaylistRepository:
     """Reads a playlist with the YouTube Data API: 1 quota unit per page of 50 items."""
 
+    def __init__(self, session=None):
+        self.session = session or boto3.Session()
+
+    @cached_property
+    def ssm(self):
+        return self.session.client("ssm")
+
     def videos(self, playlist_id: str) -> tuple[list[dict], int]:
-        key = self.secret("SSM_YOUTUBE_API_KEY_PARAMETER")
+        key = read_secret(self.ssm, "SSM_YOUTUBE_API_KEY_PARAMETER")
         params = {"part": "snippet,status", "playlistId": playlist_id, "maxResults": 50, "key": key}
         videos, seen, unavailable = [], set(), 0
         try:

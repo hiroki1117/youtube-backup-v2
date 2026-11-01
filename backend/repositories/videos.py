@@ -3,11 +3,12 @@ from datetime import UTC, datetime
 from functools import cached_property
 from urllib.parse import urlparse
 
+import boto3
 import httpx
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
-from repositories.aws import AwsRepository, condition_failed, conditional
+from repositories.aws import condition_failed, conditional, read_secret
 from usecases.models import (
     TIKTOK_HOSTS,
     DomainError,
@@ -17,8 +18,11 @@ from usecases.models import (
 )
 
 
-class VideoRepository(AwsRepository):
+class VideoRepository:
     """Owns the existing DynamoDB video item, S3 file, and source metadata lookup."""
+
+    def __init__(self, session=None):
+        self.session = session or boto3.Session()
 
     @cached_property
     def table(self):
@@ -27,6 +31,10 @@ class VideoRepository(AwsRepository):
     @cached_property
     def s3(self):
         return self.session.client("s3")
+
+    @cached_property
+    def ssm(self):
+        return self.session.client("ssm")
 
     def get(self, video_id: str) -> dict | None:
         return self.table.get_item(Key={"video_id": video_id}, ConsistentRead=True).get("Item")
@@ -84,7 +92,7 @@ class VideoRepository(AwsRepository):
         video_id, platform, normalized = source_identity(url)
         title = video_id
         if platform == "youtube":
-            key = self.secret("SSM_YOUTUBE_API_KEY_PARAMETER")
+            key = read_secret(self.ssm, "SSM_YOUTUBE_API_KEY_PARAMETER")
             try:
                 with httpx.Client(timeout=15) as client:
                     response = client.get(

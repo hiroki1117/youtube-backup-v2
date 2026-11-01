@@ -3,14 +3,18 @@ import json
 import os
 from functools import cached_property
 
+import boto3
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
-from repositories.aws import AwsRepository, BatchRepository, condition_failed, conditional
+from repositories.aws import BatchRepository, condition_failed, conditional, read_secret
 
 
-class CommentBackupRepository(AwsRepository):
+class CommentBackupRepository:
     """Owns comment_backups: one request-tracking item per video, shared by all platforms."""
+
+    def __init__(self, session=None):
+        self.session = session or boto3.Session()
 
     @cached_property
     def dynamodb(self):
@@ -105,7 +109,7 @@ class CommentJobRepository(BatchRepository):
     """Submits each platform's comment job (its own Batch job definition) to the comment queue."""
 
     def submit(self, platform: str, url: str, attempt: str, key: str) -> str:
-        cookie = self.secret("SSM_COOKIE_S3_PATH_PARAMETER")
+        cookie = read_secret(self.ssm, "SSM_COOKIE_S3_PATH_PARAMETER")
         prefix = platform.upper()
         env = {
             "URL": url,
@@ -123,8 +127,11 @@ class CommentJobRepository(BatchRepository):
         return result["jobId"]
 
 
-class CommentObjectRepository(AwsRepository):
+class CommentObjectRepository:
     """Reads the gzip JSON that a comment job stored in the comments bucket, and removes it."""
+
+    def __init__(self, session=None):
+        self.session = session or boto3.Session()
 
     @cached_property
     def s3(self):
@@ -147,8 +154,11 @@ class CommentObjectRepository(AwsRepository):
                 raise RuntimeError(f"failed to delete {len(result['Errors'])} comment objects")
 
 
-class YoutubeCommentRepository(AwsRepository):
+class YoutubeCommentRepository:
     """Owns youtube_comments: one item per comment (video_id, comment_id)."""
+
+    def __init__(self, session=None):
+        self.session = session or boto3.Session()
 
     @cached_property
     def table(self):

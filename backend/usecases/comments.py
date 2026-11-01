@@ -150,4 +150,13 @@ class CommentService:
         return "failed"
 
     def _view(self, backup: dict, state: str) -> CommentBackup:
-        return CommentBackup.model_validate({**backup, "state": state})
+        return CommentBackup(
+            video_id=backup["video_id"],
+            platform=backup["platform"],
+            state=state,
+            attempt_id=backup.get("attempt_id"),
+            batch_job_id=backup.get("batch_job_id"),
+            requested_at=backup.get("requested_at"),
+            comment_count=backup.get("comment_count"),
+            completed_at=backup.get("completed_at"),
+        )

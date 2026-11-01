@@ -18,27 +18,26 @@ def conditional(error: ClientError) -> None:
     raise error
 
 
-class AwsRepository:
-    """Clients are created on first use, so a request pays only for the services it touches."""
+def read_secret(ssm, variable: str) -> str:
+    """The value of the SSM parameter named by an environment variable."""
+    name = os.environ[variable]
+    return ssm.get_parameter(Name=name, WithDecryption=True)["Parameter"]["Value"]
+
+
+class BatchRepository:
+    """Submits jobs with SSM inputs and queries them. Clients are created on first use."""
 
     def __init__(self, session=None):
         self.session = session or boto3.Session()
 
     @cached_property
-    def ssm(self):
-        return self.session.client("ssm")
-
-    def secret(self, variable: str) -> str:
-        """The value of the SSM parameter named by an environment variable."""
-        name = os.environ[variable]
-        return self.ssm.get_parameter(Name=name, WithDecryption=True)["Parameter"]["Value"]
-
-
-class BatchRepository(AwsRepository):
-    @cached_property
     def batch(self):
         # SubmitJob has no idempotency token: never automatically resend an ambiguous request.
         return self.session.client("batch", config=Config(retries={"total_max_attempts": 1}))
+
+    @cached_property
+    def ssm(self):
+        return self.session.client("ssm")
 
     def get(self, job_id: str) -> dict | None:
         jobs = self.batch.describe_jobs(jobs=[job_id])["jobs"]

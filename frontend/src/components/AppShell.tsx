@@ -30,9 +30,12 @@ export function AppShell() {
 
   return (
     <div className="min-h-dvh">
-      <header className="flex items-center justify-between gap-2 border-b px-4 py-3">
+      {/* スマホでは長い一覧をスクロールしても検索へ移れるよう、ヘッダを上部に固定する。 */}
+      <header className="sticky top-0 z-30 flex items-center justify-between gap-2 border-b bg-background px-4 py-3 md:static">
         <h1 className="min-w-0 truncate text-lg font-semibold">
-          <Link to={ROUTES.videos}>youtube-backup</Link>
+          <Link to={ROUTES.videos} className="-my-2 inline-block py-2">
+            youtube-backup
+          </Link>
         </h1>
         <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
           <HeaderSearch />

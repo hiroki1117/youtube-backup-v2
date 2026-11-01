@@ -28,7 +28,8 @@ export function Toaster() {
   return (
     <div
       aria-live="polite"
-      className="fixed inset-x-4 bottom-4 z-50 flex flex-col gap-2 sm:left-auto sm:w-full sm:max-w-sm"
+      // スマホでは右下の登録ボタンに重ならないよう、その上に出す。
+      className="fixed inset-x-4 bottom-20 z-50 flex flex-col gap-2 sm:left-auto sm:w-full sm:max-w-sm md:bottom-4"
     >
       {items.map((item) => (
         <div

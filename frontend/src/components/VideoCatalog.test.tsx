@@ -217,6 +217,7 @@ describe("VideoCatalog 処理中の行の取り消し", () => {
 
     expect(screen.getByRole("list", { name: "検索結果" })).toBeInTheDocument();
     expect(screen.getByText("猫").tagName).toBe("MARK");
-    expect(screen.getByRole("link", { name: /^猫の動画/ })).toHaveTextContent("2026-08-03");
+    expect(screen.getByRole("link", { name: "猫の動画" })).toBeInTheDocument();
+    expect(screen.getByTestId("video-row")).toHaveTextContent("2026-08-03");
   });
 });

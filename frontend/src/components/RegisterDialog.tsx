@@ -15,7 +15,8 @@ import { isYoutubePlaylistUrl, validateVideoUrl } from "@/lib/url";
  * （スマホで貼り付け操作を省くため）。読めない・URL でないときは入力欄へ戻して手入力させる。
  * 送信中は送信ボタンを無効化して二重送信を抑止し、登録受理で自動的に閉じる。
  * スマホでは画面下から出るシート、md 以上では中央のダイアログとして表示する（右下の登録ボタンから
- * 開いたとき、親指の届く位置に入力欄が来るように）。
+ * 開いたとき、親指の届く位置に入力欄が来るように）。タッチ操作では「クリップボードから登録」を主な
+ * 操作にし、キーボードがシートを隠さないよう入力欄へ自動でフォーカスしない。
  *
  * 再生リストも同じ入力欄で受け付ける（入口は 1 つ）。複数本が登録されるため、確定の前だけ分ける:
  * 再生リストのページの URL（`youtube.com/playlist?list=…`）は中身を読み込み、本数とタイトルを確認してから
@@ -45,6 +46,7 @@ export function RegisterDialog({ open, onClose }: RegisterDialogProps) {
 
 function RegisterDialogContent({ onClose }: { onClose: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [isTouch] = useState(() => window.matchMedia("(pointer: coarse)").matches);
   const clipboardRequest = useRef(0);
   // 閉じる・再表示をまたいだ読み取りは、成功・失敗ともに無視する。
   useLayoutEffect(() => {
@@ -126,7 +128,7 @@ function RegisterDialogContent({ onClose }: { onClose: () => void }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="register-dialog-title"
-        className="max-h-full w-full max-w-md overflow-y-auto rounded-t-lg border bg-background p-6 shadow-lg md:rounded-lg"
+        className="max-h-full w-full max-w-md overflow-y-auto overscroll-contain rounded-t-lg border bg-background p-6 shadow-lg md:rounded-lg"
       >
         <h2 id="register-dialog-title" className="text-lg font-semibold">
           {playlistStep ? "再生リストを登録" : "動画を登録"}
@@ -151,7 +153,8 @@ function RegisterDialogContent({ onClose }: { onClose: () => void }) {
                 placeholder="https://www.youtube.com/watch?v=..."
                 value={url}
                 onChange={(event) => setUrl(event.target.value)}
-                autoFocus
+                enterKeyHint="go"
+                autoFocus={!isTouch}
                 aria-invalid={hasError}
                 aria-describedby={hasError ? "register-url-error" : undefined}
               />
@@ -161,21 +164,26 @@ function RegisterDialogContent({ onClose }: { onClose: () => void }) {
                 </p>
               )}
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center md:justify-between">
               <Button
                 type="button"
-                variant="outline"
+                variant={isTouch ? "default" : "outline"}
                 onClick={() => void handlePasteAndRegister()}
                 disabled={isBusy}
               >
                 <ClipboardPaste className="h-4 w-4" aria-hidden="true" />
                 クリップボードから登録
               </Button>
-              <div className="ml-auto flex gap-2">
+              <div className="grid grid-cols-2 gap-2 md:ml-auto md:flex">
                 <Button type="button" variant="ghost" onClick={handleClose} disabled={isBusy}>
                   キャンセル
                 </Button>
-                <Button type="submit" disabled={isBusy} aria-busy={isBusy}>
+                <Button
+                  type="submit"
+                  variant={isTouch ? "outline" : "default"}
+                  disabled={isBusy}
+                  aria-busy={isBusy}
+                >
                   {state.step === "loading" ? "読み込み中…" : "登録"}
                 </Button>
               </div>

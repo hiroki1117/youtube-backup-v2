@@ -50,7 +50,7 @@ export function HeaderSearch() {
     <Link
       to={ROUTES.search}
       aria-label="動画を検索"
-      className="flex size-10 items-center justify-center gap-2 rounded-md text-sm text-muted-foreground ring-offset-background hover:bg-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:h-9 sm:w-full sm:max-w-sm sm:justify-start sm:border sm:border-input sm:bg-background sm:px-3"
+      className="flex size-10 items-center justify-center gap-2 rounded-md text-sm text-muted-foreground ring-offset-background hover:bg-secondary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:h-9 sm:pointer-coarse:h-10 sm:w-full sm:max-w-sm sm:justify-start sm:border sm:border-input sm:bg-background sm:px-3"
     >
       <Search
         className="size-5 text-foreground sm:size-4 sm:text-muted-foreground"

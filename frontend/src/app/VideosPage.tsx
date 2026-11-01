@@ -47,9 +47,8 @@ export function VideosPage() {
 
   return (
     <section aria-label="動画一覧" className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-xl font-semibold">動画一覧</h2>
-      </div>
+      {/* スマホでは一覧を広く見せるため、見出しは読み上げだけに残す。 */}
+      <h2 className="sr-only text-xl font-semibold md:not-sr-only">動画一覧</h2>
       <CatalogControls
         uploadStatus={catalog.uploadStatus}
         sortOrder={catalog.sortOrder}

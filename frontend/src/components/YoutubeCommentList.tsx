@@ -88,7 +88,7 @@ export function YoutubeCommentList({
               <li key={thread.commentId} className="space-y-2">
                 <Comment comment={thread} />
                 {thread.replies.length > 0 ? (
-                  <details className="ml-6 space-y-2 border-l pl-3">
+                  <details className="ml-2 space-y-2 border-l pl-3 md:ml-6">
                     {/* 負のマージンで、親の space-y-2 の間隔を保ったままタップ領域だけを広げる。 */}
                     <summary className="-mt-3 -mb-1 cursor-pointer py-3 text-xs text-muted-foreground">
                       返信 {thread.replies.length} 件

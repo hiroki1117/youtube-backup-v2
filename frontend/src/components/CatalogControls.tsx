@@ -40,8 +40,13 @@ export function CatalogControls({
   isFetching,
 }: CatalogControlsProps) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div role="group" aria-label="状態フィルタ" className="flex items-center gap-1">
+    <div className="flex items-center gap-2 md:justify-between md:gap-3">
+      {/* スマホではフィルタを残りの幅いっぱいに広げ、親指で切り替えやすくする。 */}
+      <div
+        role="group"
+        aria-label="状態フィルタ"
+        className="grid min-w-0 flex-1 grid-cols-2 gap-1 md:flex md:flex-none md:items-center"
+      >
         {FILTER_OPTIONS.map((option) => (
           <Button
             key={option}
@@ -55,7 +60,7 @@ export function CatalogControls({
           </Button>
         ))}
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex shrink-0 items-center gap-1">
         <Button
           type="button"
           variant="outline"
@@ -74,7 +79,7 @@ export function CatalogControls({
           disabled={isFetching}
         >
           <RefreshCw className="h-4 w-4" aria-hidden="true" />
-          更新
+          <span className="hidden md:inline">更新</span>
         </Button>
       </div>
     </div>

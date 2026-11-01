@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { parseVideo } from "./video";
+import { videoSchema } from "./video";
 import { makeRawVideo } from "@/test/factories";
+
+const parse = (raw: unknown) => videoSchema.safeParse(raw).data ?? null;
 
 describe("parseVideo（VideoModel / contract C3）", () => {
   it("有効な生 Video をキャメルケースの Video に変換する", () => {
-    const result = parseVideo(makeRawVideo());
+    const result = parse(makeRawVideo());
     expect(result).not.toBeNull();
     expect(result).toEqual({
       videoId: "v1",
@@ -22,7 +24,7 @@ describe("parseVideo（VideoModel / contract C3）", () => {
     const raw = makeRawVideo();
     const partial: Record<string, unknown> = { ...raw };
     delete partial.title;
-    expect(parseVideo(partial)).toBeNull();
+    expect(parse(partial)).toBeNull();
   });
 
   it.each([undefined, null])(
@@ -30,7 +32,7 @@ describe("parseVideo（VideoModel / contract C3）", () => {
     (value) => {
       const raw: Record<string, unknown> = { ...makeRawVideo(), request_timestamp: value };
       if (value === undefined) delete raw.request_timestamp;
-      const result = parseVideo(raw);
+      const result = parse(raw);
       expect(result).not.toBeNull();
       expect(result?.requestTimestamp).toBeNull();
       expect(raw.request_timestamp).toBe(value);
@@ -38,34 +40,34 @@ describe("parseVideo（VideoModel / contract C3）", () => {
   );
 
   it("数値の request_timestamp は許容しない", () => {
-    expect(parseVideo({ ...makeRawVideo(), request_timestamp: 1690000000 })).toBeNull();
+    expect(parse({ ...makeRawVideo(), request_timestamp: 1690000000 })).toBeNull();
   });
 
   it("型が不正な値（video_id が数値）は null を返す", () => {
     const raw: Record<string, unknown> = { ...makeRawVideo(), video_id: 123 };
-    expect(parseVideo(raw)).toBeNull();
+    expect(parse(raw)).toBeNull();
   });
 
   it("upload_status が enum 外の値は null を返す", () => {
     const raw: Record<string, unknown> = { ...makeRawVideo(), upload_status: "unknown" };
-    expect(parseVideo(raw)).toBeNull();
+    expect(parse(raw)).toBeNull();
   });
 
   it("upload_status=init も検証を通す", () => {
-    const result = parseVideo(makeRawVideo({ upload_status: "init" }));
+    const result = parse(makeRawVideo({ upload_status: "init" }));
     expect(result?.uploadStatus).toBe("init");
   });
 
   it("未知の追加フィールドは無視して検証を通す（後方互換）", () => {
     const raw = { ...makeRawVideo(), extra_field: "ignored" };
-    const result = parseVideo(raw);
+    const result = parse(raw);
     expect(result).not.toBeNull();
     expect(result).not.toHaveProperty("extra_field");
   });
 
   it("null / 非オブジェクトは null を返す", () => {
-    expect(parseVideo(null)).toBeNull();
-    expect(parseVideo("not an object")).toBeNull();
-    expect(parseVideo(42)).toBeNull();
+    expect(parse(null)).toBeNull();
+    expect(parse("not an object")).toBeNull();
+    expect(parse(42)).toBeNull();
   });
 });

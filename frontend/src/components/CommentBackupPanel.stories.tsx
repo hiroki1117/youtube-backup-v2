@@ -16,7 +16,7 @@ const meta = {
   title: "Components/CommentBackupPanel",
   component: CommentBackupPanel,
   args: {
-    state: { kind: "ready", backup: base },
+    state: { status: "ready", data: base },
     isStarting: false,
     onStart: fn(),
     onRetry: fn(),
@@ -31,8 +31,8 @@ export const NotStarted: Story = {};
 export const Running: Story = {
   args: {
     state: {
-      kind: "ready",
-      backup: { ...base, state: "running", commentCount: 120, completedAt: 1792713600 },
+      status: "ready",
+      data: { ...base, state: "running", commentCount: 120, completedAt: 1792713600 },
     },
   },
 };
@@ -40,22 +40,22 @@ export const Running: Story = {
 export const Complete: Story = {
   args: {
     state: {
-      kind: "ready",
-      backup: { ...base, state: "complete", commentCount: 246, completedAt: 1792713600 },
+      status: "ready",
+      data: { ...base, state: "complete", commentCount: 246, completedAt: 1792713600 },
     },
   },
 };
 
 export const Failed: Story = {
-  args: { state: { kind: "ready", backup: { ...base, state: "failed" } } },
+  args: { state: { status: "ready", data: { ...base, state: "failed" } } },
 };
 
 export const Loading: Story = {
-  args: { state: { kind: "loading" } },
+  args: { state: { status: "loading" } },
 };
 
 export const Error: Story = {
   args: {
-    state: { kind: "error", message: "通信に失敗しました。時間をおいて再試行してください。" },
+    state: { status: "error", message: "通信に失敗しました。時間をおいて再試行してください。" },
   },
 };

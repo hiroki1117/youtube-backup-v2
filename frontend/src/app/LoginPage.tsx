@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,26 +8,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { notify } from "@/lib/notify";
 import { ROUTES } from "@/lib/routes";
 
-/**
- * ログイン画面（functional-spec WF1 / AC1.1.2 / AC1.1.3）。
- * 成功で from（既定 /videos）へ遷移。失敗は notify + フォーム上部 error + パスワードクリア。
- * 二重送信は submitting で抑止。
- */
+const redirectSchema = z.object({ from: z.object({ pathname: z.string() }) });
 
-/** location.state から遷移元 pathname を安全に取り出す（as 不使用の型ガード）。 */
 function resolveRedirect(state: unknown): string {
-  if (
-    state !== null &&
-    typeof state === "object" &&
-    "from" in state &&
-    state.from !== null &&
-    typeof state.from === "object" &&
-    "pathname" in state.from &&
-    typeof state.from.pathname === "string"
-  ) {
-    return state.from.pathname;
-  }
-  return ROUTES.videos;
+  const parsed = redirectSchema.safeParse(state);
+  return parsed.success ? parsed.data.from.pathname : ROUTES.videos;
 }
 
 export function LoginPage() {
@@ -52,7 +38,6 @@ export function LoginPage() {
       navigate(resolveRedirect(location.state), { replace: true });
       return;
     }
-    // 認証失敗 / transport 失敗（WF1 step7）
     notify("error", result.message);
     setError(result.message);
     setPassword("");

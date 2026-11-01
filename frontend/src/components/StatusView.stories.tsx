@@ -39,11 +39,11 @@ export const ErrorWithRetry: Story = {
 };
 
 export const EmptyNodata: Story = {
-  args: { state: { status: "empty", variant: "nodata" } },
+  args: { state: { status: "empty", message: "データがありません" } },
 };
 
 export const EmptyFiltered: Story = {
-  args: { state: { status: "empty", variant: "filtered" } },
+  args: { state: { status: "empty", message: "条件に一致するデータがありません" } },
 };
 
 export const Ready: Story = {

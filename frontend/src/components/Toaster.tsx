@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { dismiss, subscribe, type Notification, type NotifyKind } from "@/lib/notify";
 import { cn } from "@/lib/utils";
 
-// kind（enum）で role と装飾を決める。表示テキストで分岐しない。
 const ROLE_BY_KIND: Record<NotifyKind, "alert" | "status"> = {
   error: "alert",
   success: "status",
@@ -15,7 +14,6 @@ const STYLE_BY_KIND: Record<NotifyKind, string> = {
   info: "border-border bg-secondary text-secondary-foreground",
 };
 
-/** 通知（トースト）の描画（contract C4 NotifyApi の購読側）。 */
 export function Toaster() {
   const [items, setItems] = useState<Notification[]>([]);
 

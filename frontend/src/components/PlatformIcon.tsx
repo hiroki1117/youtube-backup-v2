@@ -1,13 +1,4 @@
-/**
- * プラットフォーム名をアイコンで表示する（presentational）。
- * 既知のプラットフォーム（youtube / tiktok / twitter(x)）はブランドアイコン、未知のものは名称テキストで表示する。
- * アイコンは role="img" + aria-label で名称をスクリーンリーダーに伝える。
- */
-export interface PlatformIconProps {
-  platform: string;
-  className?: string;
-}
-
+/** 既知のプラットフォームはブランドアイコン、未知のものは名称テキストで表示する。 */
 interface PlatformDef {
   label: string;
   path: string;
@@ -39,15 +30,15 @@ const PLATFORMS: Record<string, PlatformDef> = {
   x: X,
 };
 
-/** プラットフォームの表示名（既知はブランド名、未知は値そのもの）。リンク文言などアイコン以外で使う。 */
+/** 既知はブランド名、未知は値そのもの。 */
 export function platformLabel(platform: string): string {
   return PLATFORMS[platform.toLowerCase()]?.label ?? platform;
 }
 
-export function PlatformIcon({ platform, className }: PlatformIconProps) {
+export function PlatformIcon({ platform }: { platform: string }) {
   const def = PLATFORMS[platform.toLowerCase()];
   if (def === undefined) {
-    return <span className={className ?? "text-sm text-muted-foreground"}>{platform}</span>;
+    return <span className="text-sm text-muted-foreground">{platform}</span>;
   }
   return (
     <svg
@@ -55,7 +46,7 @@ export function PlatformIcon({ platform, className }: PlatformIconProps) {
       aria-label={def.label}
       viewBox="0 0 24 24"
       fill="currentColor"
-      className={className ?? `size-5 shrink-0 ${def.colorClass}`}
+      className={`size-5 shrink-0 ${def.colorClass}`}
     >
       <title>{def.label}</title>
       <path d={def.path} />

@@ -9,28 +9,15 @@ import { useVideoRegistration } from "@/hooks/useVideoRegistration";
 import { isYoutubePlaylistUrl, validateVideoUrl } from "@/lib/url";
 
 /**
- * 動画登録ダイアログ（U4 video-registration / US4.1）。
- * URL 入力 → クライアント検証（NFR4）→ 登録フック（useVideoRegistration）へ送信。
- * 補助として「クリップボードから登録」を置き、クリップボードの URL を読んでそのまま送信する
- * （スマホで貼り付け操作を省くため）。読めない・URL でないときは入力欄へ戻して手入力させる。
- * 送信中は送信ボタンを無効化して二重送信を抑止し、登録受理で自動的に閉じる。
- * スマホでは画面下から出るシート、md 以上では中央のダイアログとして表示する（右下の登録ボタンから
- * 開いたとき、親指の届く位置に入力欄が来るように）。タッチ操作では「クリップボードから登録」を主な
- * 操作にし、キーボードがシートを隠さないよう入力欄へ自動でフォーカスしない。
+ * URL を入力するか、クリップボードから読んでそのまま送信する（スマホで貼り付け操作を省くため）。
+ * タッチ操作ではキーボードがシートを隠さないよう、入力欄へ自動でフォーカスしない。
  *
- * 再生リストも同じ入力欄で受け付ける（入口は 1 つ）。複数本が登録されるため、確定の前だけ分ける:
- * 再生リストのページの URL（`youtube.com/playlist?list=…`）は中身を読み込み、本数とタイトルを確認してから
- * 一括登録する（PlaylistRegistration）。`watch?v=…&list=…` は従来どおり動画 1 本として登録する。
- * クリップボードから登録でも、再生リストは確認の前で止まる（1 タップで複数本を確定しない）。
- *
- * 表示専用に近い presentational で、副作用は登録フック（hooks 層）に委譲する。
- * 制御フローは boolean 状態と discriminated union で表現し、表示テキストでは分岐しない。
+ * 再生リストのページの URL は中身を読み込み、本数とタイトルを確認してから一括登録する
+ * （クリップボードからでも確認の前で止まる）。`watch?v=…&list=…` は動画 1 本として登録する。
  */
 
 export interface RegisterDialogProps {
-  /** 表示状態。false のときは何も描画しない。 */
   open: boolean;
-  /** 閉じる要求（キャンセル・登録受理時）。開閉状態の所有は親（AppShell/app 層）。 */
   onClose: () => void;
 }
 
@@ -56,7 +43,6 @@ function RegisterDialogContent({ onClose }: { onClose: () => void }) {
   }, []);
   const [url, setUrl] = useState("");
   const [validationError, setValidationError] = useState<string | null>(null);
-  // 登録受理（ok）でダイアログを閉じる。エラー時は開いたまま再入力させる。
   const { submit, isSubmitting } = useVideoRegistration({ onRegistered: onClose });
   const playlist = usePlaylistRegistration();
   const isBusy = isSubmitting || playlist.state.step === "loading";
@@ -73,7 +59,6 @@ function RegisterDialogContent({ onClose }: { onClose: () => void }) {
     }
   };
 
-  // 検証を通れば送信し、通らなければ入力欄に理由を出して直させる（API は呼ばない / NFR4）。
   const submitUrl = (input: string) => {
     const validation = validateVideoUrl(input);
     if (!validation.ok) {

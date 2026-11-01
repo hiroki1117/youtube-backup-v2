@@ -4,7 +4,6 @@ import { useSearchParams } from "react-router-dom";
 import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { ViewState } from "@/components/StatusView";
 import { VideoCatalog } from "@/components/VideoCatalog";
 import { useVideoSearch, type VideoSearchState } from "@/hooks/useVideoSearch";
 import {
@@ -17,6 +16,7 @@ import {
   type SearchFilters,
 } from "@/lib/search";
 import type { Video } from "@/types/video";
+import type { ViewState } from "@/types/viewState";
 
 /**
  * 検索ページ（U3 video-search / US3.1・FR3.1）。条件は URL が持つので、結果から動画を開いて

@@ -2,23 +2,15 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-/**
- * 動画タイトルのインライン編集フォーム（presentational）。
- * 入力は親が渡した `title` で初期化し、Enter / 「保存」で `onSave(trimmed)`、Esc / 「キャンセル」で
- * `onCancel` を呼ぶ。未変更・空白のみ・保存中は保存できない。副作用・API 依存を持たない。
- * `onSave` が false を返したとき（失敗）は編集状態のまま入力内容を保持する。
- */
+/** Enter で保存、Esc で破棄。未変更・空白のみ・保存中は保存できない。 */
 
-export const TITLE_MAX_LENGTH = 1000;
+const TITLE_MAX_LENGTH = 1000;
 
 export interface VideoTitleEditorProps {
-  /** 現在のタイトル（入力の初期値）。 */
   title: string;
-  /** 保存実行中。入力とボタンを無効化する。 */
   isSaving: boolean;
-  /** 保存。前後の空白を除いたタイトルを渡す。成功なら true を解決する。 */
-  onSave: (title: string) => Promise<boolean> | boolean;
-  /** 編集を破棄して閉じる。 */
+  /** 前後の空白を除いたタイトルを渡す。 */
+  onSave: (title: string) => void;
   onCancel: () => void;
 }
 
@@ -37,7 +29,7 @@ export function VideoTitleEditor({ title, isSaving, onSave, onCancel }: VideoTit
   const submit = (e?: FormEvent) => {
     e?.preventDefault();
     if (canSave) {
-      void onSave(trimmed);
+      onSave(trimmed);
     }
   };
 

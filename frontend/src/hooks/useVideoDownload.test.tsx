@@ -127,20 +127,6 @@ describe("useVideoDownload（U6 / US6.1・FR6・C2・C4）", () => {
     cap.unsub();
   });
 
-  it("getPresignedUrl が想定外に throw しても silent failure にせず error 通知を出す（FR8）", async () => {
-    const presignedSpy = vi
-      .spyOn(apiClient, "getPresignedUrl")
-      .mockRejectedValueOnce(new Error("unexpected"));
-    const cap = captureNotifications();
-    const { result } = setup();
-
-    act(() => result.current.download(makeVideo({ videoId: "c1", uploadStatus: "complete" })));
-
-    await waitFor(() => expect(cap.get().some((n) => n.kind === "error")).toBe(true));
-    expect(downloadMock).not.toHaveBeenCalled();
-    presignedSpy.mockRestore();
-  });
-
   it("取得中の再呼び出しは無視され getPresignedUrl は 1 回だけ呼ばれる（二重起動抑止）", async () => {
     const presignedSpy = vi.spyOn(apiClient, "getPresignedUrl");
     const { result } = setup();

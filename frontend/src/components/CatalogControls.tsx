@@ -1,14 +1,7 @@
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { SortOrder } from "@/lib/catalog";
-import type { UploadStatus } from "@/types/video";
-
-/**
- * 一覧操作コントロール（presentational / U2）。
- * 状態フィルタ切替（US2.2）・ソート順トグル（US2.3）・手動更新（US2.5）。
- * role/aria を付与し、制御フローは enum（UploadStatus / SortOrder）で分岐する
- * （表示テキスト＝ラベルでは分岐しない）。副作用は持たず、操作はコールバックで親へ委譲する。
- */
+import { STATUS_LABEL, type UploadStatus } from "@/types/video";
 
 export interface CatalogControlsProps {
   uploadStatus: UploadStatus;
@@ -16,16 +9,10 @@ export interface CatalogControlsProps {
   onFilterChange: (status: UploadStatus) => void;
   onSortToggle: () => void;
   onRefresh: () => void;
-  /** 再取得中は更新ボタンを無効化する。 */
   isFetching: boolean;
 }
 
-// enum → 表示ラベル（分岐には使わない）。
 const FILTER_OPTIONS: UploadStatus[] = ["complete", "init"];
-const FILTER_LABEL: Record<UploadStatus, string> = {
-  complete: "完了",
-  init: "処理中",
-};
 const SORT_LABEL: Record<SortOrder, string> = {
   desc: "新しい順",
   asc: "古い順",
@@ -56,7 +43,7 @@ export function CatalogControls({
             aria-pressed={uploadStatus === option}
             onClick={() => onFilterChange(option)}
           >
-            {FILTER_LABEL[option]}
+            {STATUS_LABEL[option]}
           </Button>
         ))}
       </div>

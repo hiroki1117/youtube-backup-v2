@@ -21,7 +21,7 @@ export type ApiResult<T> =
   | { kind: "invalidInput"; message: string } // URL/ID 不正（422）
   | { kind: "transport"; message: string }; // ネットワーク/認証切れ/サーバー障害/パース失敗
 
-export type RejectReason = "backupInProgress" | "alreadyBackedUp" | "serverError";
+export type RejectReason = "backupInProgress" | "serverError";
 
 export interface SubmitResult {
   videoId: string;

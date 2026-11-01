@@ -53,6 +53,26 @@ export const NotFound: Story = {
   },
 };
 
+/**
+ * 空白のない長いタイトルと元 URL。スマホ幅で見出し・詳細が画面からはみ出さず折り返すことを確かめる。
+ */
+export const LongTitle: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        videoHandler(
+          makeRawVideo({
+            video_id: "v1",
+            platform: "twitter",
+            title: "https://twitter.com/example_user_name/status/1234567890123456789",
+            video_url: "https://twitter.com/example_user_name/status/1234567890123456789",
+          }),
+        ),
+      ],
+    },
+  },
+};
+
 /** `upload_status: init` → 再生・ダウンロード不可（A3）。詳細のみ表示。 */
 export const NotPlayable: Story = {
   parameters: {

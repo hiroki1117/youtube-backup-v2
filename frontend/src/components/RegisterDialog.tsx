@@ -126,7 +126,7 @@ function RegisterDialogContent({ onClose }: { onClose: () => void }) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="register-dialog-title"
-        className="w-full max-w-md rounded-t-lg border bg-background p-6 shadow-lg md:rounded-lg"
+        className="max-h-full w-full max-w-md overflow-y-auto rounded-t-lg border bg-background p-6 shadow-lg md:rounded-lg"
       >
         <h2 id="register-dialog-title" className="text-lg font-semibold">
           {playlistStep ? "再生リストを登録" : "動画を登録"}
@@ -171,7 +171,7 @@ function RegisterDialogContent({ onClose }: { onClose: () => void }) {
                 <ClipboardPaste className="h-4 w-4" aria-hidden="true" />
                 クリップボードから登録
               </Button>
-              <div className="flex gap-2">
+              <div className="ml-auto flex gap-2">
                 <Button type="button" variant="ghost" onClick={handleClose} disabled={isBusy}>
                   キャンセル
                 </Button>

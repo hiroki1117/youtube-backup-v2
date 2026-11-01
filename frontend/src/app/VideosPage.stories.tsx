@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/test";
 import { VideosPage } from "@/app/VideosPage";
-import { makeRawVideos } from "@/test/factories";
+import { makeRawVideo, makeRawVideos } from "@/test/factories";
 import { COMPLETE_RAW_VIDEOS } from "@/test/handlers";
 import { withAppRoutes } from "@/test/storybook/decorators";
 import {
@@ -42,6 +42,35 @@ export const List: Story = {};
 export const MultiPage: Story = {
   parameters: {
     msw: { handlers: [listVideosHandler(makeRawVideos(45))] },
+  },
+};
+
+/**
+ * 長いタイトル（日本語の長文・空白のない英数字や URL）。スマホ幅で行が画面からはみ出さず、
+ * タイトルが省略表示になることを確かめる。
+ */
+export const LongTitles: Story = {
+  parameters: {
+    msw: {
+      handlers: [
+        listVideosHandler([
+          makeRawVideo({
+            video_id: "v1",
+            title:
+              "【完全版】とても長い日本語のタイトルの動画がスマホの一覧でどう見えるかを確かめるためのサンプル",
+          }),
+          makeRawVideo({
+            video_id: "v2",
+            platform: "twitter",
+            title: "https://twitter.com/example_user_name/status/1234567890123456789",
+          }),
+          makeRawVideo({
+            video_id: "v3",
+            title: "Supercalifragilisticexpialidocious_without_any_spaces_at_all_0123456789",
+          }),
+        ]),
+      ],
+    },
   },
 };
 

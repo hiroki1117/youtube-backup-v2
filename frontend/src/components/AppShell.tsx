@@ -32,10 +32,10 @@ export function AppShell() {
   };
 
   return (
-    <div className="min-h-screen">
-      <header className="flex items-center justify-between border-b px-4 py-3">
-        <h1 className="text-lg font-semibold">youtube-backup</h1>
-        <div className="flex items-center gap-1">
+    <div className="min-h-dvh">
+      <header className="flex items-center justify-between gap-2 border-b px-4 py-3">
+        <h1 className="min-w-0 truncate text-lg font-semibold">youtube-backup</h1>
+        <div className="flex shrink-0 items-center gap-1">
           <Button
             variant="outline"
             size="sm"
@@ -43,7 +43,8 @@ export function AppShell() {
             aria-label="動画を検索"
           >
             <Search className="h-4 w-4" aria-hidden="true" />
-            検索
+            {/* 狭い画面ではアイコンだけにしてヘッダを 1 行に収める（名前は aria-label が持つ）。 */}
+            <span className="hidden sm:inline">検索</span>
           </Button>
           <ThemeToggle />
           <Button variant="ghost" size="icon" onClick={handleLogout} aria-label="ログアウト">

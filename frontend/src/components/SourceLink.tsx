@@ -26,7 +26,11 @@ export function SourceLink({ video, className }: SourceLinkProps) {
       target="_blank"
       rel="noopener noreferrer"
       aria-label={`${text}: ${video.title}`}
-      className={className ?? "inline-flex items-center gap-1 text-sm text-primary hover:underline"}
+      // 負のマージンで、周囲の行間を変えずにタップ領域だけを広げる。
+      className={
+        className ??
+        "-my-3 inline-flex items-center gap-1 py-3 text-sm text-primary hover:underline"
+      }
       data-testid="source-link"
     >
       {text}

@@ -23,8 +23,8 @@ dbmate new <name>   # db/migrations に空のファイルを作る
 | role | 権限 | 使う場所 | 接続情報 |
 |---|---|---|---|
 | `neondb_owner` | 所有者 | deploy-db.yml のみ | GitHub の production Environment の secret `NEON_MIGRATION_DATABASE_URL` |
-| `search_reader` | `videos` の SELECT | `youtube-backup-api-search` | SSM `/youtube-backup-neon/search-reader-url` |
-| `search_writer` | `videos` の読み書き | `youtube-backup-search-sync` | SSM `/youtube-backup-neon/search-writer-url` |
+| `search_reader` | `videos` の SELECT | `youtube-backup-api-search` | SSM `/youtube-backup/neon/search-reader-url` |
+| `search_writer` | `videos` の読み書き | `youtube-backup-search-sync` | SSM `/youtube-backup/neon/search-writer-url` |
 
 `search_reader` と `search_writer` はマイグレーションが `NOLOGIN` で作る。ログインの有効化とパスワードは、パスワードを git に残さないよう手で行う。
 

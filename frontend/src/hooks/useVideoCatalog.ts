@@ -45,8 +45,6 @@ export interface VideoCatalogController {
   isFetching: boolean;
   /** 状態フィルタを切り替える（取得件数は初期値へ戻す）。 */
   setUploadStatus: (status: UploadStatus) => void;
-  /** ソート順を設定する。 */
-  setSortOrder: (order: SortOrder) => void;
   /** ソート順を昇順/降順でトグルする。 */
   toggleSortOrder: () => void;
   /** 取得件数を増やして続きを読み込む（「もっと見る」）。 */
@@ -110,10 +108,6 @@ export function useVideoCatalog(): VideoCatalogController {
     setFetchNum(CATALOG_FETCH_NUM);
   }, []);
 
-  const setSortOrder = useCallback((next: SortOrder) => {
-    setSortOrderState(next);
-  }, []);
-
   const toggleSortOrder = useCallback(() => {
     setSortOrderState((prev) => (prev === "asc" ? "desc" : "asc"));
   }, []);
@@ -136,7 +130,6 @@ export function useVideoCatalog(): VideoCatalogController {
     sortOrder,
     isFetching: query.isFetching,
     setUploadStatus,
-    setSortOrder,
     toggleSortOrder,
     loadMore,
     refetch,

@@ -25,6 +25,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { Toaster } from "@/components/Toaster";
 import { routes } from "@/app/routes";
+import { makeRawVideo } from "@/test/factories";
 import { server } from "@/test/server";
 import { TEST_API_BASE, errorResponse } from "@/test/handlers";
 
@@ -33,7 +34,7 @@ function renderApp(initialEntries: string[] = ["/videos"]) {
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const router = createMemoryRouter(routes, { initialEntries });
-  return render(
+  render(
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
@@ -43,57 +44,87 @@ function renderApp(initialEntries: string[] = ["/videos"]) {
       </ThemeProvider>
     </QueryClientProvider>,
   );
+  return router;
 }
 
-async function openSearchDialog(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole("button", { name: "動画を検索" }));
-  expect(await screen.findByRole("dialog")).toBeInTheDocument();
-}
-
-describe("動画検索 結合（ヘッダ→ダイアログ→検索 / US3.1・FR3.1・C5・OQ-C2）", () => {
+describe("動画検索 結合（ヘッダ→検索ページ→結果 / US3.1・FR3.1・C5）", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getSessionMock.mockResolvedValue("authenticated");
   });
 
-  it("ヘッダ検索から存在 id を検索すると詳細が表示され、complete は再生ナビを提供する（FR3.1/OQ-C2）", async () => {
+  it("ヘッダの入口から検索ページへ移り、すぐ入力して結果を開ける", async () => {
     const user = userEvent.setup();
     // GET /videos/:videoId の既定ハンドラ = complete 動画（title: "サンプル動画"）。
-    renderApp();
+    const router = renderApp();
 
-    await openSearchDialog(user);
-    await user.type(screen.getByLabelText("タイトル、動画 ID または URL"), "v1");
-    await user.click(screen.getByRole("button", { name: "検索" }));
+    await user.click(await screen.findByRole("link", { name: "動画を検索" }));
 
-    expect(await screen.findByTestId("search-result")).toBeInTheDocument();
-    expect(screen.getByText("サンプル動画")).toBeInTheDocument();
-    // complete のみ再生ナビ（ルーター経由で U6 到達）。
-    expect(screen.getByRole("button", { name: "再生ページへ" })).toBeInTheDocument();
+    const input = await screen.findByRole("searchbox", { name: "検索語" });
+    expect(router.state.location.pathname).toBe("/search");
+    expect(input).toHaveFocus();
+
+    await user.keyboard("v1{Enter}");
+
+    expect(await screen.findByRole("list", { name: "検索結果" })).toBeInTheDocument();
+    expect(router.state.location.search).toBe("?q=v1");
+
+    await user.click(screen.getByRole("link", { name: /^サンプル動画/ }));
+
+    expect(router.state.location.pathname).toBe("/videos/v1");
   });
 
-  it("存在しない id は「見つからない」旨を表示する（AC / error-path）", async () => {
+  it("検索ページではヘッダの入口を重ねて出さない", async () => {
+    renderApp(["/search"]);
+
+    expect(await screen.findByRole("searchbox", { name: "検索語" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "動画を検索" })).not.toBeInTheDocument();
+  });
+
+  it("「/」キーで検索ページへ移り、すぐ入力できる", async () => {
     const user = userEvent.setup();
+    const router = renderApp();
+    await screen.findByRole("link", { name: "動画を検索" });
+
+    await user.keyboard("/");
+
+    expect(router.state.location.pathname).toBe("/search");
+    expect(await screen.findByRole("searchbox", { name: "検索語" })).toHaveFocus();
+  });
+
+  it("検索ページでは「/」キーで検索欄へ戻り、入力中の「/」は奪わない", async () => {
+    const user = userEvent.setup();
+    renderApp(["/search?from=2026-08-01"]);
+    const input = await screen.findByRole("searchbox", { name: "検索語" });
+    expect(input).not.toHaveFocus();
+
+    await user.keyboard("/");
+    expect(input).toHaveFocus();
+
+    await user.keyboard("a/b");
+    expect(input).toHaveValue("a/b");
+  });
+
+  it("タイトルで検索すると一致部分を強調する", async () => {
     server.use(
       http.get(`${TEST_API_BASE}/videos/:videoId`, () => errorResponse(404, "video_not_found")),
+      http.get(`${TEST_API_BASE}/search/videos`, () =>
+        HttpResponse.json({
+          items: [makeRawVideo({ title: "猫の動画" })],
+          has_more: false,
+        }),
+      ),
     );
-    renderApp();
+    renderApp(["/search?q=%E7%8C%AB"]);
 
-    await openSearchDialog(user);
-    await user.type(screen.getByLabelText("タイトル、動画 ID または URL"), "missing");
-    await user.click(screen.getByRole("button", { name: "検索" }));
+    const mark = await screen.findByText("猫");
 
-    expect(await screen.findByText(/見つかりませんでした/)).toBeInTheDocument();
-    expect(screen.queryByTestId("search-result")).not.toBeInTheDocument();
+    expect(mark.tagName).toBe("MARK");
   });
 
   it("transport 失敗は error 表示にフォールバックする（error-path / FR8）", async () => {
-    const user = userEvent.setup();
     server.use(http.get(`${TEST_API_BASE}/videos/:videoId`, () => HttpResponse.error()));
-    renderApp();
-
-    await openSearchDialog(user);
-    await user.type(screen.getByLabelText("タイトル、動画 ID または URL"), "v1");
-    await user.click(screen.getByRole("button", { name: "検索" }));
+    renderApp(["/search?q=v1"]);
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("通信");

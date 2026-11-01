@@ -2,6 +2,7 @@ import { Navigate, type RouteObject } from "react-router-dom";
 import { AppShell } from "@/components/AppShell";
 import { RequireAuth } from "@/components/RequireAuth";
 import { LoginPage } from "@/app/LoginPage";
+import { SearchPage } from "@/app/SearchPage";
 import { VideosPage } from "@/app/VideosPage";
 import { VideoPlaybackPage } from "@/app/VideoPlaybackPage";
 import { ROUTES } from "@/lib/routes";
@@ -22,6 +23,7 @@ export const routes: RouteObject[] = [
     children: [
       { index: true, element: <Navigate to={ROUTES.videos} replace /> },
       { path: "videos", element: <VideosPage /> },
+      { path: "search", element: <SearchPage /> },
       // 詳細・再生ページ（C5 ROUTES.videoDetail = /videos/:videoId / U6 video-playback）。
       { path: "videos/:videoId", element: <VideoPlaybackPage /> },
     ],

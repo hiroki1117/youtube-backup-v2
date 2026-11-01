@@ -10,7 +10,6 @@ import {
   listVideosByStatusHandler,
   listVideosHandler,
   pendingHandler,
-  presignedErrorHandler,
 } from "@/test/storybook/msw";
 
 /**
@@ -77,20 +76,5 @@ export const Loading: Story = {
 export const Error: Story = {
   parameters: {
     msw: { handlers: [listErrorHandler()] },
-  },
-};
-
-/**
- * 一覧は成功、署名 URL 取得のみ失敗（VideosPage/Partial の実装上の解釈）。
- * 行のダウンロードを押すと error トーストが出る。`play` で先頭行のダウンロードを押して状態を作る。
- */
-export const DownloadError: Story = {
-  parameters: {
-    msw: { handlers: [presignedErrorHandler()] },
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const [firstDownload] = await canvas.findAllByRole("button", { name: /^ダウンロード: / });
-    await userEvent.click(firstDownload);
   },
 };

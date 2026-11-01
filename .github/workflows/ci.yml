@@ -119,6 +119,51 @@ jobs:
       - run: make -C backend export
       - run: git diff --exit-code -- openapi/openapi.json
 
+  # マイグレーションと検索の SQL を本物の Postgres で検証する（本番と同じ手順で適用する）。
+  database:
+    name: Database migrations and search SQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: .
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:ci@localhost:5432/postgres?sslmode=disable
+      TEST_DATABASE_URL: postgresql://postgres:ci@localhost:5432/postgres?sslmode=disable
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-dbmate
+      - run: dbmate --no-dump-schema migrate
+      # 全ファイルの down が動き、もう一度適用でき、適用済みなら何もしないことも確認する。
+      - name: Roll back every migration
+        run: |
+          while dbmate status | grep -q '^\[X\]'; do
+            dbmate --no-dump-schema rollback
+          done
+      - run: dbmate --no-dump-schema migrate
+      - run: dbmate --no-dump-schema migrate
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: python -m venv backend/.venv
+      - run: backend/.venv/bin/python -m pip install -c backend/requirements.txt -e "backend[dev]"
+      - run: .venv/bin/python -m pytest -q tests/test_search_database.py
+        working-directory: backend
+
   batch-image:
     name: Batch image build (no push)
     runs-on: ubuntu-latest
@@ -134,6 +179,10 @@ jobs:
         run: |
           docker build -t youtube-backup-batch:ci batch/scripts/yt-dlp-script
           docker run --rm youtube-backup-batch:ci sh -c 'yt-dlp --version && aws --version && deno --version && ffmpeg -version && sh -n /work/main.sh'
+          # TikTok rejects requests from AWS unless yt-dlp can impersonate a browser (curl_cffi).
+          docker run --rm youtube-backup-batch:ci sh -c 'yt-dlp --list-impersonate-targets | grep -v unavailable | grep -q curl_cffi'
+          docker build -t youtube-backup-comments:ci batch/scripts/youtube-comments
+          docker run --rm youtube-backup-comments:ci sh -c 'yt-dlp --version && aws --version && deno --version && gzip --version && sh -n /work/main.sh'
 
   backend-package:
     name: Backend ZIP (shared by all Lambdas)

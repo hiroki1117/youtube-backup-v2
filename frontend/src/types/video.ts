@@ -16,11 +16,11 @@ export interface Video {
   backupDate: string; // YYYY-MM-DD
   s3FullPath: string;
   uploadStatus: UploadStatus;
-  requestTimestamp: string; // epoch 秒（文字列）
+  requestTimestamp: string | null; // epoch 秒（文字列）。旧レコードの不明な時刻は null。
 }
 
 /**
- * API レスポンス（DynamoDB item）の生形状。全属性 string、upload_status のみ enum。
+ * API レスポンスの生形状。旧レコードの request_timestamp は欠落または null を許容する。
  * consumer は未知フィールドを無視する（後方互換）ため passthrough で許容する。
  */
 const rawVideoSchema = z
@@ -32,7 +32,7 @@ const rawVideoSchema = z
     backupdate: z.string(),
     s3fullpath: z.string(),
     upload_status: z.union([z.literal("init"), z.literal("complete")]),
-    request_timestamp: z.string(),
+    request_timestamp: z.string().nullish(),
   })
   .passthrough();
 
@@ -55,6 +55,6 @@ export function parseVideo(raw: unknown): Video | null {
     backupDate: d.backupdate,
     s3FullPath: d.s3fullpath,
     uploadStatus: d.upload_status,
-    requestTimestamp: d.request_timestamp,
+    requestTimestamp: d.request_timestamp ?? null,
   };
 }

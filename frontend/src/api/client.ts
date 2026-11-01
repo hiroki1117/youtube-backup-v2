@@ -1,5 +1,8 @@
 import { z } from "zod";
 import { parseVideo, type UploadStatus, type Video } from "@/types/video";
+import { parseCommentBackup, type CommentBackup } from "@/types/commentBackup";
+import { parseYoutubeCommentPage, type YoutubeCommentPage } from "@/types/youtubeComments";
+import { parseYoutubePlaylist, type YoutubePlaylist } from "@/types/youtubePlaylist";
 import { config } from "./config";
 import { getIdToken } from "@/api/token";
 
@@ -27,12 +30,30 @@ export interface SubmitResult {
   batchJobId: string;
 }
 
+export interface CommentBackupStart {
+  backup: CommentBackup;
+  /** 新しく取得を開始したら true（202）。取得中で何もしなかったら false（200）。 */
+  started: boolean;
+}
+
+export interface VideoSearchResult {
+  videos: Video[];
+  /** `limit` を超えて該当する動画があれば true。 */
+  hasMore: boolean;
+}
+
 export interface ApiClient {
   listVideos(params: {
     uploadStatus: UploadStatus;
     fetchNum?: number;
   }): Promise<ApiResult<Video[]>>;
   getVideo(videoId: string): Promise<ApiResult<Video>>;
+  /** 動画の検索（`GET /search/videos`）。毎時同期の複製を読む。0 件は `empty`。 */
+  searchVideos(params: {
+    query: string;
+    backupFrom?: string;
+    backupTo?: string;
+  }): Promise<ApiResult<VideoSearchResult>>;
   submitVideo(url: string): Promise<ApiResult<SubmitResult>>;
   /** タイトルを更新する（`PATCH /videos/{id}`）。成功は更新後の Video。 */
   updateVideoTitle(videoId: string, title: string): Promise<ApiResult<Video>>;
@@ -45,6 +66,23 @@ export interface ApiClient {
   cancelBackup(videoId: string): Promise<ApiResult<null>>;
   /** 再生/ダウンロード用の署名付き URL（`GET /videos/{id}/playback_url`）。 */
   getPresignedUrl(videoId: string): Promise<ApiResult<string>>;
+  /** コメントバックアップの状態（`GET /videos/{id}/comments/backup`）。 */
+  getCommentBackup(videoId: string): Promise<ApiResult<CommentBackup>>;
+  /** コメントの取得を開始する（`POST /videos/{id}/comments/backup`）。取得済みなら最新化する。 */
+  startCommentBackup(videoId: string): Promise<ApiResult<CommentBackupStart>>;
+  /**
+   * バックアップした YouTube コメントのページ（`GET /videos/{id}/comments`）。
+   * スレッド（親コメントと返信）単位で、固定コメント→新しい順。
+   */
+  getYoutubeComments(
+    videoId: string,
+    params: { offset: number; limit: number },
+  ): Promise<ApiResult<YoutubeCommentPage>>;
+  /**
+   * YouTube の再生リストの動画一覧（`GET /youtube/playlist?url=`）。URL の解釈は backend が行う。
+   * 何も登録しない（登録は動画ごとに submitVideo）。
+   */
+  getYoutubePlaylist(url: string): Promise<ApiResult<YoutubePlaylist>>;
 }
 
 // 失敗バリアント（ok/empty を除く）。
@@ -85,6 +123,13 @@ const DETAIL_MESSAGES: Record<string, string> = {
   submission_needs_reconciliation: "バックアップの状態確認が必要です。",
   legacy_job_untracked: "バックアップの状態確認が必要です。",
   deletion_needs_reconciliation: "削除処理が未完了です。管理者に確認してください。",
+  comments_not_supported: "この動画のプラットフォームはコメントのバックアップに対応していません。",
+  not_a_youtube_playlist: "YouTube の再生リストの URL として認識できません。",
+  unsupported_playlist: "ミックス・後で見る・高く評価した動画の再生リストは読み込めません。",
+  playlist_not_found: "再生リストが見つかりません。非公開の再生リストは読み込めません。",
+  playlist_unavailable: "再生リストを読み込めませんでした。時間をおいて再試行してください。",
+  search_condition_required: "検索条件を入力してください。",
+  invalid_backup_date_range: "バックアップ日の範囲が正しくありません。",
 };
 
 // 409 のうち「バックアップ処理が絡んで今は実行できない」もの（UI は backupInProgress として扱う）。
@@ -96,7 +141,12 @@ const IN_PROGRESS_CODES = new Set([
   "submission_needs_reconciliation",
 ]);
 
-type RawFetch = { ok: true; body: unknown } | { ok: false; failure: ApiFailure };
+const searchResultsSchema = z.object({
+  items: z.array(z.unknown()),
+  has_more: z.boolean(),
+});
+
+type RawFetch = { ok: true; status: number; body: unknown } | { ok: false; failure: ApiFailure };
 
 /** HTTP ステータスと `{ detail }` から ApiResult の失敗種別へ正規化する（C2 実装契約）。 */
 function classifyFailure(status: number, body: unknown): ApiFailure {
@@ -120,7 +170,8 @@ function classifyFailure(status: number, body: unknown): ApiFailure {
     case 422:
       return { kind: "invalidInput", message: message ?? "入力内容が正しくありません。" };
     default:
-      return { kind: "transport", message: `HTTP ${status}` };
+      // 502 など、意味の分かるコード（例: playlist_unavailable）だけ利用者向けの文言にする。
+      return { kind: "transport", message: message ?? `HTTP ${status}` };
   }
 }
 
@@ -161,7 +212,7 @@ export class HttpApiClient implements ApiClient {
       if (!response.ok) {
         return { ok: false, failure: classifyFailure(response.status, body) };
       }
-      return { ok: true, body };
+      return { ok: true, status: response.status, body };
     } catch (e) {
       return {
         ok: false,
@@ -207,6 +258,43 @@ export class HttpApiClient implements ApiClient {
       return { kind: "transport", message: "video schema mismatch in GET /videos/{id}" };
     }
     return { kind: "ok", data: video };
+  }
+
+  async searchVideos(params: {
+    query: string;
+    backupFrom?: string;
+    backupTo?: string;
+  }): Promise<ApiResult<VideoSearchResult>> {
+    const query = new URLSearchParams();
+    if (params.query !== "") {
+      query.set("q", params.query);
+    }
+    if (params.backupFrom) {
+      query.set("backup_from", params.backupFrom);
+    }
+    if (params.backupTo) {
+      query.set("backup_to", params.backupTo);
+    }
+    const res = await this.request(`/search/videos?${query.toString()}`);
+    if (!res.ok) {
+      return res.failure;
+    }
+    const page = searchResultsSchema.safeParse(res.body);
+    if (!page.success) {
+      return { kind: "transport", message: "unexpected response for GET /search/videos" };
+    }
+    if (page.data.items.length === 0) {
+      return { kind: "empty" };
+    }
+    const videos: Video[] = [];
+    for (const item of page.data.items) {
+      const video = parseVideo(item);
+      if (video === null) {
+        return { kind: "transport", message: "video schema mismatch in GET /search/videos" };
+      }
+      videos.push(video);
+    }
+    return { kind: "ok", data: { videos, hasMore: page.data.has_more } };
   }
 
   async submitVideo(url: string): Promise<ApiResult<SubmitResult>> {
@@ -279,6 +367,60 @@ export class HttpApiClient implements ApiClient {
       return { kind: "transport", message: "unexpected response shape for GET playback_url" };
     }
     return { kind: "ok", data: parsed.data.url };
+  }
+
+  async getCommentBackup(videoId: string): Promise<ApiResult<CommentBackup>> {
+    const res = await this.request(`/videos/${encodeURIComponent(videoId)}/comments/backup`);
+    if (!res.ok) {
+      return res.failure;
+    }
+    const backup = parseCommentBackup(res.body);
+    if (backup === null) {
+      return { kind: "transport", message: "unexpected response shape for GET comments" };
+    }
+    return { kind: "ok", data: backup };
+  }
+
+  async startCommentBackup(videoId: string): Promise<ApiResult<CommentBackupStart>> {
+    const res = await this.request(`/videos/${encodeURIComponent(videoId)}/comments/backup`, {
+      method: "POST",
+    });
+    if (!res.ok) {
+      return res.failure;
+    }
+    const backup = parseCommentBackup(res.body);
+    if (backup === null) {
+      return { kind: "transport", message: "unexpected response shape for POST comments" };
+    }
+    return { kind: "ok", data: { backup, started: res.status === 202 } };
+  }
+
+  async getYoutubeComments(
+    videoId: string,
+    params: { offset: number; limit: number },
+  ): Promise<ApiResult<YoutubeCommentPage>> {
+    const query = `offset=${params.offset}&limit=${params.limit}`;
+    const res = await this.request(`/videos/${encodeURIComponent(videoId)}/comments?${query}`);
+    if (!res.ok) {
+      return res.failure;
+    }
+    const page = parseYoutubeCommentPage(res.body);
+    if (page === null) {
+      return { kind: "transport", message: "unexpected response shape for GET comments" };
+    }
+    return { kind: "ok", data: page };
+  }
+
+  async getYoutubePlaylist(url: string): Promise<ApiResult<YoutubePlaylist>> {
+    const res = await this.request(`/youtube/playlist?url=${encodeURIComponent(url)}`);
+    if (!res.ok) {
+      return res.failure;
+    }
+    const playlist = parseYoutubePlaylist(res.body);
+    if (playlist === null) {
+      return { kind: "transport", message: "unexpected response shape for GET /youtube/playlist" };
+    }
+    return { kind: "ok", data: playlist };
   }
 }
 

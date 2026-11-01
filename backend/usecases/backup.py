@@ -9,10 +9,14 @@ ACTIVE = {"SUBMITTED", "PENDING", "RUNNABLE", "STARTING", "RUNNING"}
 
 
 class BackupService:
-    def __init__(self, videos, jobs, clock=time.time):
+    def __init__(self, videos, jobs, clock=time.time, on_complete=None, on_delete=None):
         self.videos = videos
         self.jobs = jobs
         self.clock = clock
+        # on_complete(video_id) runs after a video backup completes and must not raise.
+        # on_delete(video) runs under the deletion lock; raising keeps the lock (reconciliation).
+        self.on_complete = on_complete
+        self.on_delete = on_delete
 
     def video(self, video_id: str) -> dict:
         video = self.videos.get(video_id)
@@ -39,6 +43,7 @@ class BackupService:
         return Backup(video_id=video_id, state=state, batch_job_id=video.get("batch_job_id"))
 
     def register(self, url: str) -> tuple[Registration, bool]:
+        url = self.videos.resolve(url)
         video_id, _, _ = source_identity(url)
         existing = self.videos.get(video_id)
         if existing:
@@ -110,7 +115,7 @@ class BackupService:
         if video["upload_status"] != "complete":
             # An unfinished backup is cancelled (DELETE /videos/{id}/backup), not deleted.
             raise DomainError(409, "backup_not_complete")
-        self.videos.delete(video, uuid4().hex)
+        self.videos.delete(video, uuid4().hex, before_remove=self.on_delete)
 
     def cancel(self, video_id: str) -> None:
         """Cancel an unfinished backup: stop its Batch job, then remove the video record.
@@ -184,7 +189,10 @@ class BackupService:
                 continue
             if occurred < requested:
                 continue
-            updated += self.videos.complete(video, actual)
+            if self.videos.complete(video, actual):
+                updated += 1
+                if self.on_complete:
+                    self.on_complete(video_id)
         return {"updated": updated, "received": len(event.get("Records", []))}
 
     def retry_failed(self) -> dict:

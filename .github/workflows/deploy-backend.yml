@@ -32,6 +32,11 @@ jobs:
         youtube-backup-video-upload-complete entrypoints.s3_complete.handler
         youtube-backup-scrapbox-scan entrypoints.scrapbox_scan.handler
         youtube-backup-retry entrypoints.retry.handler
+        youtube-backup-api-comments entrypoints.comments.handler
+        youtube-backup-youtube-comments-ingest entrypoints.youtube_comments.handler
+        youtube-backup-comments-backfill entrypoints.comments_backfill.handler
+        youtube-backup-api-search entrypoints.search.handler
+        youtube-backup-search-sync entrypoints.search_sync.handler
     steps:
       - uses: actions/checkout@v7
 

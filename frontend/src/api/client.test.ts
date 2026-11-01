@@ -9,11 +9,40 @@ import {
   makeRegistration,
   unauthorizedResponse,
 } from "@/test/handlers";
-import { makeRawVideo } from "@/test/factories";
+import {
+  makeRawCommentBackup,
+  makeRawVideo,
+  makeRawYoutubeComment,
+  makeRawYoutubeCommentPage,
+  makeRawYoutubePlaylist,
+} from "@/test/factories";
 
 const client = new HttpApiClient(TEST_API_BASE, () => Promise.resolve("test-token"));
 
 describe("ApiClient.listVideos（GET /videos）", () => {
+  it("時刻が欠落・null の旧動画と新動画を同じ一覧で読める", async () => {
+    const legacy: Record<string, unknown> = { ...makeRawVideo({ video_id: "legacy" }) };
+    delete legacy.request_timestamp;
+    server.use(
+      http.get(`${TEST_API_BASE}/videos`, () =>
+        HttpResponse.json([
+          legacy,
+          { ...makeRawVideo({ video_id: "unknown" }), request_timestamp: null },
+          makeRawVideo(),
+        ]),
+      ),
+    );
+    const result = await client.listVideos({ uploadStatus: "complete" });
+    expect(result.kind).toBe("ok");
+    if (result.kind === "ok") {
+      expect(result.data.map((video) => video.requestTimestamp)).toEqual([
+        null,
+        null,
+        "1690000000",
+      ]);
+    }
+  });
+
   it("配列レスポンスを ok(Video[]) に正規化する", async () => {
     server.use(
       http.get(`${TEST_API_BASE}/videos`, () =>
@@ -63,6 +92,62 @@ describe("ApiClient.listVideos（GET /videos）", () => {
     await client.listVideos({ uploadStatus: "init", fetchNum: 50 });
     expect(capturedUrl).toContain("upload_status=init");
     expect(capturedUrl).toContain("fetch_num=50");
+  });
+});
+
+describe("ApiClient.searchVideos（GET /search/videos）", () => {
+  it("該当する動画を返し、空の条件はクエリへ含めない", async () => {
+    let requested = "";
+    server.use(
+      http.get(`${TEST_API_BASE}/search/videos`, ({ request }) => {
+        requested = request.url;
+        return HttpResponse.json({
+          items: [makeRawVideo({ video_id: "v1" })],
+          has_more: true,
+        });
+      }),
+    );
+
+    const result = await client.searchVideos({ query: "猫 & 犬", backupFrom: "2026-08-01" });
+
+    expect(result).toMatchObject({ kind: "ok", data: { hasMore: true } });
+    const params = new URL(requested).searchParams;
+    expect(params.get("q")).toBe("猫 & 犬");
+    expect(params.get("backup_from")).toBe("2026-08-01");
+    expect(params.has("backup_to")).toBe(false);
+  });
+
+  it("0 件は empty", async () => {
+    expect((await client.searchVideos({ query: "x" })).kind).toBe("empty");
+  });
+
+  it("スキーマ不一致は transport", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/search/videos`, () =>
+        HttpResponse.json({ items: [{ video_id: "v1" }], has_more: false }),
+      ),
+    );
+    expect((await client.searchVideos({ query: "x" })).kind).toBe("transport");
+
+    server.use(http.get(`${TEST_API_BASE}/search/videos`, () => HttpResponse.json([])));
+    expect((await client.searchVideos({ query: "x" })).kind).toBe("transport");
+  });
+
+  it("日付の範囲が逆なら invalidInput（422 invalid_backup_date_range）", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/search/videos`, () =>
+        errorResponse(422, "invalid_backup_date_range"),
+      ),
+    );
+    const result = await client.searchVideos({
+      query: "",
+      backupFrom: "2026-08-02",
+      backupTo: "2026-08-01",
+    });
+    expect(result).toMatchObject({
+      kind: "invalidInput",
+      message: "バックアップ日の範囲が正しくありません。",
+    });
   });
 });
 
@@ -235,6 +320,111 @@ describe("ApiClient.getPresignedUrl（GET /videos/{id}/playback_url）", () => {
   });
 });
 
+describe("ApiClient のコメントバックアップ（GET/POST /videos/{id}/comments/backup）", () => {
+  it("状態を ok(CommentBackup) に正規化する", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/videos/:id/comments/backup`, () =>
+        HttpResponse.json(
+          makeRawCommentBackup({ state: "complete", comment_count: 246, completed_at: 1792713600 }),
+        ),
+      ),
+    );
+    const result = await client.getCommentBackup("v1");
+    expect(result).toEqual({
+      kind: "ok",
+      data: {
+        videoId: "v1",
+        platform: "youtube",
+        state: "complete",
+        commentCount: 246,
+        completedAt: 1792713600,
+      },
+    });
+  });
+
+  it("未知の状態は transport 失敗に正規化する（error-path）", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/videos/:id/comments/backup`, () =>
+        HttpResponse.json({ ...makeRawCommentBackup(), state: "unknown" }),
+      ),
+    );
+    expect((await client.getCommentBackup("v1")).kind).toBe("transport");
+  });
+
+  it("202 は新しく開始、200 は取得中で何もしなかったとして返す", async () => {
+    // 既定ハンドラは 202（取得開始）。
+    const started = await client.startCommentBackup("v1");
+    expect(started.kind === "ok" && started.data).toMatchObject({
+      started: true,
+      backup: { state: "running" },
+    });
+    server.use(
+      http.post(`${TEST_API_BASE}/videos/:id/comments/backup`, () =>
+        HttpResponse.json(makeRawCommentBackup({ state: "running" })),
+      ),
+    );
+    const already = await client.startCommentBackup("v1");
+    expect(already.kind === "ok" && already.data.started).toBe(false);
+  });
+
+  it("422 comments_not_supported は利用者向けメッセージの invalidInput に正規化する", async () => {
+    server.use(
+      http.post(`${TEST_API_BASE}/videos/:id/comments/backup`, () =>
+        errorResponse(422, "comments_not_supported"),
+      ),
+    );
+    expect(await client.startCommentBackup("v1")).toEqual({
+      kind: "invalidInput",
+      message: "この動画のプラットフォームはコメントのバックアップに対応していません。",
+    });
+  });
+
+  it("開始応答の形が不正なら transport 失敗に正規化する（error-path）", async () => {
+    server.use(
+      http.post(`${TEST_API_BASE}/videos/:id/comments/backup`, () =>
+        HttpResponse.json({ state: "running" }, { status: 202 }),
+      ),
+    );
+    expect((await client.startCommentBackup("v1")).kind).toBe("transport");
+  });
+});
+
+describe("ApiClient.getYoutubeComments（GET /videos/{id}/comments）", () => {
+  it("offset と limit をクエリに付け、ページを ok に正規化する", async () => {
+    let capturedUrl = "";
+    server.use(
+      http.get(`${TEST_API_BASE}/videos/:id/comments`, ({ request }) => {
+        capturedUrl = request.url;
+        return HttpResponse.json(
+          makeRawYoutubeCommentPage([{ ...makeRawYoutubeComment(), replies: [] }], 40),
+        );
+      }),
+    );
+    const result = await client.getYoutubeComments("v1", { offset: 20, limit: 20 });
+    expect(new URL(capturedUrl).search).toBe("?offset=20&limit=20");
+    expect(result.kind === "ok" && result.data.nextOffset).toBe(40);
+    expect(result.kind === "ok" && result.data.threads[0].commentId).toBe("Ugx1");
+  });
+
+  it("本文の形が不正なら transport 失敗に正規化する（error-path）", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/videos/:id/comments`, () => HttpResponse.json({ threads: "x" })),
+    );
+    const result = await client.getYoutubeComments("v1", { offset: 0, limit: 20 });
+    expect(result.kind).toBe("transport");
+  });
+
+  it("422 comments_not_supported は invalidInput に正規化する（error-path）", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/videos/:id/comments`, () =>
+        errorResponse(422, "comments_not_supported"),
+      ),
+    );
+    const result = await client.getYoutubeComments("v1", { offset: 0, limit: 20 });
+    expect(result.kind).toBe("invalidInput");
+  });
+});
+
 describe("ApiClient の認証ヘッダと HTTP エラー", () => {
   it("全リクエストに Authorization: Bearer <トークン> を付ける", async () => {
     let authorization: string | null = null;
@@ -361,5 +551,44 @@ describe("ApiClient.cancelBackup（DELETE /videos/{id}/backup）", () => {
       ),
     );
     expect((await client.cancelBackup("missing")).kind).toBe("notFound");
+  });
+});
+
+describe("ApiClient.getYoutubePlaylist（GET /youtube/playlist）", () => {
+  it("URL を query に符号化して送り、ok(YoutubePlaylist) に正規化する", async () => {
+    let received: string | null = null;
+    server.use(
+      http.get(`${TEST_API_BASE}/youtube/playlist`, ({ request }) => {
+        received = new URL(request.url).searchParams.get("url");
+        return HttpResponse.json(makeRawYoutubePlaylist());
+      }),
+    );
+    const url = "https://www.youtube.com/watch?v=abcdefghijk&list=PLtest&index=2";
+    const result = await client.getYoutubePlaylist(url);
+    expect(received).toBe(url);
+    expect(result.kind).toBe("ok");
+    if (result.kind === "ok") {
+      expect(result.data.videos.map((video) => video.videoId)).toEqual(["pv1", "pv2", "pv3"]);
+      expect(result.data.unavailableCount).toBe(1);
+    }
+  });
+
+  it.each([
+    [404, "playlist_not_found", "notFound", "再生リストが見つかりません。"],
+    [422, "unsupported_playlist", "invalidInput", "ミックス"],
+    [502, "playlist_unavailable", "transport", "再生リストを読み込めませんでした。"],
+  ])("%i %s は %s（利用者向けの文言）に正規化する", async (status, detail, kind, message) => {
+    server.use(http.get(`${TEST_API_BASE}/youtube/playlist`, () => errorResponse(status, detail)));
+    const result = await client.getYoutubePlaylist("https://www.youtube.com/playlist?list=PLx");
+    expect(result.kind).toBe(kind);
+    expect("message" in result && result.message).toContain(message);
+  });
+
+  it("形の違う応答は transport 失敗に正規化する", async () => {
+    server.use(
+      http.get(`${TEST_API_BASE}/youtube/playlist`, () => HttpResponse.json({ videos: [] })),
+    );
+    const result = await client.getYoutubePlaylist("https://www.youtube.com/playlist?list=PLx");
+    expect(result.kind).toBe("transport");
   });
 });

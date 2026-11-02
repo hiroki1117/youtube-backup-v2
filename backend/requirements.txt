@@ -8,17 +8,17 @@ anyio==4.15.1
     # via
     #   httpx
     #   starlette
-boto3==1.43.118
+boto3==1.43.122
     # via youtube-backup-backend (backend/pyproject.toml)
-botocore==1.43.118
+botocore==1.43.122
     # via
     #   boto3
     #   s3transfer
-certifi==2026.10.19
+certifi==2026.10.23
     # via
     #   httpcore
     #   httpx
-fastapi==0.161.1
+fastapi==0.162.0
     # via youtube-backup-backend (backend/pyproject.toml)
 h11==0.16.0
     # via httpcore
@@ -36,17 +36,17 @@ jmespath==1.1.0
     #   botocore
 mangum==0.22.0
     # via youtube-backup-backend (backend/pyproject.toml)
-opentelemetry-api==1.45.1
+opentelemetry-api==1.45.2
     # via fastapi
 psycopg==3.3.6
     # via youtube-backup-backend (backend/pyproject.toml)
 psycopg-binary==3.3.6
     # via psycopg
-pydantic==2.14.1
+pydantic==2.14.2
     # via
     #   youtube-backup-backend (backend/pyproject.toml)
     #   fastapi
-pydantic-core==2.50.1
+pydantic-core==2.50.2
     # via pydantic
 python-dateutil==2.9.0.post0
     # via botocore
@@ -54,7 +54,7 @@ s3transfer==0.19.3
     # via boto3
 six==1.17.0
     # via python-dateutil
-starlette==1.9.0
+starlette==1.10.0
     # via fastapi
 typing-extensions==4.16.0
     # via

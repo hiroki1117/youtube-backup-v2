@@ -12,8 +12,8 @@ importers:
         specifier: 0.7.24
         version: 0.7.24
       redoc:
-        specifier: 3.0.1
-        version: 3.0.1(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        specifier: 3.1.0
+        version: 3.1.0(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
 
 packages:
 
@@ -278,8 +278,8 @@ packages:
   '@prisma/schema-files-loader@6.8.2':
     resolution: {integrity: sha512-JRXJ08xfA1cP30kgP15AMCOKZchy2ss2oN6nSHxN745euh2tijpzvW4yCD4Q/1ZtnDkfKae45Tcpx0Ytab7RPA==}
 
-  '@redocly/redoc-opentelemetry@0.5.1':
-    resolution: {integrity: sha512-mZkFsR/51RYi5YTAZCogyg3S3Z/7AwfXFpOON3+mt/1sadc0+r0FcPWVTrgSZmXFpYl4gaaqQ0JtHbjwORX+8g==}
+  '@redocly/redoc-opentelemetry@0.6.0':
+    resolution: {integrity: sha512-vny6wAulbgKaPLiGU34iM8jCJCD/4rEqJIsb9cWuGrP+A5UIq2AZ0GeQTVVvLwBs6PpCGQQWTKKYUs6nqXsQmw==}
 
   '@rollup/rollup-linux-x64-gnu@4.67.3':
     resolution: {integrity: sha512-K8HqIGH9CD57XmZFo/0T3pafDAzAoB9Iof02FEFvOXg7lBn7vlkLEjHgtZkYp+srWANrlxTSf8BolQM/27kiCw==}
@@ -657,8 +657,8 @@ packages:
     resolution: {integrity: sha512-w8nqGImo45dmMIfljjMwOGtbmC/mk4CMYhWIicdSflH91J9TyCyczcPFXJzrZ/ZXcgGRFeP6BU0BEJTw6tZdfQ==}
     engines: {node: '>=0.10.0'}
 
-  redoc@3.0.1:
-    resolution: {integrity: sha512-KDfoKaYW19LCl4YStgBnwlaNjYEFfs5zCNt1s1WZ2YM5u8d26Yuzd2l43fZO851ZsgIMe/D640fDJkD8eaRQKQ==}
+  redoc@3.1.0:
+    resolution: {integrity: sha512-hYsN0ABpoDAPE2+A+mNvs6DDTzhPlJaIeJK2jCFgvxtiXHpWzBXqNBWWKUNq/VLBMZGnyT4qiQnODVWEX031uQ==}
     engines: {node: '>=22', npm: '>=10.0.0'}
     peerDependencies:
       '@redocly/config': '>=0.65.0'
@@ -1075,7 +1075,7 @@ snapshots:
       '@prisma/prisma-schema-wasm': 6.8.0-43.2060c79ba17c6bb9f5823312b6f6b7f4a845738e
       fs-extra: 11.3.0
 
-  '@redocly/redoc-opentelemetry@0.5.1':
+  '@redocly/redoc-opentelemetry@0.6.0':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/exporter-trace-otlp-http': 0.219.0(@opentelemetry/api@1.9.1)
@@ -1401,9 +1401,9 @@ snapshots:
 
   react@19.1.1: {}
 
-  redoc@3.0.1(react-dom@19.1.1(react@19.1.1))(react@19.1.1):
+  redoc@3.1.0(react-dom@19.1.1(react@19.1.1))(react@19.1.1):
     dependencies:
-      '@redocly/redoc-opentelemetry': 0.5.1
+      '@redocly/redoc-opentelemetry': 0.6.0
       react: 19.1.1
       react-dom: 19.1.1(react@19.1.1)
 

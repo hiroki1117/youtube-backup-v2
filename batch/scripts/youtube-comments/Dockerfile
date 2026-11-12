@@ -18,4 +18,9 @@ WORKDIR /work
 
 COPY ./main.sh /work
 
+COPY ./smoke.py /work/smoke.py
+
+# Validate the exact image built by CI and deployment without external access.
+RUN --network=none BATCH_SCRIPT=youtube-comments python /work/smoke.py
+
 RUN chmod 111 main.sh

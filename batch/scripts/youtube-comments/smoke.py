@@ -21,13 +21,15 @@ if os.environ["BATCH_SCRIPT"] == "yt-dlp-script":
     run("ffmpeg", "-version")
 else:
     run("gzip", "--version")
-assert "curl_cffi" in "\n".join(
-    line
-    for line in run(
-        "yt-dlp", "--ignore-config", "--list-impersonate-targets"
-    ).splitlines()
-    if "unavailable" not in line
-), "No usable curl_cffi impersonation target"
+# Only the video image installs the optional browser impersonation extra.
+if os.environ["BATCH_SCRIPT"] == "yt-dlp-script":
+    assert "curl_cffi" in "\n".join(
+        line
+        for line in run(
+            "yt-dlp", "--ignore-config", "--list-impersonate-targets"
+        ).splitlines()
+        if "unavailable" not in line
+    ), "No usable curl_cffi impersonation target"
 
 # Read the actual command, not a second hand-maintained copy of its options.
 # Only the simple command shape used by main.sh is supported; fail closed on changes.

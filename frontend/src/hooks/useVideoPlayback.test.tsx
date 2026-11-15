@@ -39,7 +39,7 @@ describe("useVideoPlayback（U6 / US6.2・FR7・C2）", () => {
     });
     const ready = result.current.state;
     if (ready.kind === "ready" && ready.source.status === "ready") {
-      expect(ready.source.url).toBe(TEST_PRESIGNED_URL);
+      expect(ready.source.data).toBe(TEST_PRESIGNED_URL);
     }
   });
 

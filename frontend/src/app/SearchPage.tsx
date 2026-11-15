@@ -5,7 +5,6 @@ import { DateRangeFilter } from "@/components/DateRangeFilter";
 import { SearchHistory } from "@/components/SearchHistory";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { ViewState } from "@/components/StatusView";
 import { VideoCatalog } from "@/components/VideoCatalog";
 import { useSearchHistory } from "@/hooks/useSearchHistory";
 import { useVideoSearch, type VideoSearchState } from "@/hooks/useVideoSearch";
@@ -21,6 +20,7 @@ import {
 } from "@/lib/search";
 import { entryFilters, filterEntries, type SearchHistoryEntry } from "@/lib/searchHistory";
 import type { Video } from "@/types/video";
+import type { ViewState } from "@/types/viewState";
 
 /**
  * 検索ページ（U3 video-search / US3.1・FR3.1）。条件は URL が持つので、結果から動画を開いて

@@ -21,32 +21,34 @@ const meta = {
   component: YoutubeCommentList,
   args: {
     state: {
-      kind: "ready",
-      totalThreads: 3,
-      totalComments: 5,
-      threads: [
-        {
-          ...comment({
-            commentId: "pinned",
-            author: "@channel",
-            authorIsUploader: true,
-            isPinned: true,
-            text: "番組のフル視聴はこちらから。\n概要欄もご覧ください。",
-          }),
-          replies: [],
-        },
-        {
-          ...comment({ commentId: "c2" }),
-          replies: [
-            comment({ commentId: "c2.r1", text: "同感です。", likeCount: 2 }),
-            comment({ commentId: "c2.r2", text: "削除された返信", removed: true, likeCount: 0 }),
-          ],
-        },
-        {
-          ...comment({ commentId: "c3", text: "YouTube から消えたコメント", removed: true }),
-          replies: [],
-        },
-      ],
+      status: "ready",
+      data: {
+        totalThreads: 3,
+        totalComments: 5,
+        threads: [
+          {
+            ...comment({
+              commentId: "pinned",
+              author: "@channel",
+              authorIsUploader: true,
+              isPinned: true,
+              text: "番組のフル視聴はこちらから。\n概要欄もご覧ください。",
+            }),
+            replies: [],
+          },
+          {
+            ...comment({ commentId: "c2" }),
+            replies: [
+              comment({ commentId: "c2.r1", text: "同感です。", likeCount: 2 }),
+              comment({ commentId: "c2.r2", text: "削除された返信", removed: true, likeCount: 0 }),
+            ],
+          },
+          {
+            ...comment({ commentId: "c3", text: "YouTube から消えたコメント", removed: true }),
+            replies: [],
+          },
+        ],
+      },
     },
     hasMore: true,
     isLoadingMore: false,
@@ -62,19 +64,19 @@ export const Threads: Story = {};
 
 export const Empty: Story = {
   args: {
-    state: { kind: "ready", totalThreads: 0, totalComments: 0, threads: [] },
+    state: { status: "ready", data: { totalThreads: 0, totalComments: 0, threads: [] } },
     hasMore: false,
   },
 };
 
 export const Loading: Story = {
-  args: { state: { kind: "loading" } },
+  args: { state: { status: "loading" } },
 };
 
 export const Error: Story = {
   args: {
     state: {
-      kind: "error",
+      status: "error",
       message: "コメントを読み込めませんでした。時間をおいて再試行してください。",
     },
   },

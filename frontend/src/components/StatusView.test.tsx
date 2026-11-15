@@ -1,12 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { StatusView, type ViewState } from "./StatusView";
+import type { ViewState } from "@/types/viewState";
+import { StatusView } from "./StatusView";
 
 function renderState(state: ViewState<string[]>, onRetry?: () => void) {
   return render(
-    <StatusView state={state} onRetry={onRetry} emptyMessage="データがありません">
-      {(data) => (
+    <StatusView state={state} onRetry={onRetry}>
+      {(data: string[]) => (
         <ul>
           {data.map((d) => (
             <li key={d}>{d}</li>
@@ -43,14 +44,9 @@ describe("StatusView（UiStateKit / contract C4）", () => {
     expect(screen.queryByRole("button", { name: "再試行" })).not.toBeInTheDocument();
   });
 
-  it("empty(nodata) は emptyMessage を描画する", () => {
-    renderState({ status: "empty", variant: "nodata" });
+  it("empty は message を描画する", () => {
+    renderState({ status: "empty", message: "データがありません" });
     expect(screen.getByText("データがありません")).toBeInTheDocument();
-  });
-
-  it("empty(filtered) は既定メッセージを描画する（emptyMessage 未指定時）", () => {
-    render(<StatusView state={{ status: "empty", variant: "filtered" }}>{() => null}</StatusView>);
-    expect(screen.getByText("条件に一致するデータがありません")).toBeInTheDocument();
   });
 
   it("ready は children(data) をレンダリングする", () => {

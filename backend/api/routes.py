@@ -3,12 +3,6 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Path, Query, Response
 
-from api.dependencies import (
-    get_comment_service,
-    get_playlist_service,
-    get_search_service,
-    get_service,
-)
 from usecases.backup import BackupService
 from usecases.comments import CommentService
 from usecases.models import (
@@ -26,6 +20,12 @@ from usecases.models import (
 )
 from usecases.playlists import PlaylistService
 from usecases.search import SearchService
+from wiring import (
+    get_comment_service,
+    get_playlist_service,
+    get_search_service,
+    get_service,
+)
 
 errors = {status: {"model": ErrorResponse} for status in (401, 404, 409, 502, 503)}
 video_router = APIRouter(tags=["videos"], responses=errors)

@@ -1,18 +1,12 @@
 import { Button } from "@/components/ui/button";
 import type { PlaylistRegistrationState } from "@/hooks/usePlaylistRegistration";
 
-/**
- * 再生リストからの一括登録の画面（登録ダイアログの中で、確認 → 登録中 → 結果 を表示する）。
- * 状態は usePlaylistRegistration が持ち、ここは表示と操作の受け渡しだけを行う presentational。
- * 複数本が一度にバックアップされるため、確定の前に本数と動画タイトルを必ず見せる。
- */
+/** 複数本が一度にバックアップされるため、確定の前に本数と動画タイトルを必ず見せる。 */
 
 export interface PlaylistRegistrationProps {
-  /** idle・loading 以外の状態（それらは登録ダイアログの入力欄が表示する）。 */
   state: Extract<PlaylistRegistrationState, { step: "preview" | "registering" | "finished" }>;
   onRegister: () => void;
   onStop: () => void;
-  /** 入力に戻る。 */
   onBack: () => void;
   onClose: () => void;
 }

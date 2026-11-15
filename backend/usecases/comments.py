@@ -3,7 +3,7 @@ import time
 from itertools import batched
 from uuid import uuid4
 
-from usecases.backup import ACTIVE
+from usecases.backup import ACTIVE, live_video
 from usecases.models import CommentBackup, DomainError
 
 logger = logging.getLogger(__name__)
@@ -31,12 +31,7 @@ class CommentService:
         self.clock = clock
 
     def video(self, video_id: str) -> dict:
-        video = self.videos.get(video_id)
-        if video is None:
-            raise DomainError(404, "video_not_found")
-        if video.get("deletion_token"):
-            raise DomainError(409, "deletion_needs_reconciliation")
-        return video
+        return live_video(self.videos, video_id)
 
     def status(self, video_id: str) -> CommentBackup:
         video = self.video(video_id)

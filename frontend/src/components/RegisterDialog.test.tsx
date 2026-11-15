@@ -143,7 +143,9 @@ describe("RegisterDialog のクリップボードから登録", () => {
       const user = userEvent.setup();
       const read = deferredClipboardRead();
       vi.spyOn(navigator.clipboard, "readText").mockReturnValue(read.promise);
-      const submitSpy = vi.spyOn(apiClient, "submitVideo").mockResolvedValue({ kind: "empty" });
+      const submitSpy = vi
+        .spyOn(apiClient, "submitVideo")
+        .mockResolvedValue({ kind: "transport", message: "" });
       renderToggleableDialog();
 
       await user.click(screen.getByRole("button", { name: "クリップボードから登録" }));
@@ -162,7 +164,9 @@ describe("RegisterDialog のクリップボードから登録", () => {
     vi.spyOn(navigator.clipboard, "readText")
       .mockReturnValueOnce(oldRead.promise)
       .mockReturnValueOnce(newRead.promise);
-    const submitSpy = vi.spyOn(apiClient, "submitVideo").mockResolvedValue({ kind: "empty" });
+    const submitSpy = vi
+      .spyOn(apiClient, "submitVideo")
+      .mockResolvedValue({ kind: "transport", message: "" });
     renderToggleableDialog();
 
     await user.click(screen.getByRole("button", { name: "クリップボードから登録" }));
@@ -186,7 +190,9 @@ describe("RegisterDialog のクリップボードから登録", () => {
       vi.spyOn(navigator.clipboard, "readText")
         .mockReturnValueOnce(oldRead.promise)
         .mockReturnValueOnce(newRead.promise);
-      const submitSpy = vi.spyOn(apiClient, "submitVideo").mockResolvedValue({ kind: "empty" });
+      const submitSpy = vi
+        .spyOn(apiClient, "submitVideo")
+        .mockResolvedValue({ kind: "transport", message: "" });
       renderToggleableDialog();
 
       await user.click(screen.getByRole("button", { name: "クリップボードから登録" }));
@@ -207,7 +213,9 @@ describe("RegisterDialog のクリップボードから登録", () => {
     const user = userEvent.setup();
     const read = deferredClipboardRead();
     vi.spyOn(navigator.clipboard, "readText").mockReturnValue(read.promise);
-    const submitSpy = vi.spyOn(apiClient, "submitVideo").mockResolvedValue({ kind: "empty" });
+    const submitSpy = vi
+      .spyOn(apiClient, "submitVideo")
+      .mockResolvedValue({ kind: "transport", message: "" });
     renderToggleableDialog();
     await user.type(screen.getByLabelText("動画 URL"), "https://youtu.be/manual");
     await user.click(screen.getByRole("button", { name: "クリップボードから登録" }));

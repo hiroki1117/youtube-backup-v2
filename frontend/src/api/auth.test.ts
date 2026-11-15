@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { CognitoAuthModule } from "./auth";
+import { authModule as auth } from "./auth";
 
 // amazon-cognito-identity-js を丸ごとモック（ネットワークに出ない）。
 // vi.mock はファイル先頭へホイストされるため、上の import よりも先に適用される。
@@ -39,7 +39,6 @@ describe("AuthModule.signIn（USER_SRP_AUTH / contract C5）", () => {
         callbacks.onSuccess({});
       },
     );
-    const auth = new CognitoAuthModule();
     const result = await auth.signIn("user", "pass");
     expect(result.kind).toBe("ok");
   });
@@ -53,7 +52,6 @@ describe("AuthModule.signIn（USER_SRP_AUTH / contract C5）", () => {
         });
       },
     );
-    const auth = new CognitoAuthModule();
     const result = await auth.signIn("user", "wrong");
     expect(result.kind).toBe("invalidCredentials");
   });
@@ -64,7 +62,6 @@ describe("AuthModule.signIn（USER_SRP_AUTH / contract C5）", () => {
         callbacks.onFailure({ code: "NetworkError", message: "network failure" });
       },
     );
-    const auth = new CognitoAuthModule();
     const result = await auth.signIn("user", "pass");
     expect(result.kind).toBe("transport");
   });
@@ -75,7 +72,6 @@ describe("AuthModule.signIn（USER_SRP_AUTH / contract C5）", () => {
         callbacks.newPasswordRequired();
       },
     );
-    const auth = new CognitoAuthModule();
     const result = await auth.signIn("user", "pass");
     expect(result.kind).toBe("invalidCredentials");
   });
@@ -92,13 +88,11 @@ describe("AuthModule.getSession", () => {
         cb(null, { isValid: () => true });
       },
     });
-    const auth = new CognitoAuthModule();
     expect(await auth.getSession()).toBe("authenticated");
   });
 
   it("現在ユーザーがいなければ unauthenticated を返す", async () => {
     getCurrentUserMock.mockReturnValue(null);
-    const auth = new CognitoAuthModule();
     expect(await auth.getSession()).toBe("unauthenticated");
   });
 
@@ -108,7 +102,6 @@ describe("AuthModule.getSession", () => {
         cb(null, { isValid: () => false });
       },
     });
-    const auth = new CognitoAuthModule();
     expect(await auth.getSession()).toBe("unauthenticated");
   });
 
@@ -118,7 +111,6 @@ describe("AuthModule.getSession", () => {
         cb(new Error("expired"), null);
       },
     });
-    const auth = new CognitoAuthModule();
     expect(await auth.getSession()).toBe("unauthenticated");
   });
 });
@@ -130,14 +122,12 @@ describe("AuthModule.signOut", () => {
 
   it("現在ユーザーの signOut を呼ぶ", async () => {
     getCurrentUserMock.mockReturnValue({ signOut: signOutMock });
-    const auth = new CognitoAuthModule();
     await auth.signOut();
     expect(signOutMock).toHaveBeenCalledTimes(1);
   });
 
   it("現在ユーザーがいなくてもエラーにならない", async () => {
     getCurrentUserMock.mockReturnValue(null);
-    const auth = new CognitoAuthModule();
     await expect(auth.signOut()).resolves.toBeUndefined();
   });
 });

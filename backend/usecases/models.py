@@ -124,6 +124,11 @@ TIKTOK_HOSTS = {"tiktok.com", "www.tiktok.com", "m.tiktok.com"}
 TIKTOK_SHORT_HOSTS = {"vm.tiktok.com", "vt.tiktok.com"}
 
 
+def s3_filename(video_id: str) -> str:
+    # yt-dlp would read a leading minus as an option.
+    return "ABCXYZ" + video_id if video_id.startswith("-") else video_id
+
+
 def is_tiktok_short_link(url: str) -> bool:
     """A TikTok share link (vt./vm.tiktok.com/…, tiktok.com/t/…), which hides the video ID."""
     parsed = urlparse(url)

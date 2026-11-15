@@ -1,16 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
   isCommentBackupInProgress,
-  parseCommentBackup,
+  commentBackupSchema,
   shouldPollCommentBackup,
   supportsCommentBackup,
   type CommentBackupState,
 } from "@/types/commentBackup";
 import { makeRawCommentBackup } from "@/test/factories";
 
+const parse = (raw: unknown) => commentBackupSchema.safeParse(raw).data ?? null;
+
 describe("CommentBackup の API 境界と状態の判定", () => {
   it("件数・完了時刻がない応答は null に正規化する", () => {
-    expect(parseCommentBackup(makeRawCommentBackup())).toEqual({
+    expect(parse(makeRawCommentBackup())).toEqual({
       videoId: "v1",
       platform: "youtube",
       state: "not_started",
@@ -20,7 +22,7 @@ describe("CommentBackup の API 境界と状態の判定", () => {
   });
 
   it("形が不正な応答は null を返す（error-path）", () => {
-    expect(parseCommentBackup({ video_id: "v1" })).toBeNull();
+    expect(parse({ video_id: "v1" })).toBeNull();
   });
 
   it.each<[CommentBackupState, boolean, boolean]>([

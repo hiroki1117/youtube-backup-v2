@@ -1,25 +1,9 @@
 import { SourceLink } from "@/components/SourceLink";
 import { parseHttpsUrl } from "@/lib/url";
-import type { UploadStatus, Video } from "@/types/video";
+import { STATUS_LABEL } from "@/lib/videoLabels";
+import type { Video } from "@/types/video";
 
-/**
- * 動画の詳細（title/platform/backupDate/状態）を表示する presentational コンポーネント。
- * 元は `src/app/VideoPlaybackPage.tsx` のページローカル関数だったものを、Story 化のため
- * 挙動不変で move + export した（US-6）。DOM 契約（`dl` + `data-testid="playback-detail"`）は維持する。
- * 副作用・API 依存を持たない（レイヤ境界: components → types のみ）。
- */
-
-// upload_status enum → 表示ラベル。制御フローは enum で分岐し、ラベルでは分岐しない。
-const STATUS_LABEL: Record<UploadStatus, string> = {
-  init: "処理中",
-  complete: "完了",
-};
-
-export interface VideoDetailProps {
-  video: Video;
-}
-
-export function VideoDetail({ video }: VideoDetailProps) {
+export function VideoDetail({ video }: { video: Video }) {
   return (
     <dl
       className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm"

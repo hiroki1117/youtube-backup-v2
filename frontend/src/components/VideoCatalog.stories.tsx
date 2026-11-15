@@ -41,7 +41,7 @@ export const List: Story = {
 export const ListWithActions: Story = {
   args: {
     state: { status: "ready", data: completeVideos },
-    handlers: { onDelete: fn() },
+    onDelete: fn(),
   },
 };
 
@@ -49,7 +49,7 @@ export const ListWithActions: Story = {
 export const MixedStatuses: Story = {
   args: {
     state: { status: "ready", data: mixedVideos },
-    handlers: { onDelete: fn() },
+    onDelete: fn(),
   },
 };
 
@@ -73,11 +73,11 @@ export const LoadingMore: Story = {
 };
 
 export const Empty: Story = {
-  args: { state: { status: "empty", variant: "nodata" } },
+  args: { state: { status: "empty", message: "バックアップ済み動画がありません" } },
 };
 
 export const EmptyFiltered: Story = {
-  args: { state: { status: "empty", variant: "filtered" } },
+  args: { state: { status: "empty", message: "条件に一致するデータがありません" } },
 };
 
 export const Loading: Story = {

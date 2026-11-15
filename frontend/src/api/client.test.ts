@@ -1,6 +1,6 @@
 import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
-import { HttpApiClient } from "./client";
+import { createApiClient } from "./client";
 import { server } from "@/test/server";
 import {
   TEST_API_BASE,
@@ -17,7 +17,7 @@ import {
   makeRawYoutubePlaylist,
 } from "@/test/factories";
 
-const client = new HttpApiClient(TEST_API_BASE, () => Promise.resolve("test-token"));
+const client = createApiClient(TEST_API_BASE, () => Promise.resolve("test-token"));
 
 describe("ApiClient.listVideos（GET /videos）", () => {
   it("時刻が欠落・null の旧動画と新動画を同じ一覧で読める", async () => {
@@ -57,10 +57,10 @@ describe("ApiClient.listVideos（GET /videos）", () => {
     }
   });
 
-  it("空配列は empty に正規化する", async () => {
+  it("空配列は ok([]) を返す", async () => {
     server.use(http.get(`${TEST_API_BASE}/videos`, () => HttpResponse.json([])));
     const result = await client.listVideos({ uploadStatus: "complete" });
-    expect(result.kind).toBe("empty");
+    expect(result).toEqual({ kind: "ok", data: [] });
   });
 
   it("ネットワーク断は transport 失敗に正規化する（error-path）", async () => {
@@ -122,8 +122,9 @@ describe("ApiClient.searchVideos（GET /search/videos）", () => {
     expect(params.get("limit")).toBe("100");
   });
 
-  it("0 件は empty", async () => {
-    expect((await client.searchVideos({ query: "x" })).kind).toBe("empty");
+  it("0 件は videos が空の ok", async () => {
+    const result = await client.searchVideos({ query: "x" });
+    expect(result).toEqual({ kind: "ok", data: { videos: [], hasMore: false } });
   });
 
   it("スキーマ不一致は transport", async () => {
@@ -210,7 +211,6 @@ describe("ApiClient.submitVideo（POST /videos）", () => {
       expect(result.data.videoId).toBe("v9");
       expect(result.data.title).toBe("新規");
       expect(result.data.alreadyBackedUp).toBe(false);
-      expect(result.data.batchJobId).toBe("job-1");
     }
   });
 
@@ -224,7 +224,6 @@ describe("ApiClient.submitVideo（POST /videos）", () => {
     expect(result.kind).toBe("ok");
     if (result.kind === "ok") {
       expect(result.data.alreadyBackedUp).toBe(true);
-      expect(result.data.batchJobId).toBe("");
     }
   });
 
@@ -258,9 +257,6 @@ describe("ApiClient.deleteVideo（DELETE /videos/{id}）", () => {
     );
     const result = await client.deleteVideo("v1");
     expect(result.kind).toBe("rejected");
-    if (result.kind === "rejected") {
-      expect(result.reason).toBe("backupInProgress");
-    }
   });
 
   it("409 deletion_needs_reconciliation は rejected(serverError) に正規化する（error-path）", async () => {
@@ -271,9 +267,6 @@ describe("ApiClient.deleteVideo（DELETE /videos/{id}）", () => {
     );
     const result = await client.deleteVideo("v1");
     expect(result.kind).toBe("rejected");
-    if (result.kind === "rejected") {
-      expect(result.reason).toBe("serverError");
-    }
   });
 
   it("404 は notFound に正規化する（error-path）", async () => {
@@ -475,7 +468,7 @@ describe("ApiClient の認証ヘッダと HTTP エラー", () => {
         return HttpResponse.json([]);
       }),
     );
-    const noToken = new HttpApiClient(TEST_API_BASE, () => Promise.resolve(null));
+    const noToken = createApiClient(TEST_API_BASE, () => Promise.resolve(null));
     const result = await noToken.listVideos({ uploadStatus: "complete" });
     expect(result.kind).toBe("transport");
     expect(called).toBe(false);

@@ -4,10 +4,8 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ROUTES } from "@/lib/routes";
 
 /**
- * ヘッダの検索入口（U3 / C5）。入力は検索ページだけで行い、ここはそこへのリンクに徹する。
- * 語を決めていなくても日付の絞り込みへ進めるよう、PC もスマホも同じ動きにする。
- * 広い画面は検索欄の見た目、狭い画面はアイコンで表示する。検索ページには専用の検索欄があるので
- * そこでは表示しない。`/` キーでも検索欄へ移れる。
+ * 検索ページへのリンク（広い画面は検索欄の見た目、狭い画面はアイコン）と `/` キーの入口。
+ * 検索ページには専用の検索欄があるので、そこでは表示しない。
  */
 
 function isTyping(target: EventTarget | null): boolean {

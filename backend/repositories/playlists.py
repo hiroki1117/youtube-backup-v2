@@ -1,9 +1,9 @@
-import os
 from functools import cached_property
 
 import boto3
 import httpx
 
+from repositories.aws import read_secret
 from usecases.models import DomainError
 
 ITEMS_URL = "https://www.googleapis.com/youtube/v3/playlistItems"
@@ -24,9 +24,7 @@ class PlaylistRepository:
         return self.session.client("ssm")
 
     def videos(self, playlist_id: str) -> tuple[list[dict], int]:
-        key = self.ssm.get_parameter(
-            Name=os.environ["SSM_YOUTUBE_API_KEY_PARAMETER"], WithDecryption=True
-        )["Parameter"]["Value"]
+        key = read_secret(self.ssm, "SSM_YOUTUBE_API_KEY_PARAMETER")
         params = {"part": "snippet,status", "playlistId": playlist_id, "maxResults": 50, "key": key}
         videos, seen, unavailable = [], set(), 0
         try:

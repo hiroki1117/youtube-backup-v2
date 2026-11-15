@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 import { PlaylistRegistration } from "@/components/PlaylistRegistration";
 import { makeRawYoutubePlaylist, makeRawYoutubePlaylistVideo } from "@/test/factories";
-import { parseYoutubePlaylist, type YoutubePlaylist } from "@/types/youtubePlaylist";
+import { youtubePlaylistSchema, type YoutubePlaylist } from "@/types/youtubePlaylist";
 
 /**
  * 再生リストからの一括登録（登録ダイアログの中の 確認 → 登録中 → 結果）。
@@ -13,11 +13,7 @@ function playlistOf(count: number, unavailableCount = 0): YoutubePlaylist {
   const videos = Array.from({ length: count }, (_, i) =>
     makeRawYoutubePlaylistVideo(`pv${i + 1}`, `再生リストの動画 ${i + 1}`),
   );
-  const playlist = parseYoutubePlaylist(makeRawYoutubePlaylist(videos, unavailableCount));
-  if (playlist === null) {
-    throw new Error("invalid playlist fixture");
-  }
-  return playlist;
+  return youtubePlaylistSchema.parse(makeRawYoutubePlaylist(videos, unavailableCount));
 }
 
 const playlist = playlistOf(24, 2);

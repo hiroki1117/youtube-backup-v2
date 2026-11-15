@@ -5,7 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { makeVideo } from "@/test/factories";
 import type { Video } from "@/types/video";
-import { VideoCatalog, type RowActionHandlers } from "./VideoCatalog";
+import { VideoCatalog } from "./VideoCatalog";
 
 // タイトルが再生ページへの Link のため Router 下で描画する。
 function renderInRouter(ui: ReactElement) {
@@ -14,7 +14,7 @@ function renderInRouter(ui: ReactElement) {
 
 function renderCatalog(overrides: {
   data?: Video[];
-  handlers?: RowActionHandlers;
+  onDelete?: (video: Video) => void;
   hasMore?: boolean;
   onLoadMore?: () => void;
   isLoadingMore?: boolean;
@@ -30,7 +30,7 @@ function renderCatalog(overrides: {
       onLoadMore={overrides.onLoadMore}
       isLoadingMore={overrides.isLoadingMore}
       onRetry={overrides.onRetry}
-      handlers={overrides.handlers}
+      onDelete={overrides.onDelete}
     />,
   );
 }
@@ -123,7 +123,7 @@ describe("VideoCatalog（U2 / US2.1・C6 / FR8）", () => {
   });
 
   it("行に再生・ダウンロードのボタンを置かない（再生ページで行う）", () => {
-    renderCatalog({ handlers: { onDelete: vi.fn() } });
+    renderCatalog({ onDelete: vi.fn() });
     expect(screen.queryByRole("button", { name: /再生/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /ダウンロード/ })).not.toBeInTheDocument();
   });
@@ -131,12 +131,12 @@ describe("VideoCatalog（U2 / US2.1・C6 / FR8）", () => {
   it("onDelete 未提供時は削除ボタンを描画せず、提供時はその行の Video を渡す（C6）", async () => {
     const user = userEvent.setup();
     const video = makeVideo({ videoId: "c1", title: "完了動画" });
-    const { unmount } = renderCatalog({ data: [video], handlers: undefined });
+    const { unmount } = renderCatalog({ data: [video], onDelete: undefined });
     expect(screen.queryByRole("button", { name: /削除/ })).not.toBeInTheDocument();
     unmount();
 
     const onDelete = vi.fn();
-    renderCatalog({ data: [video], handlers: { onDelete } });
+    renderCatalog({ data: [video], onDelete });
     await user.click(screen.getByRole("button", { name: "削除: 完了動画" }));
     expect(onDelete).toHaveBeenCalledWith(video);
   });
@@ -159,12 +159,14 @@ describe("VideoCatalog（U2 / US2.1・C6 / FR8）", () => {
 
   it("empty:nodata と empty:filtered で別メッセージを描画する（FR8）", () => {
     const { unmount } = renderInRouter(
-      <VideoCatalog state={{ status: "empty", variant: "nodata" }} />,
+      <VideoCatalog state={{ status: "empty", message: "バックアップ済み動画がありません" }} />,
     );
     expect(screen.getByText("バックアップ済み動画がありません")).toBeInTheDocument();
     unmount();
 
-    renderInRouter(<VideoCatalog state={{ status: "empty", variant: "filtered" }} />);
+    renderInRouter(
+      <VideoCatalog state={{ status: "empty", message: "条件に一致するデータがありません" }} />,
+    );
     expect(screen.getByText("条件に一致するデータがありません")).toBeInTheDocument();
   });
 
@@ -194,7 +196,7 @@ describe("VideoCatalog 処理中の行の取り消し", () => {
     const onDelete = vi.fn();
     const processing = makeVideo({ videoId: "i1", title: "処理中動画", uploadStatus: "init" });
     const done = makeVideo({ videoId: "c1", title: "完了動画", uploadStatus: "complete" });
-    renderCatalog({ data: [processing, done], handlers: { onDelete } });
+    renderCatalog({ data: [processing, done], onDelete });
 
     expect(screen.queryByRole("button", { name: "削除: 処理中動画" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "取り消し: 処理中動画" }));

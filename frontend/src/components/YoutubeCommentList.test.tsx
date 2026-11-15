@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { YoutubeCommentList, type YoutubeCommentListState } from "@/components/YoutubeCommentList";
+import { YoutubeCommentList, type YoutubeCommentListProps } from "@/components/YoutubeCommentList";
 import type { YoutubeComment } from "@/types/youtubeComments";
 
 /**
@@ -23,7 +23,11 @@ function comment(overrides: Partial<YoutubeComment> = {}): YoutubeComment {
   };
 }
 
-function renderList(state: YoutubeCommentListState, hasMore = false, isLoadingMore = false) {
+function renderList(
+  state: YoutubeCommentListProps["state"],
+  hasMore = false,
+  isLoadingMore = false,
+) {
   const onLoadMore = vi.fn();
   const onRetry = vi.fn();
   render(
@@ -41,15 +45,17 @@ function renderList(state: YoutubeCommentListState, hasMore = false, isLoadingMo
 describe("YoutubeCommentList", () => {
   it("スレッドの本文・投稿者・日付・高評価と、返信の件数を表示する", () => {
     renderList({
-      kind: "ready",
-      totalThreads: 1,
-      totalComments: 3,
-      threads: [
-        {
-          ...comment({ text: "1 行目\n2 行目", likeCount: 7 }),
-          replies: [comment({ commentId: "r1" }), comment({ commentId: "r2" })],
-        },
-      ],
+      status: "ready",
+      data: {
+        totalThreads: 1,
+        totalComments: 3,
+        threads: [
+          {
+            ...comment({ text: "1 行目\n2 行目", likeCount: 7 }),
+            replies: [comment({ commentId: "r1" }), comment({ commentId: "r2" })],
+          },
+        ],
+      },
     });
     expect(screen.getByTestId("youtube-comment-total")).toHaveTextContent("3 件（スレッド 1 件）");
     const [first] = screen.getAllByTestId("youtube-comment");
@@ -62,15 +68,17 @@ describe("YoutubeCommentList", () => {
 
   it("固定・投稿者・YouTube で削除済みの印を付ける", () => {
     renderList({
-      kind: "ready",
-      totalThreads: 1,
-      totalComments: 1,
-      threads: [
-        {
-          ...comment({ isPinned: true, authorIsUploader: true, removed: true, author: null }),
-          replies: [],
-        },
-      ],
+      status: "ready",
+      data: {
+        totalThreads: 1,
+        totalComments: 1,
+        threads: [
+          {
+            ...comment({ isPinned: true, authorIsUploader: true, removed: true, author: null }),
+            replies: [],
+          },
+        ],
+      },
     });
     expect(screen.getByText("固定")).toBeInTheDocument();
     expect(screen.getByText("投稿者")).toBeInTheDocument();
@@ -80,16 +88,18 @@ describe("YoutubeCommentList", () => {
   });
 
   it("コメントがなければその旨を表示する", () => {
-    renderList({ kind: "ready", totalThreads: 0, totalComments: 0, threads: [] });
+    renderList({ status: "ready", data: { totalThreads: 0, totalComments: 0, threads: [] } });
     expect(screen.getByText("バックアップしたコメントはありません。")).toBeInTheDocument();
   });
 
   it("続きがあれば「もっと見る」で読み込み、読み込み中は無効にする", async () => {
-    const ready: YoutubeCommentListState = {
-      kind: "ready",
-      totalThreads: 2,
-      totalComments: 2,
-      threads: [{ ...comment(), replies: [] }],
+    const ready: YoutubeCommentListProps["state"] = {
+      status: "ready",
+      data: {
+        totalThreads: 2,
+        totalComments: 2,
+        threads: [{ ...comment(), replies: [] }],
+      },
     };
     const { onLoadMore } = renderList(ready, true);
     await userEvent.setup().click(screen.getByRole("button", { name: "もっと見る" }));
@@ -99,10 +109,12 @@ describe("YoutubeCommentList", () => {
   it("続きの読み込み中はボタンを無効にする", () => {
     renderList(
       {
-        kind: "ready",
-        totalThreads: 2,
-        totalComments: 2,
-        threads: [{ ...comment(), replies: [] }],
+        status: "ready",
+        data: {
+          totalThreads: 2,
+          totalComments: 2,
+          threads: [{ ...comment(), replies: [] }],
+        },
       },
       true,
       true,
@@ -111,14 +123,14 @@ describe("YoutubeCommentList", () => {
   });
 
   it("読み込みの失敗はメッセージと再試行を出す（error-path）", async () => {
-    const { onRetry } = renderList({ kind: "error", message: "読み込めませんでした" });
+    const { onRetry } = renderList({ status: "error", message: "読み込めませんでした" });
     expect(screen.getByRole("alert")).toHaveTextContent("読み込めませんでした");
     await userEvent.setup().click(screen.getByRole("button", { name: "再試行" }));
     expect(onRetry).toHaveBeenCalledOnce();
   });
 
   it("読み込み中は状態だけを出す", () => {
-    renderList({ kind: "loading" });
+    renderList({ status: "loading" });
     expect(screen.getByRole("status")).toHaveTextContent("コメントを読み込んでいます");
   });
 });

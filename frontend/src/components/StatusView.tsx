@@ -1,37 +1,16 @@
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import type { ViewState } from "@/types/viewState";
 
-/**
- * UiStateKit 状態表示（contract C4 ViewState<T>）。
- * loading/error/empty/ready を discriminated union で統一表示する。
- * role/aria（status/alert）を付与し、色のみに依存しない。表示テキストで制御分岐しない。
- */
-export type ViewState<T> =
-  | { status: "loading" }
-  | { status: "error"; message: string }
-  | { status: "empty"; variant: "nodata" | "filtered" }
-  | { status: "ready"; data: T };
-
+/** 読み込み中・失敗・空・表示を、role/aria 付きの共通の見た目で描画する。 */
 export interface StatusViewProps<T> {
   state: ViewState<T>;
   onRetry?: () => void;
-  children: (data: T) => ReactNode; // ready 時のレンダラ
-  emptyMessage?: string;
+  children?: (data: T) => ReactNode; // ready 時のレンダラ
   loadingLabel?: string;
 }
 
-const DEFAULT_EMPTY_MESSAGE: Record<"nodata" | "filtered", string> = {
-  nodata: "データがありません",
-  filtered: "条件に一致するデータがありません",
-};
-
-export function StatusView<T>({
-  state,
-  onRetry,
-  children,
-  emptyMessage,
-  loadingLabel,
-}: StatusViewProps<T>) {
+export function StatusView<T>({ state, onRetry, children, loadingLabel }: StatusViewProps<T>) {
   switch (state.status) {
     case "loading":
       return (
@@ -61,10 +40,10 @@ export function StatusView<T>({
     case "empty":
       return (
         <div role="status" className="p-8 text-center text-muted-foreground">
-          {emptyMessage ?? DEFAULT_EMPTY_MESSAGE[state.variant]}
+          {state.message}
         </div>
       );
     case "ready":
-      return <>{children(state.data)}</>;
+      return <>{children?.(state.data)}</>;
   }
 }

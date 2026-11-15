@@ -1,38 +1,41 @@
 import { z } from "zod";
-import { parseVideo, type UploadStatus, type Video } from "@/types/video";
-import { parseCommentBackup, type CommentBackup } from "@/types/commentBackup";
-import { parseYoutubeCommentPage, type YoutubeCommentPage } from "@/types/youtubeComments";
-import { parseYoutubePlaylist, type YoutubePlaylist } from "@/types/youtubePlaylist";
-import { config } from "./config";
+import { commentBackupSchema, type CommentBackup } from "@/types/commentBackup";
+import { videoSchema, type UploadStatus, type Video } from "@/types/video";
+import { youtubeCommentPageSchema, type YoutubeCommentPage } from "@/types/youtubeComments";
+import { youtubePlaylistSchema, type YoutubePlaylist } from "@/types/youtubePlaylist";
 import { getIdToken } from "@/api/token";
+import { config } from "./config";
 
 /**
- * ApiClient インターフェース契約（contract C2）。
- * 唯一の HTTP 境界。新 API（openapi/openapi.json: /videos 系・Cognito JWT 必須・エラーは HTTP ステータス +
- * `{ detail }`）の応答を、消費側へは discriminated union の型付き値（ApiResult<T>）として渡す（例外を投げない）。
- * 全リクエストに Cognito ID トークンを `Authorization: Bearer` で付与する。
+ * 唯一の HTTP 境界。例外を投げず、応答を zod で検証した ApiResult にして返す。
+ * 失敗の種類: 404 → notFound、409 → rejected、422 → invalidInput、それ以外（ネットワーク・認証切れ・
+ * サーバー障害・想定外の形）→ transport。
  */
+export type ApiFailure = {
+  kind: "notFound" | "rejected" | "invalidInput" | "transport";
+  message: string;
+};
 
-export type ApiResult<T> =
-  | { kind: "ok"; data: T }
-  | { kind: "empty" } // 該当なし（例: 一覧 0 件）
-  | { kind: "notFound"; message: string } // 404
-  | { kind: "rejected"; reason: RejectReason; message: string } // 業務ルール上の拒否（409）
-  | { kind: "invalidInput"; message: string } // URL/ID 不正（422）
-  | { kind: "transport"; message: string }; // ネットワーク/認証切れ/サーバー障害/パース失敗
+export type ApiResult<T> = { kind: "ok"; data: T } | ApiFailure;
 
-export type RejectReason = "backupInProgress" | "serverError";
+const TRANSPORT_MESSAGE = "通信に失敗しました。時間をおいて再試行してください。";
+const AUTH_EXPIRED_MESSAGE = "認証が切れました。再度ログインしてください。";
+
+/** 失敗を利用者向けの文言にする。transport の詳細は画面に出さない。 */
+export function apiErrorMessage(failure: ApiFailure, transportMessage = TRANSPORT_MESSAGE): string {
+  return failure.kind === "transport" ? transportMessage : failure.message;
+}
 
 export interface SubmitResult {
   videoId: string;
   title: string;
+  /** 登録済みの URL だった。 */
   alreadyBackedUp: boolean;
-  batchJobId: string;
 }
 
 export interface CommentBackupStart {
   backup: CommentBackup;
-  /** 新しく取得を開始したら true（202）。取得中で何もしなかったら false（200）。 */
+  /** 取得中で何もしなければ false。 */
   started: boolean;
 }
 
@@ -48,7 +51,7 @@ export interface ApiClient {
     fetchNum?: number;
   }): Promise<ApiResult<Video[]>>;
   getVideo(videoId: string): Promise<ApiResult<Video>>;
-  /** 動画の検索（`GET /search/videos`）。毎時同期の複製を読む。0 件は `empty`。 */
+  /** 動画の検索。毎時同期の複製を読む。 */
   searchVideos(params: {
     query: string;
     backupFrom?: string;
@@ -56,58 +59,24 @@ export interface ApiClient {
     limit?: number;
   }): Promise<ApiResult<VideoSearchResult>>;
   submitVideo(url: string): Promise<ApiResult<SubmitResult>>;
-  /** タイトルを更新する（`PATCH /videos/{id}`）。成功は更新後の Video。 */
   updateVideoTitle(videoId: string, title: string): Promise<ApiResult<Video>>;
-  /** 完了済み動画の削除（`DELETE /videos/{id}`）。成功は 204（本文なし）。 */
+  /** 完了済み動画の削除。 */
   deleteVideo(videoId: string): Promise<ApiResult<null>>;
-  /**
-   * 未完了バックアップの取り消し（`DELETE /videos/{id}/backup`）。実行中のジョブを止めて未完了の
-   * 動画記録を消す。成功は 204（本文なし）。
-   */
+  /** 未完了バックアップの取り消し。実行中のジョブを止めて未完了の動画記録を消す。 */
   cancelBackup(videoId: string): Promise<ApiResult<null>>;
-  /** 再生/ダウンロード用の署名付き URL（`GET /videos/{id}/playback_url`）。 */
+  /** 再生・ダウンロード用の署名付き URL。 */
   getPresignedUrl(videoId: string): Promise<ApiResult<string>>;
-  /** コメントバックアップの状態（`GET /videos/{id}/comments/backup`）。 */
   getCommentBackup(videoId: string): Promise<ApiResult<CommentBackup>>;
-  /** コメントの取得を開始する（`POST /videos/{id}/comments/backup`）。取得済みなら最新化する。 */
+  /** コメントの取得を開始する（取得済みなら最新化）。 */
   startCommentBackup(videoId: string): Promise<ApiResult<CommentBackupStart>>;
-  /**
-   * バックアップした YouTube コメントのページ（`GET /videos/{id}/comments`）。
-   * スレッド（親コメントと返信）単位で、固定コメント→新しい順。
-   */
+  /** スレッド単位のページ。固定コメント→新しい順。 */
   getYoutubeComments(
     videoId: string,
     params: { offset: number; limit: number },
   ): Promise<ApiResult<YoutubeCommentPage>>;
-  /**
-   * YouTube の再生リストの動画一覧（`GET /youtube/playlist?url=`）。URL の解釈は backend が行う。
-   * 何も登録しない（登録は動画ごとに submitVideo）。
-   */
+  /** 再生リストの動画一覧。URL の解釈は backend が行い、何も登録しない。 */
   getYoutubePlaylist(url: string): Promise<ApiResult<YoutubePlaylist>>;
 }
-
-// 失敗バリアント（ok/empty を除く）。
-type ApiFailure = Extract<
-  ApiResult<never>,
-  { kind: "notFound" } | { kind: "rejected" } | { kind: "invalidInput" } | { kind: "transport" }
->;
-
-const registrationSchema = z.object({
-  video: z.unknown(),
-  backup: z.object({
-    video_id: z.string(),
-    state: z.string(),
-    batch_job_id: z.string().nullable().optional(),
-  }),
-  already_registered: z.boolean(),
-});
-
-const playbackSchema = z.object({
-  url: z.string(),
-  expires_in: z.number(),
-});
-
-const errorBodySchema = z.object({ detail: z.unknown() });
 
 // サーバーが返す `detail` コード → 利用者向けメッセージ（コードは画面に出さない）。
 const DETAIL_MESSAGES: Record<string, string> = {
@@ -133,41 +102,16 @@ const DETAIL_MESSAGES: Record<string, string> = {
   invalid_backup_date_range: "バックアップ日の範囲が正しくありません。",
 };
 
-// 409 のうち「バックアップ処理が絡んで今は実行できない」もの（UI は backupInProgress として扱う）。
-const IN_PROGRESS_CODES = new Set([
-  "backup_not_complete",
-  "backup_object_needs_reconciliation",
-  "concurrent_change",
-  "job_needs_reconciliation",
-  "submission_needs_reconciliation",
-]);
-
-const searchResultsSchema = z.object({
-  items: z.array(z.unknown()),
-  has_more: z.boolean(),
-});
-
-type RawFetch = { ok: true; status: number; body: unknown } | { ok: false; failure: ApiFailure };
-
-/** HTTP ステータスと `{ detail }` から ApiResult の失敗種別へ正規化する（C2 実装契約）。 */
-function classifyFailure(status: number, body: unknown): ApiFailure {
-  const parsed = errorBodySchema.safeParse(body);
-  const code = parsed.success && typeof parsed.data.detail === "string" ? parsed.data.detail : "";
-  const message = DETAIL_MESSAGES[code];
+function toFailure(status: number, body: unknown): ApiFailure {
+  const error = z.object({ detail: z.string() }).safeParse(body);
+  const message = error.success ? DETAIL_MESSAGES[error.data.detail] : undefined;
   switch (status) {
     case 401:
-      return {
-        kind: "transport",
-        message: "認証が切れました。再度ログインしてください。",
-      };
+      return { kind: "transport", message: AUTH_EXPIRED_MESSAGE };
     case 404:
       return { kind: "notFound", message: message ?? "対象が見つかりません。" };
     case 409:
-      return {
-        kind: "rejected",
-        reason: IN_PROGRESS_CODES.has(code) ? "backupInProgress" : "serverError",
-        message: message ?? "処理を実行できませんでした。",
-      };
+      return { kind: "rejected", message: message ?? "処理を実行できませんでした。" };
     case 422:
       return { kind: "invalidInput", message: message ?? "入力内容が正しくありません。" };
     default:
@@ -176,258 +120,159 @@ function classifyFailure(status: number, body: unknown): ApiFailure {
   }
 }
 
-export class HttpApiClient implements ApiClient {
-  private readonly baseUrl: string;
-  private readonly getToken: () => Promise<string | null>;
+function decode<S extends z.ZodType>(
+  schema: S,
+  body: unknown,
+  path: string,
+): ApiResult<z.output<S>> {
+  const parsed = schema.safeParse(body);
+  return parsed.success
+    ? { kind: "ok", data: parsed.data }
+    : { kind: "transport", message: `unexpected response for ${path}` };
+}
 
-  constructor(
-    baseUrl: string = config.apiBaseUrl,
-    getToken: () => Promise<string | null> = getIdToken,
-  ) {
-    // 末尾スラッシュを正規化
-    this.baseUrl = baseUrl.replace(/\/+$/, "");
-    this.getToken = getToken;
-  }
+const registrationSchema = z
+  .object({
+    video: videoSchema,
+    backup: z.object({ video_id: z.string(), state: z.string() }),
+    already_registered: z.boolean(),
+  })
+  .transform(({ video, already_registered }): SubmitResult => ({
+    videoId: video.videoId,
+    title: video.title,
+    alreadyBackedUp: already_registered,
+  }));
 
-  /** 単一 fetch ラッパ。失敗は型付き値に変換し、例外を投げない。204 の本文は null。 */
-  private async request(path: string, init?: RequestInit): Promise<RawFetch> {
+const searchResultsSchema = z
+  .object({ items: z.array(videoSchema), has_more: z.boolean() })
+  .transform((raw): VideoSearchResult => ({ videos: raw.items, hasMore: raw.has_more }));
+
+const playbackSchema = z
+  .object({ url: z.string(), expires_in: z.number() })
+  .transform((raw) => raw.url);
+
+// 204 など本文を使わない応答。
+const noContentSchema = z.unknown().transform(() => null);
+
+const videoPath = (videoId: string) => `/videos/${encodeURIComponent(videoId)}`;
+
+export function createApiClient(
+  baseUrl: string = config.apiBaseUrl,
+  getToken: () => Promise<string | null> = getIdToken,
+): ApiClient {
+  const root = baseUrl.replace(/\/+$/, "");
+
+  async function send(
+    path: string,
+    init?: RequestInit,
+  ): Promise<ApiResult<{ status: number; body: unknown }>> {
     try {
-      const token = await this.getToken();
+      const token = await getToken();
       if (!token) {
-        return {
-          ok: false,
-          failure: { kind: "transport", message: "認証が切れました。再度ログインしてください。" },
-        };
+        return { kind: "transport", message: AUTH_EXPIRED_MESSAGE };
       }
-      const hasBody = init?.body !== undefined && init?.body !== null;
-      const response = await fetch(`${this.baseUrl}${path}`, {
+      const response = await fetch(`${root}${path}`, {
         ...init,
         headers: {
-          ...(hasBody ? { "Content-Type": "application/json" } : {}),
-          ...(init?.headers ?? {}),
+          ...(init?.body ? { "Content-Type": "application/json" } : {}),
           Authorization: `Bearer ${token}`,
         },
       });
       const body: unknown =
         response.status === 204 ? null : await response.json().catch(() => null);
-      if (!response.ok) {
-        return { ok: false, failure: classifyFailure(response.status, body) };
-      }
-      return { ok: true, status: response.status, body };
+      return response.ok
+        ? { kind: "ok", data: { status: response.status, body } }
+        : toFailure(response.status, body);
     } catch (e) {
-      return {
-        ok: false,
-        failure: { kind: "transport", message: e instanceof Error ? e.message : "network error" },
-      };
+      return { kind: "transport", message: e instanceof Error ? e.message : "network error" };
     }
   }
 
-  async listVideos(params: {
-    uploadStatus: UploadStatus;
-    fetchNum?: number;
-  }): Promise<ApiResult<Video[]>> {
-    const fetchNum = params.fetchNum ?? 30;
-    const query = `upload_status=${encodeURIComponent(params.uploadStatus)}&fetch_num=${fetchNum}`;
-    const res = await this.request(`/videos?${query}`);
-    if (!res.ok) {
-      return res.failure;
-    }
-    if (!Array.isArray(res.body)) {
-      return { kind: "transport", message: "expected an array response for GET /videos" };
-    }
-    if (res.body.length === 0) {
-      return { kind: "empty" };
-    }
-    const videos: Video[] = [];
-    for (const item of res.body) {
-      const video = parseVideo(item);
-      if (video === null) {
-        return { kind: "transport", message: "video schema mismatch in GET /videos" };
+  async function request<S extends z.ZodType>(
+    schema: S,
+    path: string,
+    init?: RequestInit,
+  ): Promise<ApiResult<z.output<S>>> {
+    const result = await send(path, init);
+    return result.kind === "ok" ? decode(schema, result.data.body, path) : result;
+  }
+
+  return {
+    listVideos({ uploadStatus, fetchNum = 30 }: { uploadStatus: UploadStatus; fetchNum?: number }) {
+      const query = `upload_status=${encodeURIComponent(uploadStatus)}&fetch_num=${fetchNum}`;
+      return request(z.array(videoSchema), `/videos?${query}`);
+    },
+
+    getVideo: (videoId: string) => request(videoSchema, videoPath(videoId)),
+
+    searchVideos(params: {
+      query: string;
+      backupFrom?: string;
+      backupTo?: string;
+      limit?: number;
+    }) {
+      const { query, backupFrom, backupTo, limit } = params;
+      const search = new URLSearchParams();
+      if (query !== "") {
+        search.set("q", query);
       }
-      videos.push(video);
-    }
-    return { kind: "ok", data: videos };
-  }
-
-  async getVideo(videoId: string): Promise<ApiResult<Video>> {
-    const res = await this.request(`/videos/${encodeURIComponent(videoId)}`);
-    if (!res.ok) {
-      return res.failure;
-    }
-    const video = parseVideo(res.body);
-    if (video === null) {
-      return { kind: "transport", message: "video schema mismatch in GET /videos/{id}" };
-    }
-    return { kind: "ok", data: video };
-  }
-
-  async searchVideos(params: {
-    query: string;
-    backupFrom?: string;
-    backupTo?: string;
-    limit?: number;
-  }): Promise<ApiResult<VideoSearchResult>> {
-    const query = new URLSearchParams();
-    if (params.query !== "") {
-      query.set("q", params.query);
-    }
-    if (params.backupFrom) {
-      query.set("backup_from", params.backupFrom);
-    }
-    if (params.backupTo) {
-      query.set("backup_to", params.backupTo);
-    }
-    if (params.limit !== undefined) {
-      query.set("limit", String(params.limit));
-    }
-    const res = await this.request(`/search/videos?${query.toString()}`);
-    if (!res.ok) {
-      return res.failure;
-    }
-    const page = searchResultsSchema.safeParse(res.body);
-    if (!page.success) {
-      return { kind: "transport", message: "unexpected response for GET /search/videos" };
-    }
-    if (page.data.items.length === 0) {
-      return { kind: "empty" };
-    }
-    const videos: Video[] = [];
-    for (const item of page.data.items) {
-      const video = parseVideo(item);
-      if (video === null) {
-        return { kind: "transport", message: "video schema mismatch in GET /search/videos" };
+      if (backupFrom) {
+        search.set("backup_from", backupFrom);
       }
-      videos.push(video);
-    }
-    return { kind: "ok", data: { videos, hasMore: page.data.has_more } };
-  }
+      if (backupTo) {
+        search.set("backup_to", backupTo);
+      }
+      if (limit !== undefined) {
+        search.set("limit", String(limit));
+      }
+      return request(searchResultsSchema, `/search/videos?${search.toString()}`);
+    },
 
-  async submitVideo(url: string): Promise<ApiResult<SubmitResult>> {
-    const res = await this.request(`/videos`, {
-      method: "POST",
-      body: JSON.stringify({ url }),
-    });
-    if (!res.ok) {
-      return res.failure;
-    }
-    const parsed = registrationSchema.safeParse(res.body);
-    const video = parsed.success ? parseVideo(parsed.data.video) : null;
-    if (!parsed.success || video === null) {
-      return { kind: "transport", message: "unexpected response shape for POST /videos" };
-    }
-    // already_registered=true も ok として返す（UI は既登録通知）
-    return {
-      kind: "ok",
-      data: {
-        videoId: video.videoId,
-        title: video.title,
-        alreadyBackedUp: parsed.data.already_registered,
-        batchJobId: parsed.data.backup.batch_job_id ?? "",
-      },
-    };
-  }
+    submitVideo: (url: string) =>
+      request(registrationSchema, "/videos", { method: "POST", body: JSON.stringify({ url }) }),
 
-  async updateVideoTitle(videoId: string, title: string): Promise<ApiResult<Video>> {
-    const res = await this.request(`/videos/${encodeURIComponent(videoId)}`, {
-      method: "PATCH",
-      body: JSON.stringify({ title }),
-    });
-    if (!res.ok) {
-      return res.failure;
-    }
-    const video = parseVideo(res.body);
-    if (video === null) {
-      return { kind: "transport", message: "video schema mismatch in PATCH /videos/{id}" };
-    }
-    return { kind: "ok", data: video };
-  }
+    updateVideoTitle: (videoId: string, title: string) =>
+      request(videoSchema, videoPath(videoId), {
+        method: "PATCH",
+        body: JSON.stringify({ title }),
+      }),
 
-  async deleteVideo(videoId: string): Promise<ApiResult<null>> {
-    const res = await this.request(`/videos/${encodeURIComponent(videoId)}`, {
-      method: "DELETE",
-    });
-    if (!res.ok) {
-      return res.failure;
-    }
-    return { kind: "ok", data: null };
-  }
+    deleteVideo: (videoId: string) =>
+      request(noContentSchema, videoPath(videoId), { method: "DELETE" }),
 
-  async cancelBackup(videoId: string): Promise<ApiResult<null>> {
-    const res = await this.request(`/videos/${encodeURIComponent(videoId)}/backup`, {
-      method: "DELETE",
-    });
-    if (!res.ok) {
-      return res.failure;
-    }
-    return { kind: "ok", data: null };
-  }
+    cancelBackup: (videoId: string) =>
+      request(noContentSchema, `${videoPath(videoId)}/backup`, { method: "DELETE" }),
 
-  async getPresignedUrl(videoId: string): Promise<ApiResult<string>> {
-    const res = await this.request(`/videos/${encodeURIComponent(videoId)}/playback_url`);
-    if (!res.ok) {
-      return res.failure;
-    }
-    const parsed = playbackSchema.safeParse(res.body);
-    if (!parsed.success) {
-      return { kind: "transport", message: "unexpected response shape for GET playback_url" };
-    }
-    return { kind: "ok", data: parsed.data.url };
-  }
+    getPresignedUrl: (videoId: string) =>
+      request(playbackSchema, `${videoPath(videoId)}/playback_url`),
 
-  async getCommentBackup(videoId: string): Promise<ApiResult<CommentBackup>> {
-    const res = await this.request(`/videos/${encodeURIComponent(videoId)}/comments/backup`);
-    if (!res.ok) {
-      return res.failure;
-    }
-    const backup = parseCommentBackup(res.body);
-    if (backup === null) {
-      return { kind: "transport", message: "unexpected response shape for GET comments" };
-    }
-    return { kind: "ok", data: backup };
-  }
+    getCommentBackup: (videoId: string) =>
+      request(commentBackupSchema, `${videoPath(videoId)}/comments/backup`),
 
-  async startCommentBackup(videoId: string): Promise<ApiResult<CommentBackupStart>> {
-    const res = await this.request(`/videos/${encodeURIComponent(videoId)}/comments/backup`, {
-      method: "POST",
-    });
-    if (!res.ok) {
-      return res.failure;
-    }
-    const backup = parseCommentBackup(res.body);
-    if (backup === null) {
-      return { kind: "transport", message: "unexpected response shape for POST comments" };
-    }
-    return { kind: "ok", data: { backup, started: res.status === 202 } };
-  }
+    async startCommentBackup(videoId: string) {
+      const path = `${videoPath(videoId)}/comments/backup`;
+      const sent = await send(path, { method: "POST" });
+      if (sent.kind !== "ok") {
+        return sent;
+      }
+      const backup = decode(commentBackupSchema, sent.data.body, path);
+      return backup.kind === "ok"
+        ? ({
+            kind: "ok",
+            data: { backup: backup.data, started: sent.data.status === 202 },
+          } as const)
+        : backup;
+    },
 
-  async getYoutubeComments(
-    videoId: string,
-    params: { offset: number; limit: number },
-  ): Promise<ApiResult<YoutubeCommentPage>> {
-    const query = `offset=${params.offset}&limit=${params.limit}`;
-    const res = await this.request(`/videos/${encodeURIComponent(videoId)}/comments?${query}`);
-    if (!res.ok) {
-      return res.failure;
-    }
-    const page = parseYoutubeCommentPage(res.body);
-    if (page === null) {
-      return { kind: "transport", message: "unexpected response shape for GET comments" };
-    }
-    return { kind: "ok", data: page };
-  }
+    getYoutubeComments: (videoId: string, { offset, limit }: { offset: number; limit: number }) =>
+      request(
+        youtubeCommentPageSchema,
+        `${videoPath(videoId)}/comments?offset=${offset}&limit=${limit}`,
+      ),
 
-  async getYoutubePlaylist(url: string): Promise<ApiResult<YoutubePlaylist>> {
-    const res = await this.request(`/youtube/playlist?url=${encodeURIComponent(url)}`);
-    if (!res.ok) {
-      return res.failure;
-    }
-    const playlist = parseYoutubePlaylist(res.body);
-    if (playlist === null) {
-      return { kind: "transport", message: "unexpected response shape for GET /youtube/playlist" };
-    }
-    return { kind: "ok", data: playlist };
-  }
+    getYoutubePlaylist: (url: string) =>
+      request(youtubePlaylistSchema, `/youtube/playlist?url=${encodeURIComponent(url)}`),
+  };
 }
 
-/** アプリ全体で共有する ApiClient 実体。 */
-export const apiClient: ApiClient = new HttpApiClient();
+export const apiClient = createApiClient();

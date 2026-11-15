@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { parseYoutubeCommentPage } from "@/types/youtubeComments";
+import { youtubeCommentPageSchema } from "@/types/youtubeComments";
 import { makeRawYoutubeComment, makeRawYoutubeCommentPage } from "@/test/factories";
+
+const parse = (raw: unknown) => youtubeCommentPageSchema.safeParse(raw).data ?? null;
 
 describe("YoutubeCommentPage の API 境界", () => {
   it("スレッドと返信をキャメルケースに正規化する", () => {
@@ -13,7 +15,7 @@ describe("YoutubeCommentPage の API 境界", () => {
       ],
       20,
     );
-    expect(parseYoutubeCommentPage(raw)).toEqual({
+    expect(parse(raw)).toEqual({
       totalThreads: 1,
       totalComments: 2,
       nextOffset: 20,
@@ -45,7 +47,7 @@ describe("YoutubeCommentPage の API 境界", () => {
   });
 
   it("YouTube 以外の形や欠けた項目は null を返す（error-path）", () => {
-    expect(parseYoutubeCommentPage({ ...makeRawYoutubeCommentPage(), platform: "x" })).toBeNull();
-    expect(parseYoutubeCommentPage({ threads: [] })).toBeNull();
+    expect(parse({ ...makeRawYoutubeCommentPage(), platform: "x" })).toBeNull();
+    expect(parse({ threads: [] })).toBeNull();
   });
 });

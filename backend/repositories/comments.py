@@ -5,10 +5,9 @@ from functools import cached_property
 
 import boto3
 from boto3.dynamodb.conditions import Key
-from botocore.config import Config
 from botocore.exceptions import ClientError
 
-from repositories.videos import conditional
+from repositories.aws import BatchRepository, condition_failed, conditional, read_secret
 
 
 class CommentBackupRepository:
@@ -101,30 +100,16 @@ class CommentBackupRepository:
             )
             return True
         except ClientError as error:
-            if error.response["Error"]["Code"] == "ConditionalCheckFailedException":
+            if condition_failed(error):
                 return False
             raise
 
 
-class CommentJobRepository:
+class CommentJobRepository(BatchRepository):
     """Submits each platform's comment job (its own Batch job definition) to the comment queue."""
 
-    def __init__(self, session=None):
-        self.session = session or boto3.Session()
-
-    @cached_property
-    def batch(self):
-        # SubmitJob has no idempotency token: never automatically resend an ambiguous request.
-        return self.session.client("batch", config=Config(retries={"total_max_attempts": 1}))
-
-    @cached_property
-    def ssm(self):
-        return self.session.client("ssm")
-
     def submit(self, platform: str, url: str, attempt: str, key: str) -> str:
-        cookie = self.ssm.get_parameter(
-            Name=os.environ["SSM_COOKIE_S3_PATH_PARAMETER"], WithDecryption=True
-        )["Parameter"]["Value"]
+        cookie = read_secret(self.ssm, "SSM_COOKIE_S3_PATH_PARAMETER")
         prefix = platform.upper()
         env = {
             "URL": url,
@@ -140,13 +125,6 @@ class CommentJobRepository:
             containerOverrides={"environment": [{"name": k, "value": v} for k, v in env.items()]},
         )
         return result["jobId"]
-
-    def get(self, job_id: str) -> dict | None:
-        jobs = self.batch.describe_jobs(jobs=[job_id])["jobs"]
-        return jobs[0] if jobs else None
-
-    def terminate(self, job_id: str, reason: str) -> None:
-        self.batch.terminate_job(jobId=job_id, reason=reason)
 
 
 class CommentObjectRepository:

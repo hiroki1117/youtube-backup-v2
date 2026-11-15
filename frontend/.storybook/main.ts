@@ -16,7 +16,6 @@ const STORYBOOK_ENV = {
   VITE_API_BASE_URL: "https://api.test.invalid",
   VITE_COGNITO_USER_POOL_ID: "us-east-1_examplepool",
   VITE_COGNITO_CLIENT_ID: "testclientid0000000000",
-  VITE_COGNITO_REGION: "us-east-1",
 } as const satisfies Record<`VITE_${string}`, string>;
 
 const config: StorybookConfig = {

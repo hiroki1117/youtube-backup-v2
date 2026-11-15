@@ -6,20 +6,6 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from usecases.models import DomainError
-from wiring import (
-    get_comment_service,
-    get_playlist_service,
-    get_search_service,
-    get_service,
-)
-
-__all__ = [
-    "get_comment_service",
-    "get_playlist_service",
-    "get_search_service",
-    "get_service",
-    "require_auth",
-]
 
 bearer = HTTPBearer(auto_error=False)
 

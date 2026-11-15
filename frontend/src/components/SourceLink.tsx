@@ -3,18 +3,8 @@ import { platformLabel } from "@/components/PlatformIcon";
 import { parseHttpsUrl } from "@/lib/url";
 import type { Video } from "@/types/video";
 
-/**
- * バックアップ元の動画（元 URL）を新しいタブで開くリンク（presentational）。
- * 文言は行き先のプラットフォーム名で「YouTube で開く」とし、外部へ出ることを ↗ アイコンで示す。
- * API 由来の URL を href に入れるため、https 以外（javascript: 等）は描画しない（NFR4）。
- * `noopener noreferrer` で開いた先から元ページを操作・参照させない（タブナビング対策）。
- */
-export interface SourceLinkProps {
-  video: Video;
-  className?: string;
-}
-
-export function SourceLink({ video, className }: SourceLinkProps) {
+/** API 由来の URL を href に入れるため、https 以外（javascript: 等）は描画しない。 */
+export function SourceLink({ video }: { video: Video }) {
   const url = parseHttpsUrl(video.videoUrl);
   if (url === null) {
     return null;
@@ -27,10 +17,7 @@ export function SourceLink({ video, className }: SourceLinkProps) {
       rel="noopener noreferrer"
       aria-label={`${text}: ${video.title}`}
       // 負のマージンで、周囲の行間を変えずにタップ領域だけを広げる。
-      className={
-        className ??
-        "-my-3 inline-flex items-center gap-1 py-3 text-sm text-primary hover:underline"
-      }
+      className="-my-3 inline-flex items-center gap-1 py-3 text-sm text-primary hover:underline"
       data-testid="source-link"
     >
       {text}

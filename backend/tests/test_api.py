@@ -7,13 +7,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.app import app, create_app
-from api.dependencies import get_service
 from api.factory import build_app
 from api.routes import backup_router, comment_router, search_router, video_router
 from build_lambda import HANDLERS
 from entrypoints.backup import handler as backup_handler
 from entrypoints.comments import handler as comments_handler
 from entrypoints.video import handler as video_handler
+from wiring import get_service
 
 URL = "https://www.youtube.com/watch?v=abcdefghijk"
 
@@ -125,7 +125,7 @@ def gateway_event(path, claims=None):
 
 def test_lambda_authorizer_and_resource_split(service, monkeypatch):
     monkeypatch.setenv("BACKEND_LOCAL_TOKEN", "should-not-authorize-lambda")
-    with patch("api.dependencies.get_service", return_value=service):
+    with patch("wiring.get_service", return_value=service):
         # Override the original dependency used by both resource-specific apps.
         for handler in [video_handler, backup_handler]:
             handler.app.dependency_overrides[get_service] = lambda: service
